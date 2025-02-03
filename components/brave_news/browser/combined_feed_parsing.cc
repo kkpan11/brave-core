@@ -5,20 +5,23 @@
 
 #include "brave/components/brave_news/browser/combined_feed_parsing.h"
 
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "base/feature_list.h"
 #include "base/logging.h"
-#include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/types/expected.h"
 #include "brave/components/brave_news/api/combined_feed.h"
+#include "brave/components/brave_news/browser/channel_migrator.h"
 #include "brave/components/brave_news/common/brave_news.mojom-forward.h"
-#include "brave/components/brave_news/common/brave_news.mojom-shared.h"
 #include "brave/components/brave_news/common/brave_news.mojom.h"
+#include "brave/components/brave_news/common/features.h"
 #include "ui/base/l10n/time_format.h"
 #include "url/gurl.h"
 
@@ -48,9 +51,13 @@ base::expected<mojom::FeedItemPtr, std::string> ParseFeedItem(
         base::StrCat({"Item url was not HTTP or HTTPS: url=", url.spec()}));
   }
 
-  if (feed_item.padded_img.empty()) {
-    return base::unexpected(base::StrCat(
-        {"Found feed item with missing image. url=", feed_item.url}));
+  // FeedV2 supports articles with no images, such as the ones from Brave Blog.
+  if (!base::FeatureList::IsEnabled(
+          brave_news::features::kBraveNewsFeedUpdate)) {
+    if (feed_item.padded_img.empty()) {
+      return base::unexpected(base::StrCat(
+          {"Found feed item with missing image. url=", feed_item.url}));
+    }
   }
 
   if (feed_item.publisher_id.empty()) {
@@ -69,7 +76,13 @@ base::expected<mojom::FeedItemPtr, std::string> ParseFeedItem(
   }
 
   auto metadata = mojom::FeedItemMetadata::New();
-  metadata->category_name = feed_item.category;
+  metadata->category_name = GetMigratedChannel(feed_item.category);
+  if (feed_item.channels) {
+    std::ranges::transform(*feed_item.channels,
+                           std::back_inserter(metadata->channels),
+                           &GetMigratedChannel);
+  }
+
   metadata->title = feed_item.title;
   metadata->description = feed_item.description;
   metadata->publisher_id = feed_item.publisher_id;
@@ -131,7 +144,8 @@ base::expected<mojom::FeedItemPtr, std::string> ParseFeedItem(
 std::vector<mojom::FeedItemPtr> ParseFeedItems(const base::Value& value) {
   std::vector<mojom::FeedItemPtr> items;
   if (!value.is_list()) {
-    NOTREACHED();
+    VLOG(1) << "Expected combined feed json to be a list but was "
+            << value.type() << ". Returning an empty list of items.";
     return items;
   }
   for (const base::Value& feed_item : value.GetList()) {

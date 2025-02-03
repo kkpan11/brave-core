@@ -5,37 +5,39 @@
 
 #include "brave/components/ai_chat/core/common/pref_names.h"
 
+#include <string_view>
+
+#include "base/time/time.h"
+#include "brave/components/ai_chat/core/common/features.h"
 #include "components/prefs/pref_registry_simple.h"
-#include "components/prefs/pref_service.h"
 
 namespace ai_chat::prefs {
 
-namespace {
-
-inline constexpr char kObseleteBraveChatAutoGenerateQuestions[] =
-    "brave.ai_chat.auto_generate_questions";
-
-}  // namespace
-
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
-  registry->RegisterTimePref(kLastAcceptedDisclaimer, {});
-  registry->RegisterBooleanPref(kBraveChatAutocompleteProviderEnabled, true);
-  registry->RegisterBooleanPref(kUserDismissedPremiumPrompt, false);
-  registry->RegisterStringPref(kDefaultModelKey, "chat-default");
+  if (ai_chat::features::IsAIChatEnabled()) {
+    registry->RegisterTimePref(kLastAcceptedDisclaimer, {});
+    registry->RegisterBooleanPref(kBraveChatStorageEnabled, true);
+    registry->RegisterBooleanPref(kBraveChatAutocompleteProviderEnabled, true);
+    registry->RegisterBooleanPref(kUserDismissedPremiumPrompt, false);
+    registry->RegisterBooleanPref(kUserDismissedStorageNotice, false);
 #if BUILDFLAG(IS_ANDROID)
-  registry->RegisterBooleanPref(kBraveChatSubscriptionActiveAndroid, false);
-  registry->RegisterStringPref(kBraveChatPurchaseTokenAndroid, "");
-  registry->RegisterStringPref(kBraveChatPackageNameAndroid, "");
-  registry->RegisterStringPref(kBraveChatProductIdAndroid, "");
+    registry->RegisterBooleanPref(kBraveChatSubscriptionActiveAndroid, false);
+    registry->RegisterStringPref(kBraveChatPurchaseTokenAndroid, "");
+    registry->RegisterStringPref(kBraveChatPackageNameAndroid, "");
+    registry->RegisterStringPref(kBraveChatProductIdAndroid, "");
+    registry->RegisterStringPref(kBraveChatOrderIdAndroid, "");
 #endif
+    registry->RegisterBooleanPref(kBraveAIChatContextMenuEnabled, true);
+    registry->RegisterBooleanPref(kBraveAIChatShowToolbarButton, true);
+  }
+  registry->RegisterBooleanPref(kEnabledByPolicy, true);
 }
 
 void RegisterProfilePrefsForMigration(PrefRegistrySimple* registry) {
-  registry->RegisterBooleanPref(kObseleteBraveChatAutoGenerateQuestions, false);
-}
-
-void MigrateProfilePrefs(PrefService* profile_prefs) {
-  profile_prefs->ClearPref(kObseleteBraveChatAutoGenerateQuestions);
+  if (ai_chat::features::IsAIChatEnabled()) {
+    registry->RegisterBooleanPref(kObseleteBraveChatAutoGenerateQuestions,
+                                  false);
+  }
 }
 
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {

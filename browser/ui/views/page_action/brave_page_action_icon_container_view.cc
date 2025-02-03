@@ -5,23 +5,40 @@
 
 #include "brave/browser/ui/views/page_action/brave_page_action_icon_container_view.h"
 
+#include <algorithm>
+
 #include "base/check_is_test.h"
 #include "brave/browser/ui/page_action/brave_page_action_icon_type.h"
-#include "brave/components/brave_player/common/buildflags/buildflags.h"
 #include "brave/components/playlist/common/features.h"
+#include "brave/components/speedreader/common/buildflags/buildflags.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_params.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 
-#if BUILDFLAG(ENABLE_BRAVE_PLAYER)
-#include "brave/components/brave_player/common/features.h"
+#if BUILDFLAG(ENABLE_SPEEDREADER)
+#include "brave/components/speedreader/common/features.h"
 #endif
 
 namespace {
 
 PageActionIconParams& ModifyIconParamsForBrave(PageActionIconParams& params) {
   // Add actions for Brave
+  // |browser| is null for non-browser window. See LocationBarView::Init().
+  if (!params.browser) {
+    return params;
+  }
+
+  if (sharing_hub::HasPageAction(params.browser->profile(),
+                                 params.browser->is_type_popup())) {
+    params.types_enabled.push_back(PageActionIconType::kSharingHub);
+  }
+
+  params.types_enabled.insert(
+      std::ranges::find(params.types_enabled, PageActionIconType::kSharingHub),
+      brave::kWaybackMachineActionIconType);
+
   if (base::FeatureList::IsEnabled(playlist::features::kPlaylist)) {
     // Browser could be null if the location bar was created for
     // PresentationReceiverWindowView.
@@ -29,22 +46,21 @@ PageActionIconParams& ModifyIconParamsForBrave(PageActionIconParams& params) {
         !params.browser->profile()->IsOffTheRecord()) {
       // Insert Playlist action before sharing hub or at the end of the vector.
       params.types_enabled.insert(
-          base::ranges::find(params.types_enabled,
-                             PageActionIconType::kSharingHub),
+          std::ranges::find(params.types_enabled,
+                            PageActionIconType::kSharingHub),
           brave::kPlaylistPageActionIconType);
     }
   }
 
-#if BUILDFLAG(ENABLE_BRAVE_PLAYER)
-  if (base::FeatureList::IsEnabled(brave_player::features::kBravePlayer)) {
-    if (params.browser && params.browser->is_type_normal()) {
-      auto insert_iter =
-          base::ranges::find_if(params.types_enabled, [](const auto& type) {
-            return type == PageActionIconType::kSharingHub ||
-                   type == brave::kPlaylistPageActionIconType;
-          });
-      params.types_enabled.insert(insert_iter,
-                                  brave::kBravePlayerPageActionIconType);
+#if BUILDFLAG(ENABLE_SPEEDREADER)
+  if (base::FeatureList::IsEnabled(speedreader::kSpeedreaderFeature)) {
+    if (params.browser) {
+      params.types_enabled.insert(
+          std::ranges::find(
+              params.types_enabled,
+              PageActionIconType::kCookieControls),  // The place where
+                                                     // kReaderMode was.
+          brave::kSpeedreaderPageActionIconType);
     }
   }
 #endif
@@ -60,5 +76,5 @@ BravePageActionIconContainerView::BravePageActionIconContainerView(
 
 BravePageActionIconContainerView::~BravePageActionIconContainerView() = default;
 
-BEGIN_METADATA(BravePageActionIconContainerView, PageActionIconContainerView)
+BEGIN_METADATA(BravePageActionIconContainerView)
 END_METADATA

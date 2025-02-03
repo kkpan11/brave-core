@@ -4,6 +4,10 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
+import { skipToken } from '@reduxjs/toolkit/query'
+import ProgressRingReact from '@brave/leo/react/progressRing'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
+import ControlItem from '@brave/leo/react/controlItem'
 
 // redux
 import { useDispatch, useSelector } from 'react-redux'
@@ -14,9 +18,13 @@ import {
   AccountsTabActions
 } from '../../../../page/reducers/accounts-tab-reducer'
 
+// selectors
+import { useSafeWalletSelector } from '../../../../common/hooks/use-safe-selector'
+import { WalletSelectors } from '../../../../common/selectors'
+
 // utils
 import { getLocale, getLocaleWithTag } from '../../../../../common/locale'
-import { generateQRCode } from '../../../../utils/qr-code-utils'
+import getAPIProxy from '../../../../common/async/bridge'
 
 // constants
 import { FILECOIN_FORMAT_DESCRIPTION_URL } from '../../../../common/constants/urls'
@@ -25,92 +33,190 @@ import { FILECOIN_FORMAT_DESCRIPTION_URL } from '../../../../common/constants/ur
 import { AccountButtonOptions } from '../../../../options/account-list-button-options'
 
 // types
-import { BraveWallet } from '../../../../constants/types'
+import {
+  BraveWallet,
+  zcashAddressOptionType
+} from '../../../../constants/types'
 
 // components
-import { NavButton } from '../../../extension/buttons/nav-button/index'
 import { CopyTooltip } from '../../../shared/copy-tooltip/copy-tooltip'
 import PopupModal from '../index'
 import PasswordInput from '../../../shared/password-input/index'
+import {
+  CreateAccountIcon //
+} from '../../../shared/create-account-icon/create-account-icon'
 
 // hooks
 import { useIsMounted } from '../../../../common/hooks/useIsMounted'
 import { usePasswordAttempts } from '../../../../common/hooks/use-password-attempts'
-import { useApiProxy } from '../../../../common/hooks/use-api-proxy'
-import { useAccountOrb } from '../../../../common/hooks/use-orb'
 import {
-  useGenerateReceiveAddressMutation,
-  useUpdateAccountNameMutation
+  useGetQrCodeImageQuery,
+  useGetZCashAccountInfoQuery,
+  useUpdateAccountNameMutation //
 } from '../../../../common/slices/api.slice'
+import {
+  useReceiveAddressQuery //
+} from '../../../../common/slices/api.slice.extra'
 
 // style
 import {
-  Input,
   StyledWrapper,
   QRCodeWrapper,
   AddressButton,
   ButtonRow,
   CopyIcon,
   PrivateKeyWrapper,
-  WarningText,
-  WarningWrapper,
   PrivateKeyBubble,
   ButtonWrapper,
   ErrorText,
   Line,
-  NameAndIcon,
-  AccountCircle,
-  AccountName
+  QRCodeImage,
+  EditWrapper,
+  Alert,
+  ControlsWrapper,
+  SegmentedControl
 } from './account-settings-modal.style'
-import { VerticalSpacer } from '../../../shared/style'
+import {
+  Column,
+  LeoSquaredButton,
+  Text,
+  VerticalSpacer
+} from '../../../shared/style'
+import { Skeleton } from '../../../shared/loading-skeleton/styles'
 
+const zcashAddressOptions: zcashAddressOptionType[] = [
+  {
+    addressType: 'unified',
+    label: 'braveWalletUnified'
+  },
+  {
+    addressType: 'shielded',
+    label: 'braveWalletShielded'
+  },
+  {
+    addressType: 'transparent',
+    label: 'braveWalletTransparent'
+  }
+]
 interface DepositModalProps {
   selectedAccount: BraveWallet.AccountInfo
 }
 
-const DepositModal = ({ selectedAccount }: DepositModalProps) => {
-  const isMounted = useIsMounted()
-  const orb = useAccountOrb(selectedAccount)
-  const [qrCode, setQRCode] = React.useState<string>('')
-  const [receiveAddress, setReceiveAddress] = React.useState<string>('')
-  const [generateReceiveAddress] = useGenerateReceiveAddressMutation()
+export const DepositModal = ({ selectedAccount }: DepositModalProps) => {
+  // state
+  const [selectedZCashAddressOption, setSelectedZCashAddressOption] =
+    React.useState<string>('unified')
 
-  // effects
-  React.useEffect(() => {
-    ;(async () => {
-      const address = await generateReceiveAddress(
-        selectedAccount.accountId
-      ).unwrap()
-      setReceiveAddress(address)
-      const qrCode = await generateQRCode(address)
-      if (isMounted) {
-        setQRCode(qrCode)
-      }
-    })()
-  }, [isMounted])
+  // redux
+  const isZCashShieldedTransactionsEnabled = useSafeWalletSelector(
+    WalletSelectors.isZCashShieldedTransactionsEnabled
+  )
 
+  // queries and memos
+  const { receiveAddress } = useReceiveAddressQuery(selectedAccount.accountId)
+  const { data: zcashAccountInfo } = useGetZCashAccountInfoQuery(
+    isZCashShieldedTransactionsEnabled &&
+      selectedAccount.accountId.coin === BraveWallet.CoinType.ZEC
+      ? selectedAccount.accountId
+      : skipToken
+  )
+
+  const displayAddress = React.useMemo(() => {
+    if (
+      isZCashShieldedTransactionsEnabled &&
+      selectedAccount.accountId.coin === BraveWallet.CoinType.ZEC &&
+      zcashAccountInfo?.accountShieldBirthday
+    ) {
+      return selectedZCashAddressOption === 'unified'
+        ? zcashAccountInfo.unifiedAddress
+        : selectedZCashAddressOption === 'shielded'
+        ? zcashAccountInfo.orchardAddress
+        : zcashAccountInfo.nextTransparentReceiveAddress.addressString
+    }
+    return receiveAddress
+  }, [
+    isZCashShieldedTransactionsEnabled,
+    selectedAccount,
+    receiveAddress,
+    zcashAccountInfo,
+    selectedZCashAddressOption
+  ])
+
+  const { data: qrCode, isFetching: isLoadingQrCode } = useGetQrCodeImageQuery(
+    displayAddress || skipToken
+  )
+
+  // render
   return (
-    <>
-      <NameAndIcon>
-        <AccountCircle orb={orb} />
-        <AccountName>{selectedAccount.name}</AccountName>
-      </NameAndIcon>
-      <QRCodeWrapper src={qrCode} />
-      <CopyTooltip text={receiveAddress}>
-        <AddressButton>
-          {receiveAddress}
-          <CopyIcon />
-        </AddressButton>
-      </CopyTooltip>
+    <Column padding='0px 16px'>
+      <Column
+        gap='8px'
+        margin='0px 0px 24px 0px'
+      >
+        <CreateAccountIcon
+          account={selectedAccount}
+          size='huge'
+        />
+        <Text
+          textSize='14px'
+          textColor='primary'
+        >
+          {selectedAccount.name}
+        </Text>
+      </Column>
+
+      {zcashAccountInfo && zcashAccountInfo.accountShieldBirthday && (
+        <ControlsWrapper width='unset'>
+          <SegmentedControl
+            value={selectedZCashAddressOption}
+            onChange={({ value }) => {
+              if (value) {
+                setSelectedZCashAddressOption(value)
+              }
+            }}
+          >
+            {zcashAddressOptions.map((option) => (
+              <ControlItem
+                key={option.addressType}
+                value={option.addressType}
+              >
+                {getLocale(option.label)}
+              </ControlItem>
+            ))}
+          </SegmentedControl>
+        </ControlsWrapper>
+      )}
+
+      <QRCodeWrapper>
+        {isLoadingQrCode || !displayAddress ? (
+          <ProgressRingReact mode='indeterminate' />
+        ) : (
+          <QRCodeImage src={qrCode} />
+        )}
+      </QRCodeWrapper>
+
+      {displayAddress ? (
+        <CopyTooltip text={displayAddress}>
+          <AddressButton>
+            {displayAddress}
+            <CopyIcon />
+          </AddressButton>
+        </CopyTooltip>
+      ) : (
+        <Skeleton
+          height={'20px'}
+          width={'300px'}
+        />
+      )}
       <VerticalSpacer space={20} />
-    </>
+    </Column>
   )
 }
 
 export const AccountSettingsModal = () => {
   // custom hooks
   const isMounted = useIsMounted()
-  const { keyringService } = useApiProxy()
+
   // redux
   const dispatch = useDispatch()
 
@@ -125,9 +231,9 @@ export const AccountSettingsModal = () => {
   )
 
   // state
-  const [accountName, setAccountName] = React.useState<string>(
-    selectedAccount?.name ?? ''
-  )
+  const [fullLengthAccountName, setFullLengthAccountName] =
+    React.useState<string>(selectedAccount?.name ?? '')
+  const accountName = fullLengthAccountName.substring(0, 30)
   const [updateError, setUpdateError] = React.useState<boolean>(false)
   const [password, setPassword] = React.useState<string>('')
   const [privateKey, setPrivateKey] = React.useState<string>('')
@@ -143,32 +249,31 @@ export const AccountSettingsModal = () => {
   // methods
   const onViewPrivateKey = React.useCallback(
     async (accountId: BraveWallet.AccountId) => {
-      const { privateKey } = await keyringService.encodePrivateKeyForExport(
-        accountId,
-        password
-      )
+      const { privateKey } =
+        await getAPIProxy().keyringService.encodePrivateKeyForExport(
+          accountId,
+          password
+        )
       if (isMounted) {
         return setPrivateKey(privateKey)
       }
     },
-    [password, keyringService, isMounted]
+    [password, isMounted]
   )
 
   const onDoneViewingPrivateKey = React.useCallback(() => {
     setPrivateKey('')
   }, [])
 
-  const handleAccountNameChanged = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setAccountName(event.target.value)
+  const handleAccountNameChanged = (detail: InputEventDetail) => {
+    setFullLengthAccountName(detail.value)
     setUpdateError(false)
   }
 
-  const onClose = () => {
+  const onClose = React.useCallback(() => {
     dispatch(AccountsTabActions.setShowAccountModal(false))
     dispatch(AccountsTabActions.setAccountModalType('deposit'))
-  }
+  }, [dispatch])
 
   const onSubmitUpdateName = React.useCallback(async () => {
     if (!selectedAccount || !accountName) {
@@ -184,7 +289,7 @@ export const AccountSettingsModal = () => {
     } catch (error) {
       setUpdateError(true)
     }
-  }, [selectedAccount, accountName, dispatch, onClose])
+  }, [selectedAccount, accountName, updateAccountName, onClose])
 
   const onShowPrivateKey = async () => {
     if (!password || !selectedAccount) {
@@ -218,8 +323,8 @@ export const AccountSettingsModal = () => {
     onClose()
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && accountName) {
+  const handleKeyDown = (detail: InputEventDetail) => {
+    if ((detail.innerEvent as unknown as KeyboardEvent).key === 'Enter') {
       onSubmitUpdateName()
     }
   }
@@ -252,6 +357,9 @@ export const AccountSettingsModal = () => {
     return ''
   }, [accountModalType])
 
+  // computed
+  const showNameInputErrors = accountName === ''
+
   // render
   return (
     <PopupModal
@@ -264,52 +372,59 @@ export const AccountSettingsModal = () => {
           <DepositModal selectedAccount={selectedAccount} />
         )}
         {accountModalType === 'edit' && (
-          <>
+          <EditWrapper>
             <Input
               value={accountName}
               placeholder={getLocale('braveWalletAddAccountPlaceholder')}
-              onChange={handleAccountNameChanged}
+              onInput={handleAccountNameChanged}
               onKeyDown={handleKeyDown}
-            />
+              showErrors={showNameInputErrors}
+              size='large'
+              maxlength={BraveWallet.ACCOUNT_NAME_MAX_CHARACTER_LENGTH}
+            >
+              {
+                // Label
+                getLocale('braveWalletAddAccountPlaceholder')
+              }
+            </Input>
+
             {updateError && (
               <ErrorText>
                 {getLocale('braveWalletAccountSettingsUpdateError')}
               </ErrorText>
             )}
+
             <ButtonRow>
-              <NavButton
-                onSubmit={onSubmitUpdateName}
-                disabled={!accountName}
-                text={getLocale('braveWalletAccountSettingsSave')}
-                buttonType='secondary'
-              />
+              <LeoSquaredButton
+                onClick={onSubmitUpdateName}
+                isDisabled={showNameInputErrors}
+                kind='filled'
+              >
+                {getLocale('braveWalletAccountSettingsSave')}
+              </LeoSquaredButton>
             </ButtonRow>
-          </>
+          </EditWrapper>
         )}
         {accountModalType === 'privateKey' && (
           <PrivateKeyWrapper>
-            <WarningWrapper>
-              <WarningText>
-                {getLocale('braveWalletAccountSettingsDisclaimer')}
-              </WarningText>
-            </WarningWrapper>
+            <Alert type='warning'>
+              {getLocale('braveWalletAccountSettingsDisclaimer')}
+            </Alert>
             {privateKey ? (
               <>
                 {selectedAccount?.accountId.coin ===
                   BraveWallet.CoinType.FIL && (
-                  <WarningWrapper>
-                    <WarningText>
-                      {filPrivateKeyFormatDescriptionTextParts.beforeTag}
-                      <a
-                        target='_blank'
-                        href={FILECOIN_FORMAT_DESCRIPTION_URL}
-                        rel='noopener noreferrer'
-                      >
-                        {filPrivateKeyFormatDescriptionTextParts.duringTag}
-                      </a>
-                      {filPrivateKeyFormatDescriptionTextParts.afterTag}
-                    </WarningText>
-                  </WarningWrapper>
+                  <Alert type='warning'>
+                    {filPrivateKeyFormatDescriptionTextParts.beforeTag}
+                    <a
+                      target='_blank'
+                      href={FILECOIN_FORMAT_DESCRIPTION_URL}
+                      rel='noopener noreferrer'
+                    >
+                      {filPrivateKeyFormatDescriptionTextParts.duringTag}
+                    </a>
+                    {filPrivateKeyFormatDescriptionTextParts.afterTag}
+                  </Alert>
                 )}
                 <CopyTooltip text={privateKey}>
                   <PrivateKeyBubble>{privateKey}</PrivateKeyBubble>
@@ -329,18 +444,19 @@ export const AccountSettingsModal = () => {
               />
             )}
             <ButtonWrapper>
-              <NavButton
-                onSubmit={!privateKey ? onShowPrivateKey : onHidePrivateKey}
-                text={getLocale(
+              <LeoSquaredButton
+                onClick={!privateKey ? onShowPrivateKey : onHidePrivateKey}
+                kind='filled'
+                isDisabled={
+                  privateKey ? false : password ? !isCorrectPassword : true
+                }
+              >
+                {getLocale(
                   !privateKey
                     ? 'braveWalletAccountSettingsShowKey'
                     : 'braveWalletAccountSettingsHideKey'
                 )}
-                buttonType='primary'
-                disabled={
-                  privateKey ? false : password ? !isCorrectPassword : true
-                }
-              />
+              </LeoSquaredButton>
             </ButtonWrapper>
           </PrivateKeyWrapper>
         )}

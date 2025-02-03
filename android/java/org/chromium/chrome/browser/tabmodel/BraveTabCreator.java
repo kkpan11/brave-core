@@ -11,6 +11,7 @@ import android.os.Build;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.BraveReflectionUtil;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.BraveActivity;
@@ -19,7 +20,8 @@ import org.chromium.chrome.browser.new_tab_url.DseNewTabUrlManager;
 import org.chromium.chrome.browser.ntp_background_images.NTPBackgroundImagesBridge;
 import org.chromium.chrome.browser.ntp_background_images.util.SponsoredImageUtil;
 import org.chromium.chrome.browser.preferences.BravePref;
-import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabDelegateFactory;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -33,8 +35,8 @@ public class BraveTabCreator extends ChromeTabCreator {
             Activity activity,
             WindowAndroid nativeWindow,
             Supplier<TabDelegateFactory> tabDelegateFactory,
+            OneshotSupplier<ProfileProvider> profileProviderSupplier,
             boolean incognito,
-            OverviewNTPCreator overviewNTPCreator,
             AsyncTabParamsManager asyncTabParamsManager,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
             Supplier<CompositorViewHolder> compositorViewHolderSupplier,
@@ -43,8 +45,8 @@ public class BraveTabCreator extends ChromeTabCreator {
                 activity,
                 nativeWindow,
                 tabDelegateFactory,
+                profileProviderSupplier,
                 incognito,
-                overviewNTPCreator,
                 asyncTabParamsManager,
                 tabModelSelectorSupplier,
                 compositorViewHolderSupplier,
@@ -61,12 +63,14 @@ public class BraveTabCreator extends ChromeTabCreator {
             if (chromeTabbedActivity != null && Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
                 TabModel tabModel = chromeTabbedActivity.getCurrentTabModel();
                 if (tabModel.getCount() >= SponsoredImageUtil.MAX_TABS
-                        && UserPrefs.get(Profile.getLastUsedRegularProfile())
-                                   .getBoolean(BravePref.NEW_TAB_PAGE_SHOW_BACKGROUND_IMAGE)) {
-                    Tab tab = BraveActivity.class.cast(chromeTabbedActivity)
-                                      .selectExistingTab(UrlConstants.NTP_URL);
+                        && UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
+                                .getBoolean(BravePref.NEW_TAB_PAGE_SHOW_BACKGROUND_IMAGE)) {
+                    Tab tab =
+                            BraveActivity.class
+                                    .cast(chromeTabbedActivity)
+                                    .selectExistingTab(UrlConstants.NTP_URL);
                     if (tab != null) {
-                        BraveReflectionUtil.InvokeMethod(
+                        BraveReflectionUtil.invokeMethod(
                                 ChromeTabbedActivity.class, chromeTabbedActivity, "hideOverview");
                         return tab;
                     }
@@ -86,7 +90,7 @@ public class BraveTabCreator extends ChromeTabCreator {
     }
 
     private void registerPageView() {
-        NTPBackgroundImagesBridge.getInstance(Profile.getLastUsedRegularProfile())
+        NTPBackgroundImagesBridge.getInstance(ProfileManager.getLastUsedRegularProfile())
                 .registerPageView();
     }
 }

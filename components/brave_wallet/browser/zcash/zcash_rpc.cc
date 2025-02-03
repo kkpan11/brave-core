@@ -5,19 +5,28 @@
 
 #include "brave/components/brave_wallet/browser/zcash/zcash_rpc.h"
 
+#include <utility>
+
 #include "base/functional/bind.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_utils.h"
 #include "brave/components/brave_wallet/common/brave_wallet.mojom.h"
+#include "brave/components/services/brave_wallet/public/cpp/brave_wallet_utils_service.h"
+#include "brave/components/services/brave_wallet/public/cpp/utils/protobuf_utils.h"
+#include "brave/components/services/brave_wallet/public/proto/zcash_grpc_data.pb.h"
+#include "components/grit/brave_components_strings.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
+#include "ui/base/l10n/l10n_util.h"
 
 namespace brave_wallet {
 
 namespace {
+
+constexpr size_t kMaxBodySize = 5000;
 
 // Checks if provided stream contains any messages.
 class IsKnownAddressTxStreamHandler : public GRrpcMessageStreamHandler {
@@ -25,8 +34,8 @@ class IsKnownAddressTxStreamHandler : public GRrpcMessageStreamHandler {
   using ResultCallback =
       base::OnceCallback<void(base::expected<bool, std::string>)>;
 
-  IsKnownAddressTxStreamHandler() {}
-  ~IsKnownAddressTxStreamHandler() override {}
+  IsKnownAddressTxStreamHandler() = default;
+  ~IsKnownAddressTxStreamHandler() override = default;
 
   void set_callback(ResultCallback callback) {
     callback_ = std::move(callback);
@@ -42,7 +51,8 @@ class IsKnownAddressTxStreamHandler : public GRrpcMessageStreamHandler {
 
   void OnComplete(bool success) override {
     if (!success) {
-      std::move(callback_).Run(base::unexpected("stream error"));
+      std::move(callback_).Run(base::unexpected(
+          l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
       return;
     }
     std::move(callback_).Run(tx_found_);
@@ -53,10 +63,42 @@ class IsKnownAddressTxStreamHandler : public GRrpcMessageStreamHandler {
   ResultCallback callback_;
 };
 
+class GetCompactBlocksGrpcStreamHandler : public GRrpcMessageStreamHandler {
+ public:
+  using ResultCallback = base::OnceCallback<void(
+      base::expected<std::vector<std::string>, std::string>)>;
+
+  GetCompactBlocksGrpcStreamHandler() = default;
+  ~GetCompactBlocksGrpcStreamHandler() override = default;
+
+  void set_callback(ResultCallback callback) {
+    callback_ = std::move(callback);
+  }
+
+ private:
+  bool ProcessMessage(std::string_view message) override {
+    messages_.push_back(std::string(message));
+    return true;
+  }
+
+  void OnComplete(bool success) override {
+    if (!success) {
+      std::move(callback_).Run(base::unexpected(
+          l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+      return;
+    }
+    std::move(callback_).Run(std::move(messages_));
+  }
+
+ private:
+  std::vector<std::string> messages_;
+  ResultCallback callback_;
+};
+
 net::NetworkTrafficAnnotationTag GetNetworkTrafficAnnotationTag() {
   return net::DefineNetworkTrafficAnnotation("zcash_rpc", R"(
       semantics {
-        sender: "ZCash RPC"
+        sender: "Zcash RPC"
         description:
           "This service is used to communicate with ZCash Lightwalletd nodes "
           "on behalf of the user interacting with the native Brave wallet."
@@ -81,7 +123,41 @@ bool UrlPathEndsWithSlash(const GURL& base_url) {
   return !path_piece.empty() && path_piece.back() == '/';
 }
 
-const GURL MakeGetAddressUtxosURL(const GURL& base_url) {
+GURL MakeGetTreeStateUrl(const GURL& base_url) {
+  if (!base_url.is_valid()) {
+    return GURL();
+  }
+  if (!UrlPathEndsWithSlash(base_url)) {
+    return GURL();
+  }
+
+  GURL::Replacements replacements;
+  std::string path =
+      base::StrCat({base_url.path(),
+                    "cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTreeState"});
+  replacements.SetPathStr(path);
+
+  return base_url.ReplaceComponents(replacements);
+}
+
+GURL MakeGetLatestTreeStateUrl(const GURL& base_url) {
+  if (!base_url.is_valid()) {
+    return GURL();
+  }
+  if (!UrlPathEndsWithSlash(base_url)) {
+    return GURL();
+  }
+
+  GURL::Replacements replacements;
+  std::string path = base::StrCat(
+      {base_url.path(),
+       "cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLatestTreeState"});
+  replacements.SetPathStr(path);
+
+  return base_url.ReplaceComponents(replacements);
+}
+
+GURL MakeGetAddressUtxosURL(const GURL& base_url) {
   if (!base_url.is_valid()) {
     return GURL();
   }
@@ -98,7 +174,7 @@ const GURL MakeGetAddressUtxosURL(const GURL& base_url) {
   return base_url.ReplaceComponents(replacements);
 }
 
-const GURL MakeSendTransactionURL(const GURL& base_url) {
+GURL MakeSendTransactionURL(const GURL& base_url) {
   if (!base_url.is_valid()) {
     return GURL();
   }
@@ -115,7 +191,7 @@ const GURL MakeSendTransactionURL(const GURL& base_url) {
   return base_url.ReplaceComponents(replacements);
 }
 
-const GURL MakeGetTaddressTxURL(const GURL& base_url) {
+GURL MakeGetTaddressTxURL(const GURL& base_url) {
   if (!base_url.is_valid()) {
     return GURL();
   }
@@ -132,7 +208,7 @@ const GURL MakeGetTaddressTxURL(const GURL& base_url) {
   return base_url.ReplaceComponents(replacements);
 }
 
-const GURL MakeGetLatestBlockHeightURL(const GURL& base_url) {
+GURL MakeGetLatestBlockHeightURL(const GURL& base_url) {
   if (!base_url.is_valid()) {
     return GURL();
   }
@@ -149,7 +225,24 @@ const GURL MakeGetLatestBlockHeightURL(const GURL& base_url) {
   return base_url.ReplaceComponents(replacements);
 }
 
-const GURL MakeGetTransactionURL(const GURL& base_url) {
+GURL MakeGetLightdInfoURL(const GURL& base_url) {
+  if (!base_url.is_valid()) {
+    return GURL();
+  }
+  if (!UrlPathEndsWithSlash(base_url)) {
+    return GURL();
+  }
+
+  GURL::Replacements replacements;
+  std::string path =
+      base::StrCat({base_url.path(),
+                    "cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLightdInfo"});
+  replacements.SetPathStr(path);
+
+  return base_url.ReplaceComponents(replacements);
+}
+
+GURL MakeGetTransactionURL(const GURL& base_url) {
   if (!base_url.is_valid()) {
     return GURL();
   }
@@ -166,20 +259,56 @@ const GURL MakeGetTransactionURL(const GURL& base_url) {
   return base_url.ReplaceComponents(replacements);
 }
 
+GURL MakeGetCompactBlocksURL(const GURL& base_url) {
+  if (!base_url.is_valid()) {
+    return GURL();
+  }
+  if (!UrlPathEndsWithSlash(base_url)) {
+    return GURL();
+  }
+
+  GURL::Replacements replacements;
+  std::string path =
+      base::StrCat({base_url.path(),
+                    "cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange"});
+  replacements.SetPathStr(path);
+
+  return base_url.ReplaceComponents(replacements);
+}
+
+std::string MakeGetTreeStateURLParams(
+    const zcash::mojom::BlockIDPtr& block_id) {
+  ::zcash::BlockID request;
+  auto hash = block_id->hash;
+  request.set_hash(std::string(hash.begin(), hash.end()));
+  request.set_height(block_id->height);
+  return GetPrefixedProtobuf(request.SerializeAsString());
+}
+
+std::string MakeGetLatestTreeStateURLParams() {
+  ::zcash::Empty request;
+  return GetPrefixedProtobuf(request.SerializeAsString());
+}
+
 std::string MakeGetAddressUtxosURLParams(const std::string& address) {
-  zcash::GetAddressUtxosRequest request;
+  ::zcash::GetAddressUtxosRequest request;
   request.add_addresses(address);
   request.set_startheight(0);
   return GetPrefixedProtobuf(request.SerializeAsString());
 }
 
 std::string MakeGetLatestBlockHeightParams() {
-  zcash::ChainSpec request;
+  ::zcash::ChainSpec request;
+  return GetPrefixedProtobuf(request.SerializeAsString());
+}
+
+std::string MakeGetLightdInfoParams() {
+  ::zcash::Empty request;
   return GetPrefixedProtobuf(request.SerializeAsString());
 }
 
 std::string MakeGetTransactionParams(const std::string& tx_hash) {
-  zcash::TxFilter request;
+  ::zcash::TxFilter request;
   std::string as_bytes;
   base::HexStringToString(tx_hash, &as_bytes);
   std::reverse(as_bytes.begin(), as_bytes.end());
@@ -187,21 +316,21 @@ std::string MakeGetTransactionParams(const std::string& tx_hash) {
   return GetPrefixedProtobuf(request.SerializeAsString());
 }
 
-std::string MakeSendTransactionParams(const std::string& data) {
-  zcash::RawTransaction request;
-  request.set_data(data);
+std::string MakeSendTransactionParams(base::span<const uint8_t> data) {
+  ::zcash::RawTransaction request;
+  request.set_data(reinterpret_cast<const char*>(data.data()), data.size());
   return GetPrefixedProtobuf(request.SerializeAsString());
 }
 
 std::string MakeGetAddressTxParams(const std::string& address,
                                    uint64_t block_start,
                                    uint64_t block_end) {
-  zcash::TransparentAddressBlockFilter request;
+  ::zcash::TransparentAddressBlockFilter request;
   request.New();
 
-  zcash::BlockRange range;
-  zcash::BlockID bottom;
-  zcash::BlockID top;
+  ::zcash::BlockRange range;
+  ::zcash::BlockID bottom;
+  ::zcash::BlockID top;
 
   bottom.set_height(block_start);
   top.set_height(block_end);
@@ -211,6 +340,22 @@ std::string MakeGetAddressTxParams(const std::string& address,
   range.mutable_end()->CopyFrom(top);
   request.mutable_range()->CopyFrom(range);
   return GetPrefixedProtobuf(request.SerializeAsString());
+}
+
+std::string MakeGetCompactBlocksParams(uint32_t block_start,
+                                       uint32_t block_end) {
+  ::zcash::BlockRange range;
+
+  ::zcash::BlockID bottom;
+  ::zcash::BlockID top;
+
+  bottom.set_height(block_start);
+  top.set_height(block_end);
+
+  range.mutable_start()->CopyFrom(bottom);
+  range.mutable_end()->CopyFrom(top);
+
+  return GetPrefixedProtobuf(range.SerializeAsString());
 }
 
 std::unique_ptr<network::SimpleURLLoader> MakeGRPCLoader(
@@ -236,20 +381,68 @@ std::unique_ptr<network::SimpleURLLoader> MakeGRPCLoader(
 }  // namespace
 
 ZCashRpc::ZCashRpc(
-    PrefService* prefs,
+    NetworkManager* network_manager,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
-    : prefs_(prefs), url_loader_factory_(url_loader_factory) {}
+    : network_manager_(network_manager),
+      url_loader_factory_(url_loader_factory) {}
 
 ZCashRpc::~ZCashRpc() = default;
+
+void ZCashRpc::GetTreeState(const std::string& chain_id,
+                            zcash::mojom::BlockIDPtr block_id,
+                            GetTreeStateCallback callback) {
+  GURL request_url = MakeGetTreeStateUrl(GetNetworkURL(chain_id));
+
+  if (!request_url.is_valid()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  auto url_loader =
+      MakeGRPCLoader(request_url, MakeGetTreeStateURLParams(block_id));
+
+  UrlLoadersList::iterator it = url_loaders_list_.insert(
+      url_loaders_list_.begin(), std::move(url_loader));
+
+  (*it)->DownloadToString(
+      url_loader_factory_.get(),
+      base::BindOnce(&ZCashRpc::OnGetTreeStateResponse,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
+      kMaxBodySize);
+}
+
+void ZCashRpc::GetLatestTreeState(const std::string& chain_id,
+                                  GetTreeStateCallback callback) {
+  GURL request_url = MakeGetLatestTreeStateUrl(GetNetworkURL(chain_id));
+
+  if (!request_url.is_valid()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  auto url_loader =
+      MakeGRPCLoader(request_url, MakeGetLatestTreeStateURLParams());
+
+  UrlLoadersList::iterator it = url_loaders_list_.insert(
+      url_loaders_list_.begin(), std::move(url_loader));
+
+  (*it)->DownloadToString(
+      url_loader_factory_.get(),
+      base::BindOnce(&ZCashRpc::OnGetTreeStateResponse,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
+      kMaxBodySize);
+}
 
 void ZCashRpc::GetUtxoList(const std::string& chain_id,
                            const std::string& address,
                            ZCashRpc::GetUtxoListCallback callback) {
-  GURL request_url = MakeGetAddressUtxosURL(
-      GetNetworkURL(prefs_, chain_id, mojom::CoinType::ZEC));
+  GURL request_url = MakeGetAddressUtxosURL(GetNetworkURL(chain_id));
 
   if (!request_url.is_valid()) {
-    std::move(callback).Run(base::unexpected("Request URL is invalid."));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
@@ -263,16 +456,16 @@ void ZCashRpc::GetUtxoList(const std::string& chain_id,
       url_loader_factory_.get(),
       base::BindOnce(&ZCashRpc::OnGetUtxosResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
-      5000);
+      kMaxBodySize);
 }
 
 void ZCashRpc::GetLatestBlock(const std::string& chain_id,
                               GetLatestBlockCallback callback) {
-  GURL request_url = MakeGetLatestBlockHeightURL(
-      GetNetworkURL(prefs_, chain_id, mojom::CoinType::ZEC));
+  GURL request_url = MakeGetLatestBlockHeightURL(GetNetworkURL(chain_id));
 
   if (!request_url.is_valid()) {
-    std::move(callback).Run(base::unexpected("Request URL is invalid."));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
@@ -286,17 +479,17 @@ void ZCashRpc::GetLatestBlock(const std::string& chain_id,
       url_loader_factory_.get(),
       base::BindOnce(&ZCashRpc::OnGetLatestBlockResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
-      5000);
+      kMaxBodySize);
 }
 
 void ZCashRpc::GetTransaction(const std::string& chain_id,
                               const std::string& tx_hash,
                               GetTransactionCallback callback) {
-  GURL request_url = MakeGetTransactionURL(
-      GetNetworkURL(prefs_, chain_id, mojom::CoinType::ZEC));
+  GURL request_url = MakeGetTransactionURL(GetNetworkURL(chain_id));
 
   if (!request_url.is_valid()) {
-    std::move(callback).Run(base::unexpected("Request URL is invalid."));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
@@ -310,115 +503,187 @@ void ZCashRpc::GetTransaction(const std::string& chain_id,
       url_loader_factory_.get(),
       base::BindOnce(&ZCashRpc::OnGetTransactionResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
-      5000);
+      200000 /* custom amount since transaction may contain orchard part */);
 }
 
-void ZCashRpc::OnGetUtxosResponse(
-    ZCashRpc::GetUtxoListCallback callback,
+void ZCashRpc::GetCompactBlocks(const std::string& chain_id,
+                                uint32_t from,
+                                uint32_t to,
+                                GetCompactBlocksCallback callback) {
+  GURL request_url = MakeGetCompactBlocksURL(GetNetworkURL(chain_id));
+
+  if (!request_url.is_valid()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  auto url_loader =
+      MakeGRPCLoader(request_url, MakeGetCompactBlocksParams(from, to));
+
+  UrlLoadersList::iterator it = url_loaders_list_.insert(
+      url_loaders_list_.begin(), std::move(url_loader));
+
+  auto compact_blocks_stream_handler =
+      std::make_unique<GetCompactBlocksGrpcStreamHandler>();
+  compact_blocks_stream_handler->set_message_data_limit(2 * 1000 * 1000);
+
+  StreamHandlersList::iterator handler_it = stream_handlers_list_.insert(
+      stream_handlers_list_.begin(), std::move(compact_blocks_stream_handler));
+
+  static_cast<GetCompactBlocksGrpcStreamHandler*>(handler_it->get())
+      ->set_callback(base::BindOnce(&ZCashRpc::OnGetCompactBlocksResponse,
+                                    weak_ptr_factory_.GetWeakPtr(),
+                                    std::move(callback), it, handler_it));
+
+  (*it)->DownloadAsStream(url_loader_factory_.get(), handler_it->get());
+}
+
+void ZCashRpc::GetLightdInfo(const std::string& chain_id,
+                             GetLightdInfoCallback callback) {
+  GURL request_url = MakeGetLightdInfoURL(GetNetworkURL(chain_id));
+
+  if (!request_url.is_valid()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  auto url_loader = MakeGRPCLoader(request_url, MakeGetLightdInfoParams());
+
+  UrlLoadersList::iterator it = url_loaders_list_.insert(
+      url_loaders_list_.begin(), std::move(url_loader));
+
+  (*it)->DownloadToString(
+      url_loader_factory_.get(),
+      base::BindOnce(&ZCashRpc::OnGetLightdInfoResponse,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
+      kMaxBodySize);
+}
+
+void ZCashRpc::OnGetCompactBlocksResponse(
+    ZCashRpc::GetCompactBlocksCallback callback,
     UrlLoadersList::iterator it,
-    const std::unique_ptr<std::string> response_body) {
+    StreamHandlersList::iterator handler_it,
+    base::expected<std::vector<std::string>, std::string> result) {
+  url_loaders_list_.erase(it);
+  stream_handlers_list_.erase(handler_it);
+
+  if (!result.has_value()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  GetDecoder()->ParseCompactBlocks(
+      *result,
+      base::BindOnce(&ZCashRpc::OnParseCompactBlocks,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void ZCashRpc::OnGetUtxosResponse(ZCashRpc::GetUtxoListCallback callback,
+                                  UrlLoadersList::iterator it,
+                                  std::unique_ptr<std::string> response_body) {
   auto current_loader = std::move(*it);
   url_loaders_list_.erase(it);
   if (current_loader->NetError()) {
-    std::move(callback).Run(base::unexpected("Network error"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
   if (!response_body) {
-    std::move(callback).Run(base::unexpected("Response body is empty"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
     return;
   }
 
-  auto message = ResolveSerializedMessage(*response_body);
-  if (!message) {
-    std::move(callback).Run(base::unexpected("Wrong response format"));
+  GetDecoder()->ParseGetAddressUtxos(
+      *response_body,
+      base::BindOnce(
+          &ZCashRpc::OnParseResult<zcash::mojom::GetAddressUtxosResponsePtr>,
+          weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void ZCashRpc::OnParseCompactBlocks(
+    GetCompactBlocksCallback callback,
+    std::optional<std::vector<zcash::mojom::CompactBlockPtr>> compact_blocks) {
+  if (compact_blocks) {
+    std::move(callback).Run(std::move(compact_blocks.value()));
+  } else {
+    std::move(callback).Run(base::unexpected("Cannot parse blocks"));
+  }
+}
+
+template <typename T>
+void ZCashRpc::OnParseResult(
+    base::OnceCallback<void(base::expected<T, std::string>)> callback,
+    T value) {
+  if (value) {
+    std::move(callback).Run(std::move(value));
     return;
   }
 
-  zcash::GetAddressUtxosResponse response;
-  if (!response.ParseFromString(message.value())) {
-    std::move(callback).Run(base::unexpected("Can't parse response"));
-    return;
-  }
-
-  std::vector<zcash::ZCashUtxo> result;
-  for (const auto& item : response.addressutxos()) {
-    result.push_back(item);
-  }
-
-  std::move(callback).Run(result);
+  std::move(callback).Run(
+      base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
 }
 
 void ZCashRpc::OnGetLatestBlockResponse(
     ZCashRpc::GetLatestBlockCallback callback,
     UrlLoadersList::iterator it,
-    const std::unique_ptr<std::string> response_body) {
+    std::unique_ptr<std::string> response_body) {
   auto current_loader = std::move(*it);
   url_loaders_list_.erase(it);
-  zcash::BlockID response;
   if (current_loader->NetError()) {
-    std::move(callback).Run(base::unexpected("Network error"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
   if (!response_body) {
-    std::move(callback).Run(base::unexpected("Response body is empty"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
     return;
   }
 
-  auto message = ResolveSerializedMessage(*response_body);
-  if (!message) {
-    std::move(callback).Run(base::unexpected("Wrong response format"));
-    return;
-  }
-
-  if (!response.ParseFromString(message.value())) {
-    std::move(callback).Run(base::unexpected("Can't parse response"));
-    return;
-  }
-
-  std::move(callback).Run(response);
+  GetDecoder()->ParseBlockID(
+      *response_body,
+      base::BindOnce(&ZCashRpc::OnParseResult<zcash::mojom::BlockIDPtr>,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
 void ZCashRpc::OnGetTransactionResponse(
     ZCashRpc::GetTransactionCallback callback,
     UrlLoadersList::iterator it,
-    const std::unique_ptr<std::string> response_body) {
+    std::unique_ptr<std::string> response_body) {
   auto current_loader = std::move(*it);
   url_loaders_list_.erase(it);
-  zcash::RawTransaction response;
   if (current_loader->NetError()) {
-    std::move(callback).Run(base::unexpected("Network error"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
   if (!response_body) {
-    std::move(callback).Run(base::unexpected("Response body is empty"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
     return;
   }
 
-  auto message = ResolveSerializedMessage(*response_body);
-  if (!message) {
-    std::move(callback).Run(base::unexpected("Wrong response format"));
-    return;
-  }
-
-  if (!response.ParseFromString(message.value())) {
-    std::move(callback).Run(base::unexpected("Can't parse response"));
-    return;
-  }
-
-  std::move(callback).Run(response);
+  GetDecoder()->ParseRawTransaction(
+      *response_body,
+      base::BindOnce(&ZCashRpc::OnParseResult<zcash::mojom::RawTransactionPtr>,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
 void ZCashRpc::SendTransaction(const std::string& chain_id,
-                               const std::string& data,
+                               base::span<const uint8_t> data,
                                SendTransactionCallback callback) {
-  GURL request_url = MakeSendTransactionURL(
-      GetNetworkURL(prefs_, chain_id, mojom::CoinType::ZEC));
+  GURL request_url = MakeSendTransactionURL(GetNetworkURL(chain_id));
 
   if (!request_url.is_valid()) {
-    std::move(callback).Run(base::unexpected("Request URL is invalid."));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
@@ -432,7 +697,7 @@ void ZCashRpc::SendTransaction(const std::string& chain_id,
       url_loader_factory_.get(),
       base::BindOnce(&ZCashRpc::OnSendTransactionResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback), it),
-      5000);
+      kMaxBodySize);
 }
 
 void ZCashRpc::IsKnownAddress(const std::string& chain_id,
@@ -440,11 +705,11 @@ void ZCashRpc::IsKnownAddress(const std::string& chain_id,
                               uint64_t block_start,
                               uint64_t block_end,
                               IsKnownAddressCallback callback) {
-  GURL request_url = MakeGetTaddressTxURL(
-      GetNetworkURL(prefs_, chain_id, mojom::CoinType::ZEC));
+  GURL request_url = MakeGetTaddressTxURL(GetNetworkURL(chain_id));
 
   if (!request_url.is_valid()) {
-    std::move(callback).Run(base::unexpected("Request URL is invalid."));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
@@ -468,32 +733,49 @@ void ZCashRpc::IsKnownAddress(const std::string& chain_id,
 void ZCashRpc::OnSendTransactionResponse(
     ZCashRpc::SendTransactionCallback callback,
     UrlLoadersList::iterator it,
-    const std::unique_ptr<std::string> response_body) {
+    std::unique_ptr<std::string> response_body) {
   auto current_loader = std::move(*it);
   url_loaders_list_.erase(it);
-  zcash::SendResponse response;
   if (current_loader->NetError()) {
-    std::move(callback).Run(base::unexpected("Network error"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
   if (!response_body) {
-    std::move(callback).Run(base::unexpected("Response body is empty"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
     return;
   }
 
-  auto message = ResolveSerializedMessage(*response_body);
-  if (!message) {
-    std::move(callback).Run(base::unexpected("Wrong response format"));
+  GetDecoder()->ParseSendResponse(
+      *response_body,
+      base::BindOnce(&ZCashRpc::OnParseResult<zcash::mojom::SendResponsePtr>,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void ZCashRpc::OnGetTreeStateResponse(
+    ZCashRpc::GetTreeStateCallback callback,
+    UrlLoadersList::iterator it,
+    std::unique_ptr<std::string> response_body) {
+  auto current_loader = std::move(*it);
+  url_loaders_list_.erase(it);
+  if (current_loader->NetError()) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
-  if (!response.ParseFromString(message.value())) {
-    std::move(callback).Run(base::unexpected("Can't parse response"));
+  if (!response_body) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR)));
     return;
   }
 
-  std::move(callback).Run(response);
+  GetDecoder()->ParseTreeState(
+      *response_body,
+      base::BindOnce(&ZCashRpc::OnParseResult<zcash::mojom::TreeStatePtr>,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
 void ZCashRpc::OnGetAddressTxResponse(
@@ -501,18 +783,48 @@ void ZCashRpc::OnGetAddressTxResponse(
     UrlLoadersList::iterator it,
     StreamHandlersList::iterator handler_it,
     base::expected<bool, std::string> result) {
-  auto current_loader = std::move(*it);
-  auto current_handler = std::move(*handler_it);
-
   url_loaders_list_.erase(it);
   stream_handlers_list_.erase(handler_it);
 
   if (!result.has_value()) {
-    std::move(callback).Run(base::unexpected("Network error"));
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
     return;
   }
 
   std::move(callback).Run(result.value());
+}
+
+void ZCashRpc::OnGetLightdInfoResponse(
+    GetLightdInfoCallback callback,
+    UrlLoadersList::iterator it,
+    std::unique_ptr<std::string> response_body) {
+  url_loaders_list_.erase(it);
+
+  if (!response_body) {
+    std::move(callback).Run(
+        base::unexpected(l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR)));
+    return;
+  }
+
+  GetDecoder()->ParseLightdInfo(
+      *response_body,
+      base::BindOnce(&ZCashRpc::OnParseResult<zcash::mojom::LightdInfoPtr>,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+mojo::AssociatedRemote<zcash::mojom::ZCashDecoder>& ZCashRpc::GetDecoder() {
+  if (zcash_decoder_.is_bound()) {
+    return zcash_decoder_;
+  }
+  BraveWalletUtilsService::GetInstance()->CreateZCashDecoder(
+      zcash_decoder_.BindNewEndpointAndPassReceiver());
+  zcash_decoder_.reset_on_disconnect();
+  return zcash_decoder_;
+}
+
+GURL ZCashRpc::GetNetworkURL(const std::string& chain_id) {
+  return network_manager_->GetNetworkURL(chain_id, mojom::CoinType::ZEC);
 }
 
 }  // namespace brave_wallet

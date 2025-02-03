@@ -12,6 +12,7 @@
 #include "brave/components/brave_sync/network_time_helper.h"
 #include "brave/components/constants/brave_services_key.h"
 #include "brave/components/constants/network_constants.h"
+#include "google_apis/gaia/gaia_id.h"
 
 namespace syncer {
 
@@ -78,7 +79,7 @@ SyncAccountInfo BraveSyncAuthManager::DetermineAccountToUse() const {
         base::HexEncode(public_key_.data(), public_key_.size());
     AccountInfo account_info;
     account_info.account_id = CoreAccountId::FromString(client_id);
-    account_info.gaia = client_id;
+    account_info.gaia = GaiaId(client_id);
     // about:sync-internals needs space separator in order to confine table
     // data within specific width. (ex. client_version and encrypted_types)
     account_info.email =
@@ -114,8 +115,7 @@ std::string BraveSyncAuthManager::GenerateAccessToken(
   // base64(timestamp_hex|signed_timestamp_hex|public_key_hex)
   const std::string access_token =
       timestamp_hex + "|" + signed_timestamp_hex + "|" + public_key_hex;
-  std::string encoded_access_token;
-  base::Base64Encode(access_token, &encoded_access_token);
+  std::string encoded_access_token = base::Base64Encode(access_token);
   DCHECK(!encoded_access_token.empty());
 
   return encoded_access_token + AppendBraveServiceKeyHeaderString();

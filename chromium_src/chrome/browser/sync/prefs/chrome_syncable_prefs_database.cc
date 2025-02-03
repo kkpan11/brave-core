@@ -36,11 +36,21 @@ enum {
   kProfileDefaultContentSettingValuesFingerprintingV2 = 300017,
   kProfileDefaultContentSettingValuesBraveShields = 300018,
   kProfileDefaultContentSettingValuesBraveSpeedreader = 300019,
+  kProfileContentSettingsPartitionedExceptionsShieldsAds = 300020,
+  kProfileContentSettingsPartitionedExceptionsTrackers = 300021,
+  kProfileContentSettingsPartitionedExceptionsHttpsUpgrades = 300022,
+  kProfileContentSettingsPartitionedExceptionsHttpUpgradableResources = 300023,
+  kProfileContentSettingsPartitionedExceptionsReferrers = 300024,
+  kProfileContentSettingsPartitionedExceptionsShieldsCookiesV3 = 300025,
+  kProfileContentSettingsPartitionedExceptionsCosmeticFiltering = 300026,
+  kProfileContentSettingsPartitionedExceptionsFingerprintingV2 = 300027,
+  kProfileContentSettingsPartitionedExceptionsBraveShields = 300028,
+  kProfileContentSettingsPartitionedExceptionsBraveSpeedreader = 300029,
 };
 }  // namespace brave_syncable_prefs_ids
 
 const auto& BraveSyncablePreferences() {
-  static const auto kBraveSyncablePrefsAllowList = base::MakeFixedFlatMapSorted<
+  static constexpr auto kBraveSyncablePrefsAllowList = base::MakeFixedFlatMap<
       std::string_view, sync_preferences::SyncablePrefMetadata>({
       {"profile.content_settings.exceptions.braveShields",
        {brave_syncable_prefs_ids::kProfileContentSettingsExceptionsBraveShields,
@@ -135,6 +145,57 @@ const auto& BraveSyncablePreferences() {
        {brave_syncable_prefs_ids::kProfileDefaultContentSettingValuesTrackers,
         syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
         sync_preferences::MergeBehavior::kNone}},
+      {"profile.content_settings.partitioned_exceptions.braveShields",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsBraveShields,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.braveSpeedreader",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsBraveSpeedreader,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.cosmeticFiltering",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsCosmeticFiltering,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.fingerprintingV2",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsFingerprintingV2,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions."
+       "httpUpgradableResources",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsHttpUpgradableResources,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.httpsUpgrades",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsHttpsUpgrades,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.referrers",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsReferrers,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.shieldsAds",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsShieldsAds,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.shieldsCookiesV3",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsShieldsCookiesV3,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
+      {"profile.content_settings.partitioned_exceptions.trackers",
+       {brave_syncable_prefs_ids::
+            kProfileContentSettingsPartitionedExceptionsTrackers,
+        syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+        sync_preferences::MergeBehavior::kMergeableDict}},
   });
   return kBraveSyncablePrefsAllowList;
 }
@@ -149,8 +210,8 @@ namespace browser_sync {
 
 std::optional<sync_preferences::SyncablePrefMetadata>
 ChromeSyncablePrefsDatabase::GetSyncablePrefMetadata(
-    const std::string& pref_name) const {
-  const auto* it = BraveSyncablePreferences().find(pref_name);
+    std::string_view pref_name) const {
+  const auto it = BraveSyncablePreferences().find(pref_name);
   if (it != BraveSyncablePreferences().end()) {
     return it->second;
   }

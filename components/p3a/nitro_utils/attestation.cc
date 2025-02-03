@@ -3,6 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(https://github.com/brave/brave-browser/issues/41661): Remove this and
+// convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "brave/components/p3a/nitro_utils/attestation.h"
 
 #include <algorithm>
@@ -23,15 +29,14 @@
 #include "components/cbor/reader.h"
 #include "crypto/random.h"
 #include "net/base/url_util.h"
-#include "net/cert/pki/parsed_certificate.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
-#include "services/network/url_loader_factory.h"
 #include "third_party/boringssl/src/include/openssl/pool.h"
+#include "third_party/boringssl/src/pki/parsed_certificate.h"
 
 namespace nitro_utils {
 
@@ -153,7 +158,7 @@ bool VerifyUserDataKey(scoped_refptr<net::X509Certificate> server_cert,
   return false;
 }
 
-std::optional<net::ParsedCertificateList> ParseCertificatesAndCheckRoot(
+std::optional<bssl::ParsedCertificateList> ParseCertificatesAndCheckRoot(
     scoped_refptr<net::X509Certificate> server_cert,
     const cbor::Value::MapValue& cose_map) {
   const auto cert_it = cose_map.find(cbor::Value("certificate"));
@@ -173,19 +178,19 @@ std::optional<net::ParsedCertificateList> ParseCertificatesAndCheckRoot(
                  std::back_inserter(cert_vals),
                  [](const cbor::Value& val) { return val.Clone(); });
 
-  net::ParsedCertificateList cert_chain;
+  bssl::ParsedCertificateList cert_chain;
 
-  net::ParseCertificateOptions parse_cert_options;
+  bssl::ParseCertificateOptions parse_cert_options;
   // Nitro enclave certs seem to contain serial numbers that Chromium does not
   // like, so we disable serial number validation
   parse_cert_options.allow_invalid_serial_numbers = true;
-  net::CertErrors cert_errors;
+  bssl::CertErrors cert_errors;
   for (auto& cert_val : cert_vals) {
     if (!cert_val.is_bytestring()) {
       LOG(ERROR) << "Nitro verification: certificate is not bstr";
       return std::nullopt;
     }
-    if (!net::ParsedCertificate::CreateAndAddToVector(
+    if (!bssl::ParsedCertificate::CreateAndAddToVector(
             net::x509_util::CreateCryptoBuffer(cert_val.GetBytestring()),
             parse_cert_options, &cert_chain, &cert_errors)) {
       LOG(ERROR) << "Nitro verification: failed to parse certificate: "
@@ -260,7 +265,7 @@ void ParseAndVerifyDocument(
     return;
   }
 
-  std::optional<net::ParsedCertificateList> cert_chain =
+  std::optional<bssl::ParsedCertificateList> cert_chain =
       ParseCertificatesAndCheckRoot(server_cert, cose_map);
   if (!cert_chain.has_value()) {
     std::move(result_callback).Run(scoped_refptr<net::X509Certificate>());

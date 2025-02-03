@@ -5,7 +5,9 @@
 
 import("//extensions/buildflags/buildflags.gni")
 
-static_library("browser") {
+component("browser") {
+  defines = [ "IS_BRAVE_COMPONENT_UPDATER_IMPL" ]
+
   sources = [
     "brave_component.cc",
     "brave_component.h",
@@ -33,5 +35,21 @@ static_library("browser") {
     "//components/prefs",
     "//components/update_client",
     "//crypto",
+  ]
+}
+
+source_set("test_support") {
+  testonly = true
+
+  sources = [
+    "mock_on_demand_updater.cc",
+    "mock_on_demand_updater.h",
+  ]
+
+  deps = [
+    ":browser",
+    "//base",
+    "//components/component_updater",
+    "//testing/gmock",
   ]
 }

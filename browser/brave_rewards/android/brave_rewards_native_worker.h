@@ -1,12 +1,13 @@
 /* Copyright (c) 2019 The Brave Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 #ifndef BRAVE_BROWSER_BRAVE_REWARDS_ANDROID_BRAVE_REWARDS_NATIVE_WORKER_H_
 #define BRAVE_BROWSER_BRAVE_REWARDS_ANDROID_BRAVE_REWARDS_NATIVE_WORKER_H_
 
 #include <jni.h>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -16,10 +17,11 @@
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "brave/components/brave_ads/core/mojom/brave_ads.mojom.h"
-#include "brave/components/brave_rewards/browser/rewards_notification_service_observer.h"
-#include "brave/components/brave_rewards/browser/rewards_service_observer.h"
-#include "brave/components/brave_rewards/common/mojom/rewards.mojom.h"
+#include "brave/components/brave_rewards/content/rewards_notification_service_observer.h"
+#include "brave/components/brave_rewards/content/rewards_service_observer.h"
+#include "brave/components/brave_rewards/core/mojom/rewards.mojom.h"
 
 namespace brave_rewards {
 class RewardsService;
@@ -48,6 +50,8 @@ class BraveRewardsNativeWorker
       brave_rewards::mojom::CreateRewardsWalletResult result);
 
   bool IsRewardsEnabled(JNIEnv* env);
+
+  bool ShouldShowSelfCustodyInvite(JNIEnv* env);
 
   void CreateRewardsWallet(
       JNIEnv* env,
@@ -108,8 +112,6 @@ class BraveRewardsNativeWorker
 
   void GetCurrentBalanceReport(JNIEnv* env);
 
-  void IncludeInAutoContribution(JNIEnv* env, uint64_t tabId, bool exclude);
-
   void RemovePublisherFromMap(JNIEnv* env, uint64_t tabId);
 
   void Donate(JNIEnv* env,
@@ -123,21 +125,11 @@ class BraveRewardsNativeWorker
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& notification_id);
 
-  void GetGrant(JNIEnv* env,
-                const base::android::JavaParamRef<jstring>& promotionId);
-
-  base::android::ScopedJavaLocalRef<jobjectArray> GetCurrentGrant(JNIEnv* env,
-                                                                  int position);
-
   void GetRecurringDonations(JNIEnv* env);
 
   bool IsCurrentPublisherInRecurrentDonations(
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& publisher);
-
-  void GetAutoContributeProperties(JNIEnv* env);
-
-  bool IsAutoContributeEnabled(JNIEnv* env);
 
   void GetReconcileStamp(JNIEnv* env);
 
@@ -150,17 +142,15 @@ class BraveRewardsNativeWorker
   void RemoveRecurring(JNIEnv* env,
                        const base::android::JavaParamRef<jstring>& publisher);
 
-  void FetchGrants(JNIEnv* env);
-
   int GetAdsPerHour(JNIEnv* env);
 
   void SetAdsPerHour(JNIEnv* env, jint value);
 
-  void SetAutoContributionAmount(JNIEnv* env, jdouble value);
-
-  void GetAutoContributionAmount(JNIEnv* env);
-
   void GetExternalWallet(JNIEnv* env);
+
+  bool IsTermsOfServiceUpdateRequired(JNIEnv* env);
+
+  void AcceptTermsOfServiceUpdate(JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jstring> GetCountryCode(JNIEnv* env);
 
@@ -191,11 +181,6 @@ class BraveRewardsNativeWorker
 
   void OnGetGetReconcileStamp(uint64_t timestamp);
 
-  void OnGetAutoContributeProperties(
-      brave_rewards::mojom::AutoContributePropertiesPtr properties);
-
-  void OnGetAutoContributionAmount(double auto_contribution_amount);
-
   void OnPanelPublisherInfo(brave_rewards::RewardsService* rewards_service,
                             const brave_rewards::mojom::Result result,
                             const brave_rewards::mojom::PublisherInfo* info,
@@ -210,8 +195,7 @@ class BraveRewardsNativeWorker
       brave_rewards::RewardsService* rewards_service,
       brave_rewards::mojom::RewardsParametersPtr parameters);
 
-  void OnUnblindedTokensReady(
-      brave_rewards::RewardsService* rewards_service) override;
+  void OnTermsOfServiceUpdateAccepted() override;
 
   void OnReconcileComplete(
       brave_rewards::RewardsService* rewards_service,
@@ -236,16 +220,8 @@ class BraveRewardsNativeWorker
       const brave_rewards::RewardsNotificationService::RewardsNotification&
           notification) override;
 
-  void OnPromotionFinished(
-      brave_rewards::RewardsService* rewards_service,
-      const brave_rewards::mojom::Result result,
-      brave_rewards::mojom::PromotionPtr promotion) override;
-
   void OnGetRecurringTips(
       std::vector<brave_rewards::mojom::PublisherInfoPtr> list);
-
-  void OnClaimPromotion(const brave_rewards::mojom::Result result,
-                        brave_rewards::mojom::PromotionPtr promotion);
 
   void OnGetExternalWallet(brave_rewards::mojom::ExternalWalletPtr wallet);
 
@@ -263,7 +239,6 @@ class BraveRewardsNativeWorker
 
   void OnRefreshPublisher(const brave_rewards::mojom::PublisherStatus status,
                           const std::string& publisher_key);
-  void SetAutoContributeEnabled(JNIEnv* env, bool isAutoContributeEnabled);
 
  private:
   std::string StdStrStrMapToJsonString(
@@ -279,12 +254,16 @@ class BraveRewardsNativeWorker
   raw_ptr<brave_rewards::RewardsService> brave_rewards_service_ = nullptr;
   brave_rewards::mojom::RewardsParametersPtr parameters_;
   brave_rewards::mojom::Balance balance_;
-  brave_rewards::mojom::AutoContributePropertiesPtr auto_contrib_properties_;
   PublishersInfoMap map_publishers_info_;
   std::map<std::string, brave_rewards::mojom::PublisherInfoPtr>
       map_recurrent_publishers_;
   std::map<std::string, std::string> addresses_;
-  std::vector<brave_rewards::mojom::PromotionPtr> promotions_;
+  base::ScopedObservation<brave_rewards::RewardsService,
+                          brave_rewards::RewardsServiceObserver>
+      rewards_service_observation_{this};
+  base::ScopedObservation<brave_rewards::RewardsNotificationService,
+                          brave_rewards::RewardsNotificationServiceObserver>
+      rewards_notification_service_observation_{this};
   base::WeakPtrFactory<BraveRewardsNativeWorker> weak_factory_;
 };
 

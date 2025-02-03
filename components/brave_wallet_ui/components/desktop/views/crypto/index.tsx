@@ -4,22 +4,17 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
-import {
-  Route,
-  useHistory,
-  useLocation,
-  Switch,
-  Redirect
-} from 'react-router-dom'
+import { Route, useHistory, Switch, Redirect } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 
+// Options
+import { ExploreNavOptions } from '../../../../options/nav-options'
+
 // utils
+import { loadTimeData } from '../../../../../common/loadTimeData'
 import { getLocale } from '../../../../../common/locale'
-import {
-  useSafeWalletSelector,
-  useSafeUISelector
-} from '../../../../common/hooks/use-safe-selector'
-import { WalletSelectors, UISelectors } from '../../../../common/selectors'
+import { useSafeUISelector } from '../../../../common/hooks/use-safe-selector'
+import { UISelectors } from '../../../../common/selectors'
 import { openWalletSettings } from '../../../../utils/routes-utils'
 import {
   useGetDefaultEthereumWalletQuery,
@@ -34,49 +29,69 @@ import {
   AccountsTabState //
 } from '../../../../page/reducers/accounts-tab-reducer'
 
+// hooks
+import {
+  usePortfolioVisibleNetworks //
+} from '../../../../common/hooks/use_portfolio_networks'
+import {
+  usePortfolioAccounts //
+} from '../../../../common/hooks/use_portfolio_accounts'
+
 // style
-import { StyledWrapper } from './style'
+import {
+  StyledWrapper,
+  SegmentedControlsWrapperMarket,
+  SegmentedControlsWrapperWeb3
+} from './style'
 import { Column } from '../../../shared/style'
 
 // components
+import getWalletPageApiProxy from '../../../../page/wallet_page_api_proxy'
 import { WalletBanner } from '../../wallet-banner/index'
+import { ExploreWeb3Header } from '../../card-headers/explorer_web3_header'
 import {
   EditVisibleAssetsModal //
 } from '../../popup-modals/edit-visible-assets-modal/index'
 import { PortfolioOverview } from '../portfolio/portfolio-overview'
-import { PortfolioAsset } from '../portfolio/portfolio-asset'
+import { PortfolioFungibleAsset } from '../portfolio/portfolio-fungible-asset'
 import { PortfolioNftAsset } from '../portfolio/portfolio-nft-asset'
 import { MarketView } from '../market'
 import { Accounts } from '../accounts/accounts'
 import { Account } from '../accounts/account'
 import { AddAccountModal } from '../../popup-modals/add-account-modal/add-account-modal'
-import { ConfirmPasswordModal } from '../../popup-modals/confirm-password-modal/confirm-password-modal'
+import {
+  RemoveAccountModal //
+} from '../../popup-modals/confirm-password-modal/remove-account-modal'
 import { AccountSettingsModal } from '../../popup-modals/account-settings-modal/account-settings-modal'
 import TransactionsScreen from '../../../../page/screens/transactions/transactions-screen'
-import { LocalIpfsNodeScreen } from '../../local-ipfs-node/local-ipfs-node'
-import { InspectNftsScreen } from '../../inspect-nfts/inspect-nfts'
 import {
   WalletPageWrapper //
 } from '../../wallet-page-wrapper/wallet-page-wrapper'
 import {
   PortfolioOverviewHeader //
 } from '../../card-headers/portfolio-overview-header'
-import { PageTitleHeader } from '../../card-headers/page-title-header'
-
+import { MarketAsset } from '../market/market_asset'
+import { ExploreWeb3View } from '../explore_web3/explore_web3'
+import { NftCollection } from '../nfts/components/nft_collection'
+import {
+  SegmentedControl //
+} from '../../../shared/segmented_control/segmented_control'
 export interface Props {
   sessionRoute: string | undefined
 }
 
 export const CryptoView = ({ sessionRoute }: Props) => {
-  // redux
-  const isNftPinningFeatureEnabled = useSafeWalletSelector(
-    WalletSelectors.isNftPinningFeatureEnabled
-  )
+  const isAndroid = loadTimeData.getBoolean('isAndroid') || false
+
   const isPanel = useSafeUISelector(UISelectors.isPanel)
 
   const { accountToRemove, showAccountModal, selectedAccount } = useSelector(
     ({ accountsTab }: { accountsTab: AccountsTabState }) => accountsTab
   )
+
+  // custom hooks
+  const { visiblePortfolioNetworks } = usePortfolioVisibleNetworks()
+  const { usersFilteredAccounts } = usePortfolioAccounts()
 
   // queries
   const {
@@ -102,10 +117,14 @@ export const CryptoView = ({ sessionRoute }: Props) => {
 
   // routing
   const history = useHistory()
-  const location = useLocation()
 
   // methods
   const onShowBackup = React.useCallback(() => {
+    if (isAndroid) {
+      getWalletPageApiProxy().pageHandler.showWalletBackupUI()
+      return
+    }
+
     if (isPanel) {
       chrome.tabs.create(
         {
@@ -122,32 +141,23 @@ export const CryptoView = ({ sessionRoute }: Props) => {
       return
     }
     history.push(WalletRoutes.Backup)
-  }, [isPanel])
+  }, [isAndroid, isPanel, history])
 
-  const onShowVisibleAssetsModal = React.useCallback((showModal: boolean) => {
-    if (showModal) {
-      history.push(WalletRoutes.AddAssetModal)
-    } else {
-      history.push(WalletRoutes.PortfolioAssets)
-    }
-  }, [])
+  const onShowVisibleAssetsModal = React.useCallback(
+    (showModal: boolean) => {
+      if (showModal) {
+        history.push(WalletRoutes.AddAssetModal)
+      } else {
+        history.push(WalletRoutes.PortfolioAssets)
+      }
+    },
+    [history]
+  )
 
   const hideVisibleAssetsModal = React.useCallback(
     () => onShowVisibleAssetsModal(false),
     [onShowVisibleAssetsModal]
   )
-
-  const onClose = React.useCallback(() => {
-    history.push(WalletRoutes.PortfolioNFTs)
-  }, [])
-
-  const onBack = React.useCallback(() => {
-    if (location.key) {
-      history.goBack()
-    } else {
-      history.push(WalletRoutes.PortfolioNFTs)
-    }
-  }, [location.key])
 
   // computed
   const isCheckingWallets =
@@ -191,7 +201,7 @@ export const CryptoView = ({ sessionRoute }: Props) => {
                 setDismissBackupWarning(true)
               }}
               onClick={onShowBackup}
-              bannerType='danger'
+              bannerType='error'
               buttonText={getLocale('braveWalletBackupButton')}
               description={getLocale('braveWalletBackupWarningText')}
             />
@@ -222,11 +232,12 @@ export const CryptoView = ({ sessionRoute }: Props) => {
             noCardPadding={true}
             cardHeader={<PortfolioOverviewHeader />}
             useDarkBackground={isPanel}
+            isPortfolio={true}
           >
             <StyledWrapper>
               <Column
                 fullWidth={true}
-                padding='20px 20px 0px 20px'
+                padding={isPanel ? '0px' : '20px 20px 0px 20px'}
               >
                 {banners}
               </Column>
@@ -246,7 +257,17 @@ export const CryptoView = ({ sessionRoute }: Props) => {
           path={WalletRoutes.PortfolioAsset}
           exact
         >
-          <PortfolioAsset />
+          <PortfolioFungibleAsset />
+        </Route>
+
+        <Route
+          path={WalletRoutes.PortfolioNFTCollection}
+          exact
+        >
+          <NftCollection
+            networks={visiblePortfolioNetworks}
+            accounts={usersFilteredAccounts}
+          />
         </Route>
 
         <Route path={WalletRoutes.Portfolio}>
@@ -255,11 +276,12 @@ export const CryptoView = ({ sessionRoute }: Props) => {
             noCardPadding={true}
             cardHeader={<PortfolioOverviewHeader />}
             useDarkBackground={isPanel}
+            isPortfolio={true}
           >
             <StyledWrapper>
               <Column
                 fullWidth={true}
-                padding='20px 20px 0px 20px'
+                padding={isPanel ? '0px' : '20px 20px 0px 20px'}
               >
                 {banners}
               </Column>
@@ -294,12 +316,16 @@ export const CryptoView = ({ sessionRoute }: Props) => {
         >
           <WalletPageWrapper
             wrapContentInBox
-            cardHeader={
-              <PageTitleHeader title={getLocale('braveWalletTopNavMarket')} />
-            }
+            cardHeader={<ExploreWeb3Header />}
+            useCardInPanel={true}
           >
             <StyledWrapper>
-              {banners}
+              <SegmentedControlsWrapperMarket>
+                <SegmentedControl
+                  maxWidth='384px'
+                  navOptions={ExploreNavOptions}
+                />
+              </SegmentedControlsWrapperMarket>
               <MarketView />
             </StyledWrapper>
           </WalletPageWrapper>
@@ -311,10 +337,39 @@ export const CryptoView = ({ sessionRoute }: Props) => {
         >
           <WalletPageWrapper wrapContentInBox={true}>
             <StyledWrapper>
-              {banners}
-              <PortfolioAsset isShowingMarketData={true} />
+              <MarketAsset />
             </StyledWrapper>
           </WalletPageWrapper>
+        </Route>
+
+        {/* Web3 */}
+        <Route
+          path={WalletRoutes.Web3}
+          exact={true}
+        >
+          <WalletPageWrapper
+            wrapContentInBox
+            cardHeader={<ExploreWeb3Header />}
+            useCardInPanel={true}
+            noCardPadding
+          >
+            <StyledWrapper>
+              <SegmentedControlsWrapperWeb3>
+                <SegmentedControl
+                  maxWidth='384px'
+                  navOptions={ExploreNavOptions}
+                />
+              </SegmentedControlsWrapperWeb3>
+              <ExploreWeb3View />
+            </StyledWrapper>
+          </WalletPageWrapper>
+        </Route>
+
+        <Route
+          path={WalletRoutes.Explore}
+          exact={true}
+        >
+          <Redirect to={WalletRoutes.Market} />
         </Route>
 
         {/* Transactions */}
@@ -324,55 +379,6 @@ export const CryptoView = ({ sessionRoute }: Props) => {
         >
           <TransactionsScreen />
         </Route>
-
-        {/* NFT Pinning onboarding page */}
-        <Route
-          path={WalletRoutes.LocalIpfsNode}
-          exact={true}
-          render={(props) =>
-            isNftPinningFeatureEnabled ? (
-              <WalletPageWrapper
-                noPadding={true}
-                hideNav={true}
-                hideHeader={true}
-              >
-                <StyledWrapper>
-                  <LocalIpfsNodeScreen
-                    onClose={onClose}
-                    {...props}
-                  />
-                </StyledWrapper>
-              </WalletPageWrapper>
-            ) : (
-              <Redirect to={WalletRoutes.PortfolioAssets} />
-            )
-          }
-        />
-
-        {/* NFT Pinning inspect pinnable page */}
-        <Route
-          path={WalletRoutes.InspectNfts}
-          exact={true}
-          render={(props) =>
-            isNftPinningFeatureEnabled ? (
-              <WalletPageWrapper
-                noPadding={true}
-                hideNav={true}
-                hideHeader={true}
-              >
-                <StyledWrapper>
-                  <InspectNftsScreen
-                    onClose={onClose}
-                    onBack={onBack}
-                    {...props}
-                  />
-                </StyledWrapper>
-              </WalletPageWrapper>
-            ) : (
-              <Redirect to={WalletRoutes.PortfolioAssets} />
-            )
-          }
-        />
 
         <Redirect to={sessionRoute || WalletRoutes.PortfolioAssets} />
       </Switch>
@@ -391,7 +397,7 @@ export const CryptoView = ({ sessionRoute }: Props) => {
         </Route>
       </Switch>
 
-      {accountToRemove !== undefined && <ConfirmPasswordModal />}
+      {accountToRemove !== undefined && <RemoveAccountModal />}
 
       {showAccountModal && selectedAccount && <AccountSettingsModal />}
     </>

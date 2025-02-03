@@ -20,7 +20,7 @@ import {
   NetworkText,
   StyledWrapper,
   TopRow,
-  ButtonRow,
+  SignPanelButtonRow,
   HeaderTitle
 } from './style'
 import { WalletButton } from '../../shared/style'
@@ -61,7 +61,8 @@ const makeUnknownToken = (
   isNft: false,
   name: '',
   coingeckoId: UNKNOWN_TOKEN_COINGECKO_ID,
-  decimals: 0
+  decimals: 0,
+  isShielded: false
 })
 
 interface Props {
@@ -184,11 +185,11 @@ export function SignCowSwapOrder(props: Props) {
         <TextButton onClick={() => setShowDetails(!showDetails)}>
           {showDetails
             ? getLocale('braveWalletSignTransactionEIP712MessageHideDetails')
-            : getLocale('braveWalletSignTransactionEIP712MessageTitle')}
+            : getLocale('braveWalletDetails')}
         </TextButton>
       </NetworkFeeAndDetailsContainer>
 
-      <ButtonRow>
+      <SignPanelButtonRow>
         <NavButton
           buttonType='secondary'
           text={getLocale('braveWalletButtonCancel')}
@@ -201,7 +202,7 @@ export function SignCowSwapOrder(props: Props) {
           onSubmit={onSignIn}
           disabled={isDisabled}
         />
-      </ButtonRow>
+      </SignPanelButtonRow>
     </StyledWrapper>
   )
 }

@@ -1,12 +1,19 @@
 .cache/clangd
-/vendor/*
+vendor/python-patch
+vendor/sparkle
+vendor/bat-native-tweetnacl
+vendor/gn-project-generators
+vendor/web-discovery-project
+vendor/depot_tools
 .DS_Store
 .brave_gclient_*
 .gclient_*
 .tags*
 .cipd
+/.clang-format
 /.idea/
 /components/brave_new_tab_ui/data/LICENSE
+/components/brave_wallet/browser/zcash/rust/librustzcash/src/
 /components/brave_webtorrent/extension/out/
 /components/brave_rewards/resources/extension/brave_rewards/out/
 /components/third_party/adblock/LICENSE
@@ -26,12 +33,12 @@ patches/**/*.patchinfo
 /third_party/playlist_component/src
 /third_party/rapidjson/src
 /third_party/reclient_configs/src
-/third_party/rust/challenge_bypass_ristretto/v1/crate
-/third_party/rust/kuchiki/v0_8/crate
 /third_party/rust/futures_retry/v0_5/crate
 /third_party/cryptography
 /third_party/macholib
+/third_party/libdmg-hfsplus/
 *.xcodeproj
+!/ios/brave-ios/App/*.xcodeproj
 *.swp
 *.pyc
 *.VC.db
@@ -44,8 +51,11 @@ patches/**/*.patchinfo
 *.sln
 debug.log
 npm-debug.log
-.npmrc
-.env
+.npmrc*
+.env*
+engflow.crt
+*.key
+privkey.pem
 *~
 CMakeLists.txt
 cmake-build-debug/
@@ -61,3 +71,7 @@ venv/
 test_get_pkgs
 build/config/gclient_args.gni
 third_party/rust/target
+xcuserdata
+
+# buffer exclusion file generated locally during sync
+build/config/unsafe_buffers_paths.txt

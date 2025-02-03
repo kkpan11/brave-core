@@ -1,8 +1,8 @@
 diff --git a/third_party/blink/renderer/modules/websockets/websocket_channel_impl.h b/third_party/blink/renderer/modules/websockets/websocket_channel_impl.h
-index d8570665d9e6de6a548c37c1d9aa1eed52d79361..44e18a88e2f8f27f52bb561f0cbec766fcf761fc 100644
+index c37c96b9e3c1a8c72850eb022faf8217a54ec87f..f3a453d40c289f5a327378863951667f3f4f521a 100644
 --- a/third_party/blink/renderer/modules/websockets/websocket_channel_impl.h
 +++ b/third_party/blink/renderer/modules/websockets/websocket_channel_impl.h
-@@ -77,7 +77,7 @@ class WebSocketHandshakeThrottle;
+@@ -79,7 +79,7 @@ class WebSocketHandshakeThrottle;
  // This is an implementation of WebSocketChannel. This is created on the main
  // thread for Document, or on the worker thread for WorkerGlobalScope. All
  // functions must be called on the execution context's thread.
@@ -11,7 +11,7 @@ index d8570665d9e6de6a548c37c1d9aa1eed52d79361..44e18a88e2f8f27f52bb561f0cbec766
      : public WebSocketChannel,
        public network::mojom::blink::WebSocketHandshakeClient,
        public network::mojom::blink::WebSocketClient {
-@@ -364,6 +364,7 @@ class MODULES_EXPORT WebSocketChannelImpl final
+@@ -367,6 +367,7 @@ class MODULES_EXPORT WebSocketChannelImpl final
    void OnConnectionError(const base::Location& set_from,
                           uint32_t custom_reason,
                           const std::string& description);

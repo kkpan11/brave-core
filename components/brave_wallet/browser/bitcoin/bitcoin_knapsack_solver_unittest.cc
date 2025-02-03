@@ -7,16 +7,19 @@
 
 #include <utility>
 
+#include "base/containers/span.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "brave/components/brave_wallet/browser/bitcoin/bitcoin_keyring.h"
+#include "brave/components/brave_wallet/browser/bip39.h"
+#include "brave/components/brave_wallet/browser/bitcoin/bitcoin_hd_keyring.h"
 #include "brave/components/brave_wallet/browser/bitcoin/bitcoin_serializer.h"
-#include "brave/components/brave_wallet/browser/brave_wallet_utils.h"
 #include "brave/components/brave_wallet/browser/test_utils.h"
 #include "brave/components/brave_wallet/common/bitcoin_utils.h"
-#include "crypto/sha2.h"
+#include "components/grit/brave_components_strings.h"
+#include "crypto/hash.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/l10n/l10n_util.h"
 
 using testing::UnorderedElementsAreArray;
 
@@ -28,16 +31,14 @@ class BitcoinKnapsackSolverUnitTest : public testing::Test {
   ~BitcoinKnapsackSolverUnitTest() override = default;
 
  protected:
-  void SetUp() override {
-    keyring_.ConstructRootHDKey(*MnemonicToSeed(kMnemonicAbandonAbandon, ""),
-                                "m/84'/0'");
-  }
-
   BitcoinTransaction MakeMockTransaction(uint64_t amount,
                                          uint32_t receive_index = 123) {
     BitcoinTransaction transaction;
-    transaction.set_to(*keyring_.GetAddress(
-        1, mojom::BitcoinKeyId(kBitcoinReceiveIndex, receive_index)));
+    transaction.set_to(
+        keyring_
+            .GetAddress(
+                1, mojom::BitcoinKeyId(kBitcoinReceiveIndex, receive_index))
+            ->address_string);
     transaction.set_amount(amount);
     transaction.set_locktime(12345);
 
@@ -54,7 +55,8 @@ class BitcoinKnapsackSolverUnitTest : public testing::Test {
     change_output.type = BitcoinTransaction::TxOutputType::kChange;
     change_output.amount = 0;
     change_output.address =
-        *keyring_.GetAddress(0, mojom::BitcoinKeyId(kBitcoinChangeIndex, 456));
+        keyring_.GetAddress(0, mojom::BitcoinKeyId(kBitcoinChangeIndex, 456))
+            ->address_string;
     change_output.script_pubkey = BitcoinSerializer::AddressToScriptPubkey(
         change_output.address, testnet_);
     EXPECT_FALSE(change_output.script_pubkey.empty());
@@ -64,15 +66,16 @@ class BitcoinKnapsackSolverUnitTest : public testing::Test {
   }
 
   BitcoinTransaction::TxInput MakeMockTxInput(uint64_t amount, uint32_t index) {
-    auto address = keyring_.GetAddress(
-        0, mojom::BitcoinKeyId(kBitcoinReceiveIndex, index));
-    EXPECT_TRUE(address);
+    auto address =
+        keyring_
+            .GetAddress(0, mojom::BitcoinKeyId(kBitcoinReceiveIndex, index))
+            ->address_string;
 
     BitcoinTransaction::TxInput tx_input;
-    tx_input.utxo_address = *address;
-    std::string txid_fake = *address + base::NumberToString(amount);
+    tx_input.utxo_address = address;
+    std::string txid_fake = address + base::NumberToString(amount);
     tx_input.utxo_outpoint.txid =
-        crypto::SHA256Hash(base::as_bytes(base::make_span(txid_fake)));
+        crypto::hash::Sha256(base::as_byte_span(txid_fake));
     tx_input.utxo_outpoint.index = tx_input.utxo_outpoint.txid.back();
     tx_input.utxo_value = amount;
 
@@ -84,7 +87,8 @@ class BitcoinKnapsackSolverUnitTest : public testing::Test {
   double longterm_fee_rate() const { return 3.0; }
 
   bool testnet_ = false;
-  BitcoinKeyring keyring_{testnet_};
+  BitcoinHDKeyring keyring_{*bip39::MnemonicToSeed(kMnemonicAbandonAbandon),
+                            testnet_};
 };
 
 TEST_F(BitcoinKnapsackSolverUnitTest, NoInputs) {
@@ -93,7 +97,8 @@ TEST_F(BitcoinKnapsackSolverUnitTest, NoInputs) {
   KnapsackSolver solver(base_tx, fee_rate(), longterm_fee_rate(), {});
 
   // Can't send exactly what we have as we need to add some fee.
-  EXPECT_EQ("Insufficient funds", solver.Solve().error());
+  EXPECT_EQ(l10n_util::GetStringUTF8(IDS_BRAVE_WALLET_INSUFFICIENT_BALANCE),
+            solver.Solve().error());
 }
 
 TEST_F(BitcoinKnapsackSolverUnitTest, NotEnoughInputsForFee) {
@@ -105,7 +110,8 @@ TEST_F(BitcoinKnapsackSolverUnitTest, NotEnoughInputsForFee) {
   KnapsackSolver solver(base_tx, fee_rate(), longterm_fee_rate(), input_groups);
 
   // Can't send exact amount of coin we have as we need to add some fee.
-  EXPECT_EQ("Insufficient funds", solver.Solve().error());
+  EXPECT_EQ(l10n_util::GetStringUTF8(IDS_BRAVE_WALLET_INSUFFICIENT_BALANCE),
+            solver.Solve().error());
 }
 
 TEST_F(BitcoinKnapsackSolverUnitTest, NoChangeGenerated) {
@@ -141,7 +147,8 @@ TEST_F(BitcoinKnapsackSolverUnitTest, NoChangeGenerated) {
     auto tx = solver.Solve();
     // We have a bit less than send amount + fee. Can't create transaction.
     ASSERT_FALSE(tx.has_value());
-    EXPECT_EQ("Insufficient funds", tx.error());
+    EXPECT_EQ(l10n_util::GetStringUTF8(IDS_BRAVE_WALLET_INSUFFICIENT_BALANCE),
+              tx.error());
   }
 
   {

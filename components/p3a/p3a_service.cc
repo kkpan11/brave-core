@@ -82,6 +82,10 @@ P3AService::P3AService(PrefService& local_state,
   LoadDynamicMetrics();
   message_manager_ = std::make_unique<MessageManager>(
       local_state, &config_, *this, channel, week_of_install);
+  pref_change_registrar_.Init(&local_state);
+  pref_change_registrar_.Add(
+      kP3AEnabled, base::BindRepeating(&P3AService::OnP3AEnabledChanged,
+                                       base::Unretained(this)));
 }
 
 P3AService::~P3AService() = default;
@@ -96,7 +100,7 @@ void P3AService::RegisterPrefs(PrefRegistrySimple* registry, bool first_run) {
   registry->RegisterDictionaryPref(kDynamicMetricsDictPref);
 }
 
-void P3AService::InitCallback(const std::string_view histogram_name) {
+void P3AService::InitCallback(std::string_view histogram_name) {
   histogram_sample_callbacks_.push_back(
       std::make_unique<base::StatisticsRecorder::ScopedHistogramSampleObserver>(
           std::string(histogram_name),
@@ -105,20 +109,22 @@ void P3AService::InitCallback(const std::string_view histogram_name) {
 }
 
 void P3AService::InitCallbacks() {
-  for (const std::string_view histogram_name :
-       p3a::kCollectedTypicalHistograms) {
+  for (const auto& [histogram_name, _] : p3a::kCollectedTypicalHistograms) {
     InitCallback(histogram_name);
   }
-  for (const std::string_view histogram_name :
-       p3a::kCollectedExpressHistograms) {
+  for (const auto& [histogram_name, _] : p3a::kCollectedExpressHistograms) {
     InitCallback(histogram_name);
   }
-  for (const std::string_view histogram_name : p3a::kCollectedSlowHistograms) {
+  for (const auto& [histogram_name, _] : p3a::kCollectedSlowHistograms) {
     InitCallback(histogram_name);
   }
   for (const auto& [histogram_name, log_type] : dynamic_metric_log_types_) {
     RegisterDynamicMetric(histogram_name, log_type, false);
   }
+}
+
+void P3AService::StartTeardown() {
+  pref_change_registrar_.RemoveAll();
 }
 
 void P3AService::RegisterDynamicMetric(const std::string& histogram_name,
@@ -180,7 +186,10 @@ bool P3AService::IsP3AEnabled() const {
 
 void P3AService::Init(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
-  message_manager_->Init(url_loader_factory);
+  url_loader_factory_ = url_loader_factory;
+  if (local_state_->GetBoolean(kP3AEnabled)) {
+    message_manager_->Start(url_loader_factory);
+  }
 
   // Init basic prefs.
   initialized_ = true;
@@ -223,6 +232,14 @@ void P3AService::LoadDynamicMetrics() {
   }
 }
 
+void P3AService::OnP3AEnabledChanged() {
+  if (local_state_->GetBoolean(kP3AEnabled)) {
+    message_manager_->Start(url_loader_factory_);
+  } else {
+    message_manager_->Stop();
+  }
+}
+
 void P3AService::OnHistogramChanged(const char* histogram_name,
                                     uint64_t name_hash,
                                     base::HistogramBase::Sample sample) {
@@ -251,13 +268,11 @@ void P3AService::OnHistogramChanged(const char* histogram_name,
   const bool ok = samples->Iterator()->GetBucketIndex(&bucket);
   if (!ok) {
     LOG(ERROR) << "Only linear histograms are supported at the moment!";
-    NOTREACHED();
     return;
   }
 
   // Special handling of P2A histograms.
-  if (base::StartsWith(histogram_name, "Brave.P2A",
-                       base::CompareCase::SENSITIVE)) {
+  if (std::string_view(histogram_name).starts_with("Brave.P2A")) {
     // We need the bucket count to make proper perturbation.
     // All P2A metrics should be implemented as linear histograms.
     base::SampleVector* vector =
@@ -297,6 +312,10 @@ void P3AService::HandleHistogramChange(
     message_manager_->RemoveMetricValue(std::string(histogram_name),
                                         only_update_for_constellation);
     return;
+  }
+  const auto* metric_config = message_manager_->GetMetricConfig(histogram_name);
+  if (metric_config && *metric_config && (*metric_config)->constellation_only) {
+    only_update_for_constellation = true;
   }
   message_manager_->UpdateMetricValue(std::string(histogram_name), bucket,
                                       only_update_for_constellation);

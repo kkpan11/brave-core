@@ -5,19 +5,19 @@
 
 package org.chromium.chrome.browser.signin;
 
-import android.accounts.Account;
 
 import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JniType;
 
 import org.chromium.base.Callback;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.SigninManager;
-import org.chromium.components.signin.base.CoreAccountId;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.AccountInfoServiceProvider;
-import org.chromium.components.signin.identitymanager.AccountTrackerService;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.IdentityMutator;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
@@ -63,17 +63,9 @@ public class BraveSigninManager implements SigninManager {
     public void runAfterOperationInProgress(Runnable runnable) {}
 
     @Override
-    public void signinAndEnableSync(Account account, @SigninAccessPoint int accessPoint,
-            @Nullable SignInCallback callback) {}
-
-    @Override
     public void signinAndEnableSync(
             CoreAccountInfo coreAccountInfo,
             @SigninAccessPoint int accessPoint,
-            @Nullable SignInCallback callback) {}
-
-    @Override
-    public void signin(Account account, @SigninAccessPoint int accessPoint,
             @Nullable SignInCallback callback) {}
 
     @Override
@@ -100,16 +92,16 @@ public class BraveSigninManager implements SigninManager {
     @Override
     public String extractDomainName(String accountEmail) {
         return "";
-    };
-
-    @Override
-    public void reloadAllAccountsFromSystem(@Nullable CoreAccountId primaryAccountId) {}
+    }
 
     @CalledByNative
-    static SigninManager create(long nativeSigninManagerAndroid,
-            AccountTrackerService accountTrackerService, IdentityManager identityManager,
-            IdentityMutator identityMutator, SyncService syncService) {
-        AccountInfoServiceProvider.init(identityManager, accountTrackerService);
+    static SigninManager create(
+            long nativeSigninManagerAndroid,
+            @JniType("Profile*") Profile profile,
+            @JniType("signin::IdentityManager*") IdentityManager identityManager,
+            IdentityMutator identityMutator,
+            SyncService syncService) {
+        AccountInfoServiceProvider.init(identityManager);
         return new BraveSigninManager(identityManager);
     }
 
@@ -135,4 +127,16 @@ public class BraveSigninManager implements SigninManager {
             CoreAccountInfo coreAccountInfo,
             @SigninAccessPoint int accessPoint,
             @Nullable SignInCallback callback) {}
+
+    @Override
+    public boolean getUserAcceptedAccountManagement() {
+        return false;
+    }
+
+    @Override
+    public void setUserAcceptedAccountManagement(boolean acceptedAccountManagement) {}
+
+    @Override
+    public void isAccountManaged(
+            @NonNull CoreAccountInfo account, final Callback<Boolean> callback) {}
 }

@@ -6,7 +6,9 @@
 #ifndef BRAVE_COMPONENTS_CONSTANTS_PREF_NAMES_H_
 #define BRAVE_COMPONENTS_CONSTANTS_PREF_NAMES_H_
 
+#include "brave/components/web_discovery/buildflags/buildflags.h"
 #include "build/build_config.h"
+#include "extensions/buildflags/buildflags.h"
 
 inline constexpr char kBraveAutofillPrivateWindows[] =
     "brave.autofill_private_windows";
@@ -51,7 +53,6 @@ inline constexpr char kReferralAttemptTimestamp[] =
     "brave.referral.referral_attempt_timestamp";
 inline constexpr char kReferralAttemptCount[] =
     "brave.referral.referral_attempt_count";
-inline constexpr char kReferralHeaders[] = "brave.referral.headers";
 inline constexpr char kReferralAndroidFirstRunTimestamp[] =
     "brave.referral_android_first_run_timestamp";
 inline constexpr char kNoScriptControlType[] = "brave.no_script_default";
@@ -62,8 +63,8 @@ inline constexpr char kShieldsStatsBadgeVisible[] =
 inline constexpr char kAdControlType[] = "brave.ad_default";
 inline constexpr char kGoogleLoginControlType[] = "brave.google_login_default";
 inline constexpr char kWebTorrentEnabled[] = "brave.webtorrent_enabled";
+// Deprecated
 inline constexpr char kHangoutsEnabled[] = "brave.hangouts_enabled";
-inline constexpr char kIPFSCompanionEnabled[] = "brave.ipfs_companion_enabled";
 inline constexpr char kNewTabPageShowClock[] = "brave.new_tab_page.show_clock";
 inline constexpr char kNewTabPageClockFormat[] =
     "brave.new_tab_page.clock_format";
@@ -72,6 +73,8 @@ inline constexpr char kNewTabPageShowRewards[] =
     "brave.new_tab_page.show_rewards";
 inline constexpr char kNewTabPageShowBraveTalk[] =
     "brave.new_tab_page.show_together";
+inline constexpr char kNewTabPageShowBraveVPN[] =
+    "brave.new_tab_page.show_brave_vpn";
 inline constexpr char kNewTabPageHideAllWidgets[] =
     "brave.new_tab_page.hide_all_widgets";
 inline constexpr char kNewTabPageShowsOptions[] =
@@ -86,7 +89,9 @@ inline constexpr char kBraveShieldsSettingsVersion[] =
 inline constexpr char kDefaultBrowserPromptEnabled[] =
     "brave.default_browser_prompt_enabled";
 
+#if BUILDFLAG(ENABLE_EXTENSIONS) || BUILDFLAG(ENABLE_WEB_DISCOVERY_NATIVE)
 inline constexpr char kWebDiscoveryEnabled[] = "brave.web_discovery_enabled";
+#endif
 inline constexpr char kWebDiscoveryCTAState[] = "brave.web_discovery.cta_state";
 inline constexpr char kDontAskEnableWebDiscovery[] =
     "brave.dont_ask_enable_web_discovery";
@@ -124,17 +129,14 @@ inline constexpr char kSafetynetStatus[] = "safetynet.status";
 inline constexpr char kEnableWindowClosingConfirm[] =
     "brave.enable_window_closing_confirm";
 inline constexpr char kEnableClosingLastTab[] = "brave.enable_closing_last_tab";
+inline constexpr char kShowFullscreenReminder[] =
+    "brave.show_fullscreen_reminder";
 #endif
 
 inline constexpr char kDefaultBrowserLaunchingCount[] =
     "brave.default_browser.launching_count";
 
 // deprecated
-inline constexpr char kBraveThemeType[] = "brave.theme.type";
-inline constexpr char kUseOverriddenBraveThemeType[] =
-    "brave.theme.use_overridden_brave_theme_type";
-inline constexpr char kNewTabPageShowTopSites[] =
-    "brave.new_tab_page.show_top_sites";
 inline constexpr char kOtherBookmarksMigrated[] =
     "brave.other_bookmarks_migrated";
 

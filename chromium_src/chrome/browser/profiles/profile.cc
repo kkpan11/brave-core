@@ -6,6 +6,7 @@
 #include "brave/chromium_src/chrome/browser/profiles/profile.h"
 
 #include "brave/components/tor/tor_constants.h"
+#include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
 
 #define BRAVE_ALLOWS_BROWSER_WINDOWS *this == TorID() ||
 
@@ -14,6 +15,12 @@
 #include "src/chrome/browser/profiles/profile.cc"
 #undef IsIncognitoProfile
 #undef IsPrimaryOTRProfile
+#undef BRAVE_ALLOWS_BROWSER_WINDOWS
+
+namespace {
+const char kSearchBackupResultsOTRProfileIDPrefix[] =
+    "SearchBackupResults::OTR";
+}  // namespace
 
 // static
 const Profile::OTRProfileID Profile::OTRProfileID::TorID() {
@@ -35,4 +42,14 @@ bool Profile::IsPrimaryOTRProfile() const {
   if (IsTor())
     return true;
   return IsPrimaryOTRProfile_ChromiumImpl();
+}
+
+Profile::OTRProfileID
+Profile::OTRProfileID::CreateUniqueForSearchBackupResults() {
+  return CreateUnique(kSearchBackupResultsOTRProfileIDPrefix);
+}
+
+bool Profile::OTRProfileID::IsSearchBackupResults() const {
+  return base::StartsWith(profile_id_, kSearchBackupResultsOTRProfileIDPrefix,
+                          base::CompareCase::SENSITIVE);
 }

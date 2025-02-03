@@ -17,12 +17,10 @@
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/brave_wireguard_service_crash_reporter_client.h"
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/notifications/notification_utils.h"
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/resources/resource_loader.h"
-#include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/service/install_utils.h"
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/service/wireguard_service_runner.h"
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/service/wireguard_tunnel_service.h"
-#include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/status_tray/install_utils.h"
 #include "brave/browser/brave_vpn/win/brave_vpn_wireguard_service/status_tray/status_tray_runner.h"
-#include "brave/components/brave_vpn/common/wireguard/win/service_constants.h"
+#include "brave/browser/brave_vpn/win/service_constants.h"
 #include "chrome/install_static/product_install_details.h"
 #include "components/crash/core/app/crash_switches.h"
 #include "components/crash/core/app/crashpad.h"
@@ -32,9 +30,9 @@
 #include "ui/base/l10n/l10n_util.h"
 
 namespace {
-const char kUserDataDir[] = "user-data-dir";
-const char kProcessType[] = "type";
-const char kLogFile[] = "log-file";
+constexpr char kUserDataDir[] = "user-data-dir";
+constexpr char kProcessType[] = "type";
+constexpr char kLogFile[] = "log-file";
 }  // namespace
 
 // List of commands executed on user level and interacting with users.
@@ -73,6 +71,12 @@ std::optional<int> ProcessUserLevelCommands(
 }
 
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prev, wchar_t*, int) {
+  // Process Mitigation Redirection Policy
+  PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY signature = {0};
+  DWORD dwSize = sizeof(signature);
+  signature.EnforceRedirectionTrust = 1;
+  SetProcessMitigationPolicy(ProcessRedirectionTrustPolicy, &signature, dwSize);
+
   // Initialize the CommandLine singleton from the environment.
   base::CommandLine::Init(0, nullptr);
   auto* command_line = base::CommandLine::ForCurrentProcess();
@@ -130,23 +134,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prev, wchar_t*, int) {
     return brave_vpn::wireguard::RunWireguardTunnelService(
         command_line->GetSwitchValuePath(
             brave_vpn::kBraveVpnWireguardServiceConnectSwitchName));
-  }
-
-  // System level command line. Makes registeration and configuration for
-  // BraveVPNWireguardService windows service. Used by the installer.
-  if (command_line->HasSwitch(
-          brave_vpn::kBraveVpnWireguardServiceInstallSwitchName)) {
-    auto success = brave_vpn::InstallBraveWireguardService();
-    return success ? 0 : 1;
-  }
-
-  // System level command line. Unregisters BraveVPNWireguardService
-  // windows service and removes stored data. Used by the uninstaller.
-  if (command_line->HasSwitch(
-          brave_vpn::kBraveVpnWireguardServiceUnnstallSwitchName)) {
-    auto success = brave_vpn::UninstallBraveWireguardService() &&
-                   brave_vpn::UninstallStatusTrayIcon();
-    return success ? 0 : 1;
   }
 
   auto result = ProcessUserLevelCommands(*command_line);

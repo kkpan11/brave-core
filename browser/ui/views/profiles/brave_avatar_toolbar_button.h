@@ -9,17 +9,18 @@
 #include <optional>
 
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
+#include "ui/base/metadata/metadata_header_macros.h"
 
 class BrowserView;
 
 class BraveAvatarToolbarButton : public AvatarToolbarButton {
+  METADATA_HEADER(BraveAvatarToolbarButton, AvatarToolbarButton)
+
  public:
   explicit BraveAvatarToolbarButton(BrowserView* browser_view);
   BraveAvatarToolbarButton(const BraveAvatarToolbarButton&) = delete;
   BraveAvatarToolbarButton& operator=(const BraveAvatarToolbarButton&) = delete;
   ~BraveAvatarToolbarButton() override;
-
-  AvatarToolbarButton::State GetAvatarButtonState() const;
 
   // ToolbarButton:
   void SetHighlight(const std::u16string& highlight_text,
@@ -29,12 +30,6 @@ class BraveAvatarToolbarButton : public AvatarToolbarButton {
 
  private:
   // AvatarToolbarButton:
-  ui::ImageModel GetAvatarIcon(
-      ButtonState state,
-      const gfx::Image& profile_identity_image) const override;
-  std::u16string GetAvatarTooltipText() const override;
-  int GetWindowCount() const;
-
   base::WeakPtrFactory<BraveAvatarToolbarButton> weak_ptr_factory_{this};
 };
 

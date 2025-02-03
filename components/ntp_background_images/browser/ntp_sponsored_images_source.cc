@@ -5,15 +5,12 @@
 
 #include "brave/components/ntp_background_images/browser/ntp_sponsored_images_source.h"
 
-#include <optional>
 #include <utility>
-#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/strings/stringprintf.h"
 #include "base/task/thread_pool.h"
 #include "brave/components/ntp_background_images/browser/ntp_background_images_service.h"
 #include "brave/components/ntp_background_images/browser/ntp_sponsored_images_data.h"
@@ -64,13 +61,7 @@ void NTPSponsoredImagesSource::StartDataRequest(
   }
 
   base::FilePath image_file_path = GetLocalFilePathFor(path);
-  if (image_file_path.empty()) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback),
-                                  scoped_refptr<base::RefCountedMemory>()));
-    return;
-  }
-
+  CHECK(!image_file_path.empty());
   GetImageFile(image_file_path, std::move(callback));
 }
 
@@ -90,10 +81,8 @@ void NTPSponsoredImagesSource::OnGotImageFile(
   if (!input)
     return;
 
-  scoped_refptr<base::RefCountedMemory> bytes;
-  bytes = new base::RefCountedBytes(
-      reinterpret_cast<const unsigned char*>(input->c_str()), input->length());
-  std::move(callback).Run(std::move(bytes));
+  std::move(callback).Run(
+      new base::RefCountedBytes(base::as_byte_span(*input)));
 }
 
 std::string NTPSponsoredImagesSource::GetMimeType(const GURL& url) {
@@ -109,8 +98,7 @@ std::string NTPSponsoredImagesSource::GetMimeType(const GURL& url) {
   } else if (file_path.MatchesExtension(FILE_PATH_LITERAL(".avif"))) {
     return "image/avif";
   } else {
-    NOTREACHED();
-    return "image/jpeg";
+    return "";
   }
 }
 
@@ -122,8 +110,7 @@ base::FilePath NTPSponsoredImagesSource::GetLocalFilePathFor(
     const std::string& path) {
   const bool is_super_referral_path = IsSuperReferralPath(path);
   auto* images_data = service_->GetBrandedImagesData(is_super_referral_path);
-  if (!images_data)
-    return base::FilePath();
+  CHECK(images_data);
 
   const auto basename_from_path =
       base::FilePath::FromUTF8Unsafe(path).BaseName();
@@ -137,19 +124,19 @@ base::FilePath NTPSponsoredImagesSource::GetLocalFilePathFor(
     for (const auto& background : campaign.backgrounds) {
       const auto logo_basename_from_data =
           background.logo.image_file.BaseName();
-      const auto wallpaper_basename_from_data =
-          background.image_file.BaseName();
+      const auto wallpaper_basename_from_data = background.file_path.BaseName();
 
       if (logo_basename_from_data == basename_from_path)
         return background.logo.image_file;
 
       if (wallpaper_basename_from_data == basename_from_path)
-        return background.image_file;
+        return background.file_path;
     }
   }
 
+  // Should give valid path always here because invalid |path| was
+  // already filtered by `IsValidPath()`.
   NOTREACHED();
-  return base::FilePath();
 }
 
 bool NTPSponsoredImagesSource::IsValidPath(const std::string& path) const {
@@ -170,8 +157,7 @@ bool NTPSponsoredImagesSource::IsValidPath(const std::string& path) const {
     for (const auto& background : campaign.backgrounds) {
       const auto logo_basename_from_data =
           background.logo.image_file.BaseName();
-      const auto wallpaper_basename_from_data =
-          background.image_file.BaseName();
+      const auto wallpaper_basename_from_data = background.file_path.BaseName();
 
       if (logo_basename_from_data == basename_from_path ||
           wallpaper_basename_from_data == basename_from_path)

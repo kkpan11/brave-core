@@ -12,44 +12,46 @@
 #include "brave/browser/brave_features_internal_names.h"
 #include "brave/browser/ethereum_remote_client/buildflags/buildflags.h"
 #include "brave/browser/ethereum_remote_client/features.h"
+#include "brave/browser/ui/brave_ui_features.h"
 #include "brave/browser/ui/tabs/features.h"
-#include "brave/components/ai_chat/core/common/buildflags/buildflags.h"
+#include "brave/components/ai_chat/core/common/features.h"
+#include "brave/components/ai_rewriter/common/buildflags/buildflags.h"
 #include "brave/components/brave_ads/browser/ad_units/notification_ad/custom_notification_ad_feature.h"
 #include "brave/components/brave_ads/core/public/ad_units/notification_ad/notification_ad_feature.h"
 #include "brave/components/brave_ads/core/public/ads_feature.h"
 #include "brave/components/brave_component_updater/browser/features.h"
-#include "brave/components/brave_federated/features.h"
+#include "brave/components/brave_education/buildflags.h"
 #include "brave/components/brave_news/common/features.h"
-#include "brave/components/brave_player/common/buildflags/buildflags.h"
-#include "brave/components/brave_rewards/common/buildflags/buildflags.h"
-#include "brave/components/brave_rewards/common/features.h"
-#include "brave/components/brave_shields/common/features.h"
-#include "brave/components/brave_sync/features.h"
+#include "brave/components/brave_rewards/core/buildflags/buildflags.h"
+#include "brave/components/brave_rewards/core/features.h"
+#include "brave/components/brave_shields/core/common/features.h"
 #include "brave/components/brave_vpn/common/buildflags/buildflags.h"
+#include "brave/components/brave_wallet/common/buildflags.h"
 #include "brave/components/brave_wallet/common/features.h"
 #include "brave/components/de_amp/common/features.h"
-#include "brave/components/debounce/common/features.h"
+#include "brave/components/debounce/core/common/features.h"
 #include "brave/components/google_sign_in_permission/features.h"
-#include "brave/components/ipfs/buildflags/buildflags.h"
 #include "brave/components/ntp_background_images/browser/features.h"
 #include "brave/components/playlist/common/buildflags/buildflags.h"
 #include "brave/components/psst/common/features.h"
 #include "brave/components/request_otr/common/buildflags/buildflags.h"
 #include "brave/components/skus/common/features.h"
 #include "brave/components/speedreader/common/buildflags/buildflags.h"
+#include "brave/components/webcompat/core/common/features.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/flags_ui/feature_entry.h"
 #include "components/flags_ui/feature_entry_macros.h"
 #include "components/flags_ui/flags_state.h"
+#include "components/history/core/browser/features.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/translate/core/browser/translate_prefs.h"
 #include "net/base/features.h"
 #include "third_party/blink/public/common/features.h"
 
-#if BUILDFLAG(ENABLE_AI_CHAT)
-#include "brave/components/ai_chat/core/common/features.h"
+#if BUILDFLAG(ENABLE_AI_REWRITER)
+#include "brave/components/ai_rewriter/common/features.h"
 #endif
 
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
@@ -58,10 +60,6 @@
 
 #if BUILDFLAG(ENABLE_SPEEDREADER)
 #include "brave/components/speedreader/common/features.h"
-#endif
-
-#if BUILDFLAG(ENABLE_IPFS)
-#include "brave/components/ipfs/features.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PLAYLIST)
@@ -73,9 +71,10 @@
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
-#include "brave/browser/android/preferences/features.h"
+#include "brave/browser/android/background_video/features.h"
 #include "brave/browser/android/safe_browsing/features.h"
 #else
+#include "brave/components/commander/common/features.h"
 #include "brave/components/commands/common/features.h"
 #endif
 
@@ -83,69 +82,33 @@
 #include "sandbox/policy/features.h"
 #endif
 
-#if BUILDFLAG(ENABLE_BRAVE_PLAYER)
-#include "brave/components/brave_player/common/features.h"
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "brave/browser/ui/webui/settings/brave_extensions_manifest_v2_handler.h"
+#endif
+
+#if BUILDFLAG(ENABLE_BRAVE_EDUCATION)
+#include "brave/components/brave_education/features.h"
 #endif
 
 #define EXPAND_FEATURE_ENTRIES(...) __VA_ARGS__,
 
-#if BUILDFLAG(ENABLE_BRAVE_VPN)
-#define BRAVE_VPN_FEATURE_ENTRIES                         \
-  EXPAND_FEATURE_ENTRIES({                                \
-      kBraveVPNFeatureInternalName,                       \
-      "Enable experimental Brave VPN",                    \
-      "Experimental native VPN support",                  \
-      kOsMac | kOsWin,                                    \
-      FEATURE_VALUE_TYPE(brave_vpn::features::kBraveVPN), \
-  })
-#if BUILDFLAG(IS_WIN)
+const flags_ui::FeatureEntry::FeatureParam
+    kZCashShieldedTransactionsDisabled[] = {
+        {"zcash_shielded_transactions_enabled", "false"}};
 
-#define BRAVE_VPN_WIREGUARD_FEATURE_ENTRIES                                  \
-  EXPAND_FEATURE_ENTRIES({                                                   \
-      kBraveVPNWireguardFeatureInternalName,                                 \
-      "Enable experimental WireGuard Brave VPN service",                     \
-      "Experimental WireGuard VPN support. Deprecated.",                     \
-      kOsWin,                                                                \
-      FEATURE_VALUE_TYPE(brave_vpn::features::kBraveVPNUseWireguardService), \
-  })
-#define BRAVE_VPN_DNS_FEATURE_ENTRIES                                    \
-  EXPAND_FEATURE_ENTRIES({                                               \
-      kBraveVPNDnsFeatureInternalName,                                   \
-      "Enable DoH for Brave VPN",                                        \
-      "Override DoH settings with Cloudflare dns if necessary to avoid " \
-      "leaking requests due to Smart Multi-Home Named Resolution",       \
-      kOsWin,                                                            \
-      FEATURE_VALUE_TYPE(brave_vpn::features::kBraveVPNDnsProtection),   \
-  })
-#elif BUILDFLAG(IS_MAC)
-#define BRAVE_VPN_DNS_FEATURE_ENTRIES
+#if BUILDFLAG(ENABLE_ORCHARD)
+const flags_ui::FeatureEntry::FeatureParam kZCashShieldedTransactionsEnabled[] =
+    {{"zcash_shielded_transactions_enabled", "true"}};
+#endif  // BUILDFLAG(ENABLE_ORCHARD)
 
-#define BRAVE_VPN_WIREGUARD_FEATURE_ENTRIES                                    \
-  EXPAND_FEATURE_ENTRIES({                                                     \
-      kBraveVPNWireguardForOSXFeatureInternalName,                             \
-      "Enable experimental WireGuard Brave VPN for OSX",                       \
-      "Experimental WireGuard VPN support.",                                   \
-      kOsMac,                                                                  \
-      FEATURE_VALUE_TYPE(brave_vpn::features::kBraveVPNEnableWireguardForOSX), \
-  })
-#else  // BUILDFLAG(IS_MAC)
-#define BRAVE_VPN_DNS_FEATURE_ENTRIES
-#define BRAVE_VPN_WIREGUARD_FEATURE_ENTRIES
-#endif  // BUILDFLAG(IS_WIN)
-#else   // BUILDFLAG(ENABLE_BRAVE_VPN)
-#define BRAVE_VPN_FEATURE_ENTRIES
-#define BRAVE_VPN_DNS_FEATURE_ENTRIES
-#define BRAVE_VPN_WIREGUARD_FEATURE_ENTRIES
-#endif  // BUILDFLAG(ENABLE_BRAVE_VPN)
-
-#define BRAVE_SKU_SDK_FEATURE_ENTRIES                   \
-  EXPAND_FEATURE_ENTRIES({                              \
-      "skus-sdk",                                       \
-      "Enable experimental SKU SDK",                    \
-      "Experimental SKU SDK support",                   \
-      kOsMac | kOsWin | kOsAndroid,                     \
-      FEATURE_VALUE_TYPE(skus::features::kSkusFeature), \
-  })
+const flags_ui::FeatureEntry::FeatureVariation kZCashFeatureVariations[] = {
+    {"- Shielded support disabled", kZCashShieldedTransactionsDisabled,
+     std::size(kZCashShieldedTransactionsDisabled), nullptr},
+#if BUILDFLAG(ENABLE_ORCHARD)
+    {"- Shielded support enabled", kZCashShieldedTransactionsEnabled,
+     std::size(kZCashShieldedTransactionsEnabled), nullptr}
+#endif  // BUILDFLAG(ENABLE_ORCHARD)
+};
 
 #define SPEEDREADER_FEATURE_ENTRIES                                        \
   IF_BUILDFLAG(                                                            \
@@ -182,6 +145,18 @@
           FEATURE_VALUE_TYPE(sandbox::policy::features::kModuleFileNamePatch), \
       }))
 
+#define BRAVE_WORKAROUND_NEW_WINDOW_FLASH                                  \
+  IF_BUILDFLAG(                                                            \
+      IS_WIN,                                                              \
+      EXPAND_FEATURE_ENTRIES({                                             \
+          "brave-workaround-new-window-flash",                             \
+          "Workaround a white flash on new window creation",               \
+          "Enable workaround to prevent new windows being created with a " \
+          "white background",                                              \
+          kOsWin,                                                          \
+          FEATURE_VALUE_TYPE(::features::kBraveWorkaroundNewWindowFlash),  \
+      }))
+
 #define BRAVE_REWARDS_GEMINI_FEATURE_ENTRIES                               \
   IF_BUILDFLAG(                                                            \
       ENABLE_GEMINI_WALLET,                                                \
@@ -194,26 +169,8 @@
           FEATURE_VALUE_TYPE(brave_rewards::features::kGeminiFeature),     \
       }))
 
-#define BRAVE_IPFS_FEATURE_ENTRIES                                   \
-  IF_BUILDFLAG(ENABLE_IPFS,                                          \
-               EXPAND_FEATURE_ENTRIES({                              \
-                   "brave-ipfs",                                     \
-                   "Enable IPFS",                                    \
-                   "Enable native support of IPFS.",                 \
-                   kOsDesktop | kOsAndroid,                          \
-                   FEATURE_VALUE_TYPE(ipfs::features::kIpfsFeature), \
-               }))
-
 #define BRAVE_NATIVE_WALLET_FEATURE_ENTRIES                                   \
   EXPAND_FEATURE_ENTRIES(                                                     \
-      {                                                                       \
-          "enable-nft-pinning",                                               \
-          "Enable NFT pinning",                                               \
-          "Enable NFT pinning for Brave Wallet",                              \
-          kOsDesktop,                                                         \
-          FEATURE_VALUE_TYPE(                                                 \
-              brave_wallet::features::kBraveWalletNftPinningFeature),         \
-      },                                                                      \
       {                                                                       \
           "native-brave-wallet",                                              \
           "Enable Brave Wallet",                                              \
@@ -223,14 +180,11 @@
           FEATURE_VALUE_TYPE(                                                 \
               brave_wallet::features::kNativeBraveWalletFeature),             \
       },                                                                      \
-      {                                                                       \
-          "brave-wallet-zcash",                                               \
-          "Enable BraveWallet ZCash support",                                 \
-          "ZCash support for native Brave Wallet",                            \
-          kOsDesktop | kOsAndroid,                                            \
-          FEATURE_VALUE_TYPE(                                                 \
-              brave_wallet::features::kBraveWalletZCashFeature),              \
-      },                                                                      \
+      {"brave-wallet-zcash", "Enable BraveWallet ZCash support",              \
+       "Zcash support for native Brave Wallet", kOsDesktop | kOsAndroid,      \
+       FEATURE_WITH_PARAMS_VALUE_TYPE(                                        \
+           brave_wallet::features::kBraveWalletZCashFeature,                  \
+           kZCashFeatureVariations, "BraveWalletZCash")},                     \
       {                                                                       \
           "brave-wallet-bitcoin",                                             \
           "Enable Brave Wallet Bitcoin support",                              \
@@ -247,6 +201,15 @@
           kOsDesktop | kOsAndroid,                                            \
           FEATURE_VALUE_TYPE(                                                 \
               brave_wallet::features::kBraveWalletAnkrBalancesFeature),       \
+      },                                                                      \
+      {                                                                       \
+          "brave-wallet-enable-transaction-simulations",                      \
+          "Enable transaction simulations",                                   \
+          "Enable usage of Blowfish API for running transaction simulations " \
+          "in Brave Wallet",                                                  \
+          kOsDesktop | kOsAndroid,                                            \
+          FEATURE_VALUE_TYPE(brave_wallet::features::                         \
+                                 kBraveWalletTransactionSimulationsFeature),  \
       })
 
 #define BRAVE_NEWS_FEATURE_ENTRIES                                             \
@@ -266,18 +229,6 @@
           kOsDesktop,                                                          \
           FEATURE_VALUE_TYPE(brave_news::features::kBraveNewsFeedUpdate),      \
       })
-
-#define BRAVE_FEDERATED_FEATURE_ENTRIES                                        \
-  EXPAND_FEATURE_ENTRIES({                                                     \
-      "brave-federated",                                                       \
-      "Enables local data collection for notification ad timing "              \
-      "(brave-federated)",                                                     \
-      "Starts local collection for notification ad timing data. This data is " \
-      "stored locally and automatically erased after one month. No data "      \
-      "leaves the client.",                                                    \
-      kOsDesktop,                                                              \
-      FEATURE_VALUE_TYPE(brave_federated::features::kFederatedLearning),       \
-  })
 
 #define CRYPTO_WALLETS_FEATURE_ENTRIES                                      \
   IF_BUILDFLAG(                                                             \
@@ -315,14 +266,19 @@
           }))
 
 #if !BUILDFLAG(IS_ANDROID)
-#define BRAVE_COMMANDS_FEATURE_ENTRIES                                        \
-  EXPAND_FEATURE_ENTRIES({                                                    \
-      "brave-commands",                                                       \
-      "Brave Commands",                                                       \
-      "Enable experimental page for viewing and executing commands in Brave", \
-      kOsWin | kOsMac | kOsLinux,                                             \
-      FEATURE_VALUE_TYPE(commands::features::kBraveCommands),                 \
-  })
+#define BRAVE_COMMANDS_FEATURE_ENTRIES                                      \
+  EXPAND_FEATURE_ENTRIES(                                                   \
+      {                                                                     \
+          "brave-commands",                                                 \
+          "Brave Commands",                                                 \
+          "Enable experimental page for viewing and executing commands in " \
+          "Brave",                                                          \
+          kOsWin | kOsMac | kOsLinux,                                       \
+          FEATURE_VALUE_TYPE(commands::features::kBraveCommands),           \
+      },                                                                    \
+      {"brave-commands-omnibox", "Brave Commands in Omnibox",               \
+       "Enable quick commands in the omnibox", kOsWin | kOsMac | kOsLinux,  \
+       FEATURE_VALUE_TYPE(features::kBraveCommandsInOmnibox)})
 #else
 #define BRAVE_COMMANDS_FEATURE_ENTRIES
 #endif
@@ -367,74 +323,187 @@
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if !BUILDFLAG(IS_ANDROID)
-#define BRAVE_TABS_FEATURE_ENTRIES                                        \
-  EXPAND_FEATURE_ENTRIES(                                                 \
-      {                                                                   \
-          "brave-shared-pinned-tabs",                                     \
-          "Shared pinned tab",                                            \
-          "Pinned tabs are shared across windows",                        \
-          kOsWin | kOsMac | kOsLinux,                                     \
-          FEATURE_VALUE_TYPE(tabs::features::kBraveSharedPinnedTabs),     \
-      },                                                                  \
-      {                                                                   \
-          "brave-horizontal-tabs-update",                                 \
-          "Updated horizontal tabs design",                               \
-          "Updates the look and feel or horizontal tabs",                 \
-          kOsWin | kOsMac | kOsLinux,                                     \
-          FEATURE_VALUE_TYPE(tabs::features::kBraveHorizontalTabsUpdate), \
-      },                                                                  \
-      {                                                                   \
-          "brave-vertical-tab-scroll-bar",                                \
-          "Show scroll bar on vertical tab strip",                        \
-          "Shows scroll bar on vertical tab strip when it overflows",     \
-          kOsWin | kOsMac | kOsLinux,                                     \
-          FEATURE_VALUE_TYPE(tabs::features::kBraveVerticalTabScrollBar), \
+#define BRAVE_TABS_FEATURE_ENTRIES                                         \
+  EXPAND_FEATURE_ENTRIES(                                                  \
+      {                                                                    \
+          "brave-shared-pinned-tabs",                                      \
+          "Shared pinned tab",                                             \
+          "Pinned tabs are shared across windows",                         \
+          kOsWin | kOsMac | kOsLinux,                                      \
+          FEATURE_VALUE_TYPE(tabs::features::kBraveSharedPinnedTabs),      \
+      },                                                                   \
+      {                                                                    \
+          "brave-horizontal-tabs-update",                                  \
+          "Updated horizontal tabs design",                                \
+          "Updates the look and feel or horizontal tabs",                  \
+          kOsWin | kOsMac | kOsLinux,                                      \
+          FEATURE_VALUE_TYPE(tabs::features::kBraveHorizontalTabsUpdate),  \
+      },                                                                   \
+      {                                                                    \
+          "brave-compact-horizontal-tabs",                                 \
+          "Compact horizontal tabs design",                                \
+          "Reduces the height of horizontal tabs",                         \
+          kOsWin | kOsMac | kOsLinux,                                      \
+          FEATURE_VALUE_TYPE(tabs::features::kBraveCompactHorizontalTabs), \
+      },                                                                   \
+      {                                                                    \
+          "brave-vertical-tab-scroll-bar",                                 \
+          "Show scroll bar on vertical tab strip",                         \
+          "Shows scroll bar on vertical tab strip when it overflows",      \
+          kOsWin | kOsMac | kOsLinux,                                      \
+          FEATURE_VALUE_TYPE(tabs::features::kBraveVerticalTabScrollBar),  \
+      },                                                                   \
+      {                                                                    \
+          kSplitViewFeatureInternalName,                                   \
+          "Enable split view",                                             \
+          "Enables split view",                                            \
+          kOsWin | kOsMac | kOsLinux,                                      \
+          FEATURE_VALUE_TYPE(tabs::features::kBraveSplitView),             \
       })
 #else
 #define BRAVE_TABS_FEATURE_ENTRIES
 #endif
 
-#if BUILDFLAG(ENABLE_AI_CHAT)
-#define BRAVE_AI_CHAT                                          \
-  EXPAND_FEATURE_ENTRIES({                                     \
-      "brave-ai-chat",                                         \
-      "Brave AI Chat",                                         \
-      "Summarize articles and engage in conversation with AI", \
-      kOsWin | kOsMac | kOsLinux | kOsAndroid,                 \
-      FEATURE_VALUE_TYPE(ai_chat::features::kAIChat),          \
-  })
-#define BRAVE_AI_CHAT_HISTORY                                \
-  EXPAND_FEATURE_ENTRIES({                                   \
-      "brave-ai-chat-history",                               \
-      "Brave AI Chat History",                               \
-      "Enables AI Chat History persistence and management",  \
-      kOsWin | kOsMac | kOsLinux,                            \
-      FEATURE_VALUE_TYPE(ai_chat::features::kAIChatHistory), \
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+#define BRAVE_MIDDLE_CLICK_AUTOSCROLL_FEATURE_ENTRY                      \
+  EXPAND_FEATURE_ENTRIES({                                               \
+      "middle-button-autoscroll",                                        \
+      "Middle button autoscroll",                                        \
+      "Enables autoscrolling when the middle mouse button is clicked",   \
+      kOsMac | kOsLinux,                                                 \
+      FEATURE_VALUE_TYPE(blink::features::kMiddleButtonClickAutoscroll), \
   })
 #else
-#define BRAVE_AI_CHAT
-#define BRAVE_AI_CHAT_HISTORY
+#define BRAVE_MIDDLE_CLICK_AUTOSCROLL_FEATURE_ENTRY
 #endif
 
-#define BRAVE_OMNIBOX_FEATURES                                              \
-  EXPAND_FEATURE_ENTRIES({                                                  \
-      "brave-omnibox-tab-switch-by-default",                                \
-      "Brave Tab Switch by Default",                                        \
-      "Prefer switching to already open tabs, rather than navigating in a " \
-      "new tab",                                                            \
-      kOsWin | kOsLinux | kOsMac,                                           \
-      FEATURE_VALUE_TYPE(omnibox::kOmniboxTabSwitchByDefault),              \
+#define BRAVE_AI_CHAT_FEATURE_ENTRIES                                          \
+  EXPAND_FEATURE_ENTRIES(                                                      \
+      {                                                                        \
+          "brave-ai-chat",                                                     \
+          "Brave AI Chat",                                                     \
+          "Summarize articles and engage in conversation with AI",             \
+          kOsWin | kOsMac | kOsLinux | kOsAndroid,                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kAIChat),                      \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-history",                                             \
+          "Brave AI Chat History",                                             \
+          "Enables AI Chat History persistence and management",                \
+          kOsWin | kOsMac | kOsLinux | kOsAndroid,                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kAIChatHistory),               \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-host-specific-distillation",                               \
+          "Brave AI Host-Specific Distillation",                               \
+          "Enables support for host-specific distillation scripts",            \
+          kOsWin | kOsMac | kOsLinux,                                          \
+          FEATURE_VALUE_TYPE(ai_chat::features::kCustomSiteDistillerScripts),  \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-context-menu-rewrite-in-place",                       \
+          "Brave AI Chat Rewrite In Place From Context Menu",                  \
+          "Enables AI Chat rewrite in place feature from the context menu",    \
+          kOsDesktop,                                                          \
+          FEATURE_VALUE_TYPE(ai_chat::features::kContextMenuRewriteInPlace),   \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-page-content-refine",                                 \
+          "Brave AI Chat Page Content Refine",                                 \
+          "Enable local text embedding for long page content in order to "     \
+          "find "                                                              \
+          "most relevant parts to the prompt within context limit.",           \
+          kOsDesktop | kOsAndroid,                                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kPageContentRefine),           \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-allow-private-ips",                                   \
+          "Private IP Addresses for Custom Model Endpoints",                   \
+          "Permits the use of private IP addresses as model endpoint URLs",    \
+          kOsWin | kOsMac | kOsLinux | kOsAndroid,                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kAllowPrivateIPs),             \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-open-leo-from-brave-search",                          \
+          "Open Leo AI Chat from Brave Search",                                \
+          "Enables opening Leo AI Chat from Brave Search",                     \
+          kOsDesktop | kOsAndroid,                                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kOpenAIChatFromBraveSearch),   \
+      },                                                                       \
+      {                                                                        \
+          "brave-ai-chat-web-content-association-default",                     \
+          "Brave AI Chat Web Content Association Default",                     \
+          "For AI Chat Conversations which are associated with web content, "  \
+          "allow the toggle for sending page content to be set to enabled "    \
+          "when the conversation is created.",                                 \
+          kOsWin | kOsMac | kOsLinux | kOsAndroid,                             \
+          FEATURE_VALUE_TYPE(ai_chat::features::kPageContextEnabledInitially), \
+      })
+
+#if BUILDFLAG(ENABLE_AI_REWRITER)
+#define BRAVE_AI_REWRITER                                     \
+  EXPAND_FEATURE_ENTRIES({                                    \
+      "brave-ai-rewriter",                                    \
+      "Brave AI Rewriter",                                    \
+      "Enables the Brave AI rewriter dialog",                 \
+      kOsWin | kOsMac | kOsLinux,                             \
+      FEATURE_VALUE_TYPE(ai_rewriter::features::kAIRewriter), \
+  })
+#else
+#define BRAVE_AI_REWRITER
+#endif
+
+#define BRAVE_OMNIBOX_FEATURES                                                \
+  EXPAND_FEATURE_ENTRIES(                                                     \
+      {                                                                       \
+          "brave-omnibox-tab-switch-by-default",                              \
+          "Brave Tab Switch by Default",                                      \
+          "Prefer switching to already open tabs, rather than navigating in " \
+          "a "                                                                \
+          "new tab",                                                          \
+          kOsWin | kOsLinux | kOsMac,                                         \
+          FEATURE_VALUE_TYPE(omnibox::kOmniboxTabSwitchByDefault),            \
+      },                                                                      \
+      {                                                                       \
+          "brave-history-more-search-results",                                \
+          "Brave More History",                                               \
+          "Include more history in the omnibox search results",               \
+          kOsWin | kOsLinux | kOsMac | kOsAndroid,                            \
+          FEATURE_VALUE_TYPE(history::kHistoryMoreSearchResults),             \
+      })
+
+#define BRAVE_EXTENSIONS_MANIFEST_V2                                        \
+  IF_BUILDFLAG(ENABLE_EXTENSIONS,                                           \
+               EXPAND_FEATURE_ENTRIES({                                     \
+                   "brave-extensions-manifest-v2",                          \
+                   "Brave Extensions manifest V2",                          \
+                   "Enables Brave support for some manifest V2 extensions", \
+                   kOsDesktop,                                              \
+                   FEATURE_VALUE_TYPE(kExtensionsManifestV2),               \
+               }))
+
+#define BRAVE_ADBLOCK_CUSTOM_SCRIPTLETS                                 \
+  EXPAND_FEATURE_ENTRIES({                                              \
+      "brave-adblock-custom-scriptlets",                                \
+      "Brave Adblock Custom Scriptlets",                                \
+      "Allows adding custom scriptlets from settings",                  \
+      kOsDesktop | kOsAndroid,                                          \
+      FEATURE_VALUE_TYPE(                                               \
+          brave_shields::features::kCosmeticFilteringCustomScriptlets), \
   })
 
-#define BRAVE_PLAYER_FEATURE_ENTRIES                                         \
-  IF_BUILDFLAG(ENABLE_BRAVE_PLAYER,                                          \
-               EXPAND_FEATURE_ENTRIES({                                      \
-                   "brave-player",                                           \
-                   "Brave Player",                                           \
-                   "Enables Brave Player",                                   \
-                   kOsMac | kOsWin | kOsLinux | kOsAndroid,                  \
-                   FEATURE_VALUE_TYPE(brave_player::features::kBravePlayer), \
-               }))
+#if BUILDFLAG(ENABLE_BRAVE_EDUCATION)
+#define BRAVE_EDUCATION_FEATURE_ENTRIES                                       \
+  EXPAND_FEATURE_ENTRIES({                                                    \
+      "brave-show-getting-started-page",                                      \
+      "Show getting started pages",                                           \
+      "Show a getting started page after completing the Welcome UX.",         \
+      kOsDesktop,                                                             \
+      FEATURE_VALUE_TYPE(brave_education::features::kShowGettingStartedPage), \
+  })
+#else
+#define BRAVE_EDUCATION_FEATURE_ENTRIES
+#endif
 
 // Keep the last item empty.
 #define LAST_BRAVE_FEATURE_ENTRIES_ITEM
@@ -450,14 +519,6 @@
           FEATURE_VALUE_TYPE(brave_component_updater::kUseDevUpdaterUrl),      \
       },                                                                       \
       {                                                                        \
-          "allow-certain-client-hints",                                        \
-          "Allow certain request client hints",                                \
-          "Allows setting certain request client hints (sec-ch-ua, "           \
-          "sec-ch-ua-mobile, sec-ch-ua-platform)",                             \
-          kOsAll,                                                              \
-          FEATURE_VALUE_TYPE(blink::features::kAllowCertainClientHints),       \
-      },                                                                       \
-      {                                                                        \
           "brave-ntp-branded-wallpaper-demo",                                  \
           "New Tab Page Demo Branded Wallpaper",                               \
           "Force dummy data for the Branded Wallpaper New Tab Page "           \
@@ -466,6 +527,13 @@
           kOsAll,                                                              \
           FEATURE_VALUE_TYPE(                                                  \
               ntp_background_images::features::kBraveNTPBrandedWallpaperDemo), \
+      },                                                                       \
+      {                                                                        \
+          "brave-ntp-search-widget",                                           \
+          "Brave Search Widget on the NTP",                                    \
+          "Enables searching directly from the New Tab Page",                  \
+          kOsDesktop,                                                          \
+          FEATURE_VALUE_TYPE(features::kBraveNtpSearchWidget),                 \
       },                                                                       \
       {                                                                        \
           "brave-adblock-cname-uncloaking",                                    \
@@ -539,6 +607,25 @@
           kOsAll,                                                              \
           FEATURE_VALUE_TYPE(brave_shields::features::                         \
                                  kBraveAdblockMobileNotificationsListDefault), \
+      },                                                                       \
+      {                                                                        \
+          "brave-adblock-procedural-filtering",                                \
+          "Enable procedural filtering",                                       \
+          "Enable support for procedural cosmetic filtering",                  \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(                                                  \
+              brave_shields::features::kBraveAdblockProceduralFiltering),      \
+      },                                                                       \
+      {                                                                        \
+          "brave-adblock-experimental-list-default",                           \
+          "Treat 'Brave Experimental Adblock Rules' as a default list "        \
+          "source",                                                            \
+                                                                               \
+          "Enables the 'Brave Experimental Adblock Rules' regional list if "   \
+          "its toggle in brave://adblock hasn't otherwise been modified",      \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(                                                  \
+              brave_shields::features::kBraveAdblockExperimentalListDefault),  \
       },                                                                       \
       {                                                                        \
           "brave-adblock-scriptlet-debug-logs",                                \
@@ -637,6 +724,23 @@
               brave_shields::features::kCosmeticFilteringSyncLoad),            \
       },                                                                       \
       {                                                                        \
+          "block-all-cookies-toggle",                                          \
+          "'Block all cookies' option in Shields global defaults",             \
+          "Shows the 'Block all cookies' toggle in Shields global defaults. "  \
+          "This global setting prevents all websites from storing cookies "    \
+          "on your device, but is also very likely to lead to site breakage.", \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(brave_shields::features::kBlockAllCookiesToggle), \
+      },                                                                       \
+      {                                                                        \
+          "block-element-feature",                                             \
+          "Enable Block Element feature",                                      \
+          "Allows to block selected HTML element on the page",                 \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(                                                  \
+              brave_shields::features::kBraveShieldsElementPicker),            \
+      },                                                                       \
+      {                                                                        \
           "brave-super-referral",                                              \
           "Enable Brave Super Referral",                                       \
           "Use custom theme for Brave Super Referral",                         \
@@ -676,13 +780,6 @@
           FEATURE_VALUE_TYPE(net::features::kBraveForgetFirstPartyStorage),    \
       },                                                                       \
       {                                                                        \
-          "brave-rewards-vbat-notice",                                         \
-          "Enable Brave Rewards VBAT notices",                                 \
-          "Enables notices in the Brave Rewards UI about VBAT deadlines.",     \
-          kOsDesktop | kOsAndroid,                                             \
-          FEATURE_VALUE_TYPE(brave_rewards::features::kVBatNoticeFeature),     \
-      },                                                                       \
-      {                                                                        \
           "brave-rewards-verbose-logging",                                     \
           "Enable Brave Rewards verbose logging",                              \
           "Enables detailed logging of Brave Rewards system events to a log "  \
@@ -704,13 +801,35 @@
                                  kAllowUnsupportedWalletProvidersFeature),     \
       },                                                                       \
       {                                                                        \
-          "brave-ads-should-launch-brave-ads-as-an-in-process-service",        \
-          "Launch Brave Ads as an in-process service",                         \
-          "Launch Brave Ads as an in-process service removing the utility "    \
-          "process.",                                                          \
-          kOsAll,                                                              \
+          "brave-rewards-allow-self-custody-providers",                        \
+          "Enable Brave Rewards self-custody connection options",              \
+          "Enables self-custody options to be selected in Brave Rewards.",     \
+          kOsDesktop | kOsAndroid,                                             \
           FEATURE_VALUE_TYPE(                                                  \
-              brave_ads::kShouldLaunchBraveAdsAsAnInProcessServiceFeature),    \
+              brave_rewards::features::kAllowSelfCustodyProvidersFeature),     \
+      },                                                                       \
+      {                                                                        \
+          "brave-rewards-new-rewards-ui",                                      \
+          "Show the new Rewards UI",                                           \
+          "Displays the new Rewards UI.",                                      \
+          kOsDesktop | kOsAndroid,                                             \
+          FEATURE_VALUE_TYPE(brave_rewards::features::kNewRewardsUIFeature),   \
+      },                                                                       \
+      {                                                                        \
+          "brave-rewards-animated-background",                                 \
+          "Show an animated background on the Rewards UI",                     \
+          "Shows an animated background on the Rewards panel and page.",       \
+          kOsDesktop | kOsAndroid,                                             \
+          FEATURE_VALUE_TYPE(                                                  \
+              brave_rewards::features::kAnimatedBackgroundFeature),            \
+      },                                                                       \
+      {                                                                        \
+          "brave-rewards-platform-creator-detection",                          \
+          "Detect Brave Creators on media platform sites",                     \
+          "Enables detection of Brave Creator pages on media platform sites.", \
+          kOsDesktop | kOsAndroid,                                             \
+          FEATURE_VALUE_TYPE(                                                  \
+              brave_rewards::features::kPlatformCreatorDetectionFeature),      \
       },                                                                       \
       {                                                                        \
           "brave-ads-should-always-run-brave-ads-service",                     \
@@ -770,14 +889,6 @@
               brave_ads::kAllowedToFallbackToCustomNotificationAdFeature),     \
       },                                                                       \
       {                                                                        \
-          "brave-sync-v2",                                                     \
-          "Enable Brave Sync v2",                                              \
-          "Brave Sync v2 integrates with chromium sync engine with Brave "     \
-          "specific authentication flow and enforce client side encryption",   \
-          kOsDesktop,                                                          \
-          FEATURE_VALUE_TYPE(brave_sync::features::kBraveSync),                \
-      },                                                                       \
-      {                                                                        \
           "file-system-access-api",                                            \
           "File System Access API",                                            \
           "Enables the File System Access API, giving websites access to the " \
@@ -792,14 +903,6 @@
           "Bluetooth devices",                                                 \
           kOsAll,                                                              \
           FEATURE_VALUE_TYPE(blink::features::kBraveWebBluetoothAPI),          \
-      },                                                                       \
-      {                                                                        \
-          "brave-web-serial-api",                                              \
-          "Web Serial API",                                                    \
-          "Enables the Web Serial API, allowing websites to request access "   \
-          "to serial ports ",                                                  \
-          kOsDesktop,                                                          \
-          FEATURE_VALUE_TYPE(blink::features::kBraveWebSerialAPI),             \
       },                                                                       \
       {                                                                        \
           "navigator-connection-attribute",                                    \
@@ -893,6 +996,14 @@
           FEATURE_VALUE_TYPE(net::features::kBraveHttpsByDefault),             \
       },                                                                       \
       {                                                                        \
+          "fallback-dns-over-https",                                           \
+          "Use a fallback DoH provider",                                       \
+          "In Automatic DoH mode, use a fallback DoH provider if the current " \
+          "provider doesn't offer Secure DNS.",                                \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(net::features::kBraveFallbackDoHProvider),        \
+      },                                                                       \
+      {                                                                        \
           "brave-show-strict-fingerprinting-mode",                             \
           "Show Strict Fingerprinting Mode",                                   \
           "Show Strict (aggressive) option for Fingerprinting Mode in "        \
@@ -911,6 +1022,15 @@
           FEATURE_VALUE_TYPE(features::kBraveOverrideDownloadDangerLevel),     \
       },                                                                       \
       {                                                                        \
+          "brave-webcompat-exceptions-service",                                \
+          "Allow feature exceptions for webcompat",                            \
+          "Disables Brave features for specific websites when they break "     \
+          "website functionality.",                                            \
+          kOsAll,                                                              \
+          FEATURE_VALUE_TYPE(                                                  \
+              webcompat::features::kBraveWebcompatExceptionsService),          \
+      },                                                                       \
+      {                                                                        \
           "brave-web-view-rounded-corners",                                    \
           "Use rounded corners on main content areas",                         \
           "Renders the main content area and sidebar panel with rounded "      \
@@ -918,29 +1038,27 @@
           kOsWin | kOsLinux | kOsMac,                                          \
           FEATURE_VALUE_TYPE(features::kBraveWebViewRoundedCorners),           \
       })                                                                       \
-  BRAVE_IPFS_FEATURE_ENTRIES                                                   \
   BRAVE_NATIVE_WALLET_FEATURE_ENTRIES                                          \
   BRAVE_NEWS_FEATURE_ENTRIES                                                   \
   CRYPTO_WALLETS_FEATURE_ENTRIES                                               \
   BRAVE_REWARDS_GEMINI_FEATURE_ENTRIES                                         \
-  BRAVE_VPN_FEATURE_ENTRIES                                                    \
-  BRAVE_VPN_DNS_FEATURE_ENTRIES                                                \
-  BRAVE_VPN_WIREGUARD_FEATURE_ENTRIES                                          \
-  BRAVE_SKU_SDK_FEATURE_ENTRIES                                                \
   SPEEDREADER_FEATURE_ENTRIES                                                  \
   REQUEST_OTR_FEATURE_ENTRIES                                                  \
   BRAVE_MODULE_FILENAME_PATCH                                                  \
-  BRAVE_FEDERATED_FEATURE_ENTRIES                                              \
   PLAYLIST_FEATURE_ENTRIES                                                     \
   BRAVE_COMMANDS_FEATURE_ENTRIES                                               \
   BRAVE_BACKGROUND_VIDEO_PLAYBACK_ANDROID                                      \
   BRAVE_SAFE_BROWSING_ANDROID                                                  \
   BRAVE_CHANGE_ACTIVE_TAB_ON_SCROLL_EVENT_FEATURE_ENTRIES                      \
   BRAVE_TABS_FEATURE_ENTRIES                                                   \
-  BRAVE_AI_CHAT                                                                \
-  BRAVE_AI_CHAT_HISTORY                                                        \
+  BRAVE_AI_CHAT_FEATURE_ENTRIES                                                \
+  BRAVE_AI_REWRITER                                                            \
   BRAVE_OMNIBOX_FEATURES                                                       \
-  BRAVE_PLAYER_FEATURE_ENTRIES                                                 \
+  BRAVE_MIDDLE_CLICK_AUTOSCROLL_FEATURE_ENTRY                                  \
+  BRAVE_EXTENSIONS_MANIFEST_V2                                                 \
+  BRAVE_WORKAROUND_NEW_WINDOW_FLASH                                            \
+  BRAVE_ADBLOCK_CUSTOM_SCRIPTLETS                                              \
+  BRAVE_EDUCATION_FEATURE_ENTRIES                                              \
   LAST_BRAVE_FEATURE_ENTRIES_ITEM  // Keep it as the last item.
 namespace flags_ui {
 namespace {
@@ -956,20 +1074,6 @@ namespace {
   static_assert(
       std::initializer_list<FeatureEntry>{BRAVE_ABOUT_FLAGS_FEATURE_ENTRIES}
           .size());
-}
-
-// Called to skip feature entries on brave://flags page without affecting
-// features state.
-bool BraveShouldSkipConditionalFeatureEntry(
-    const flags_ui::FlagsStorage* storage,
-    const FeatureEntry& entry) {
-#if BUILDFLAG(ENABLE_BRAVE_VPN_WIREGUARD) && BUILDFLAG(IS_WIN)
-  if (base::EqualsCaseInsensitiveASCII(kBraveVPNWireguardFeatureInternalName,
-                                       entry.internal_name)) {
-    return true;
-  }
-#endif
-  return false;
 }
 
 }  // namespace

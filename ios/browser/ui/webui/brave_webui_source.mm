@@ -14,7 +14,7 @@
 #include "brave/components/webui/webui_resources.h"
 #include "build/build_config.h"
 #include "components/grit/components_resources.h"
-#include "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #include "ios/web/public/webui/web_ui_ios_data_source.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/webui/resource_path.h"
@@ -32,16 +32,14 @@ void CustomizeWebUIHTMLSource(web::WebUIIOS* web_ui,
 web::WebUIIOSDataSource* CreateWebUIDataSource(
     web::WebUIIOS* web_ui,
     const std::string& name,
-    const webui::ResourcePath* resource_map,
-    size_t resource_map_size,
+    base::span<const webui::ResourcePath> resource_paths,
     int html_resource_id,
     bool disable_trusted_types_csp) {
   web::WebUIIOSDataSource* source = web::WebUIIOSDataSource::Create(name);
-  web::WebUIIOSDataSource::Add(ChromeBrowserState::FromWebUIIOS(web_ui),
-                               source);
+  web::WebUIIOSDataSource::Add(ProfileIOS::FromWebUIIOS(web_ui), source);
 
   source->UseStringsJs();
-  source->AddResourcePaths(base::make_span(resource_map, resource_map_size));
+  source->AddResourcePaths(resource_paths);
   source->SetDefaultResource(html_resource_id);
   CustomizeWebUIHTMLSource(web_ui, name, source);
   return source;
@@ -54,12 +52,11 @@ namespace brave {
 web::WebUIIOSDataSource* CreateAndAddWebUIDataSource(
     web::WebUIIOS* web_ui,
     const std::string& name,
-    const webui::ResourcePath* resource_map,
-    size_t resource_map_size,
+    base::span<const webui::ResourcePath> resource_paths,
     int html_resource_id,
     bool disable_trusted_types_csp) {
-  return CreateWebUIDataSource(web_ui, name, resource_map, resource_map_size,
-                               html_resource_id, disable_trusted_types_csp);
+  return CreateWebUIDataSource(web_ui, name, resource_paths, html_resource_id,
+                               disable_trusted_types_csp);
 }
 
 }  // namespace brave

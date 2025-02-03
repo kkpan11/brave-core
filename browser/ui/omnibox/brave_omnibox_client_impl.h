@@ -15,11 +15,9 @@ class PrefRegistrySimple;
 class Profile;
 class SearchEngineTracker;
 
-#if BUILDFLAG(ENABLE_AI_CHAT)
 namespace ai_chat {
 class AIChatMetrics;
 }  // namespace ai_chat
-#endif
 
 class BraveOmniboxClientImpl : public ChromeOmniboxClient {
  public:
@@ -33,7 +31,6 @@ class BraveOmniboxClientImpl : public ChromeOmniboxClient {
   static void RegisterProfilePrefs(PrefRegistrySimple* prefs);
 
   const AutocompleteSchemeClassifier& GetSchemeClassifier() const override;
-  bool IsAutocompleteEnabled() const override;
 
   void OnURLOpenedFromOmnibox(OmniboxLog* log) override;
 
@@ -48,15 +45,12 @@ class BraveOmniboxClientImpl : public ChromeOmniboxClient {
       bool destination_url_entered_with_http_scheme,
       const std::u16string& text,
       const AutocompleteMatch& match,
-      const AutocompleteMatch& alternative_nav_match,
-      IDNA2008DeviationCharacter deviation_char_in_hostname) override;
+      const AutocompleteMatch& alternative_nav_match) override;
 
  private:
   raw_ptr<Profile> profile_ = nullptr;
   raw_ptr<SearchEngineTracker> search_engine_tracker_ = nullptr;
-#if BUILDFLAG(ENABLE_AI_CHAT)
   raw_ptr<ai_chat::AIChatMetrics> ai_chat_metrics_ = nullptr;
-#endif
   BraveAutocompleteSchemeClassifier scheme_classifier_;
   WeeklyStorage search_storage_;
 };

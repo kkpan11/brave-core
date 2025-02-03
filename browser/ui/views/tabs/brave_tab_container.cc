@@ -13,25 +13,41 @@
 
 #include "base/check_is_test.h"
 #include "base/containers/flat_map.h"
+#include "base/feature_list.h"
+#include "brave/browser/ui/color/brave_color_id.h"
+#include "brave/browser/ui/tabs/brave_tab_layout_constants.h"
 #include "brave/browser/ui/tabs/brave_tab_prefs.h"
+#include "brave/browser/ui/tabs/features.h"
+#include "brave/browser/ui/tabs/split_view_browser_data.h"
 #include "brave/browser/ui/views/frame/brave_browser_view.h"
 #include "brave/browser/ui/views/frame/vertical_tab_strip_widget_delegate_view.h"
 #include "brave/browser/ui/views/tabs/brave_tab_group_header.h"
 #include "brave/browser/ui/views/tabs/brave_tab_strip.h"
 #include "brave/browser/ui/views/tabs/vertical_tab_utils.h"
+#include "brave/ui/color/nala/nala_color_id.h"
+#include "cc/paint/paint_flags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
-#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/views/tabs/tab_container.h"
 #include "chrome/browser/ui/views/tabs/tab_drag_controller.h"
 #include "chrome/grit/theme_resources.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/color/color_id.h"
+#include "ui/compositor/paint_recorder.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/skbitmap_operations.h"
 #include "ui/views/view_utils.h"
+
+using BrowserRootView::DropIndex::GroupInclusion::kDontIncludeInGroup;
+using BrowserRootView::DropIndex::GroupInclusion::kIncludeInGroup;
+using BrowserRootView::DropIndex::RelativeToIndex::kInsertBeforeIndex;
+using BrowserRootView::DropIndex::RelativeToIndex::kReplaceIndex;
 
 BraveTabContainer::BraveTabContainer(
     TabContainerController& controller,
@@ -44,7 +60,7 @@ BraveTabContainer::BraveTabContainer(
                        drag_context,
                        tab_slot_controller,
                        scroll_contents_view),
-      drag_context_(static_cast<TabDragContext*>(drag_context)),
+      drag_context_(drag_context),
       tab_style_(TabStyle::Get()),
       controller_(controller) {
   auto* browser = tab_slot_controller_->GetBrowser();
@@ -92,7 +108,24 @@ base::OnceClosure BraveTabContainer::LockLayout() {
                         base::Unretained(this));
 }
 
-gfx::Size BraveTabContainer::CalculatePreferredSize() const {
+void BraveTabContainer::AddedToWidget() {
+  TabContainerImpl::AddedToWidget();
+  auto* browser = tab_slot_controller_->GetBrowser();
+  if (!browser) {
+    CHECK_IS_TEST();
+    return;
+  }
+
+  if (auto* split_view_data =
+          SplitViewBrowserData::FromBrowser(const_cast<Browser*>(browser))) {
+    if (!split_view_data_observation_.IsObserving()) {
+      split_view_data_observation_.Observe(split_view_data);
+    }
+  }
+}
+
+gfx::Size BraveTabContainer::CalculatePreferredSize(
+    const views::SizeBounds& available_size) const {
   // Note that we check this before checking currently we're in vertical tab
   // strip mode. We might be in the middle of changing orientation.
   if (layout_locked_) {
@@ -101,13 +134,15 @@ gfx::Size BraveTabContainer::CalculatePreferredSize() const {
 
   if (!tabs::utils::ShouldShowVerticalTabs(
           tab_slot_controller_->GetBrowser())) {
-    return TabContainerImpl::CalculatePreferredSize();
+    return TabContainerImpl::CalculatePreferredSize(available_size);
   }
 
   const int tab_count = tabs_view_model_.view_size();
   int height = 0;
   if (bounds_animator_.IsAnimating() && tab_count &&
-      !drag_context_->GetDragController()->IsActive()) {
+      !static_cast<TabDragContext*>(drag_context_.get())
+           ->GetDragController()
+           ->IsActive()) {
     // When removing a tab in the middle of tabs, the last tab's current bottom
     // could be greater than ideal bounds bottom.
     height = tabs_view_model_.view_at(tab_count - 1)->bounds().bottom();
@@ -124,7 +159,7 @@ gfx::Size BraveTabContainer::CalculatePreferredSize() const {
 
   const auto slots_bounds = layout_helper_->CalculateIdealBounds(
       available_width_callback_.is_null() ||
-              base::FeatureList::IsEnabled(features::kScrollableTabStrip)
+              base::FeatureList::IsEnabled(tabs::kScrollableTabStrip)
           ? std::nullopt
           : std::optional<int>(available_width_callback_.Run()));
   height =
@@ -252,8 +287,94 @@ void BraveTabContainer::UpdateLayoutOrientation() {
   layout_helper_->set_use_vertical_tabs(
       tabs::utils::ShouldShowVerticalTabs(tab_slot_controller_->GetBrowser()));
   layout_helper_->set_tab_strip(
-      static_cast<BraveTabStrip*>(std::to_address(tab_slot_controller_)));
+      static_cast<TabStrip*>(base::to_address(tab_slot_controller_)));
   InvalidateLayout();
+}
+
+void BraveTabContainer::PaintBoundingBoxForTiles(
+    gfx::Canvas& canvas,
+    const SplitViewBrowserData* split_view_data) {
+  std::ranges::for_each(split_view_data->tiles(), [&](const auto& tile) {
+    PaintBoundingBoxForTile(canvas, tile);
+  });
+}
+
+void BraveTabContainer::PaintBoundingBoxForTile(gfx::Canvas& canvas,
+                                                const TabTile& tile) {
+  if (!GetTabCount()) {
+    return;
+  }
+
+  // Note that GetTabAtModelIndex() and IsValidModelIndex() is actually using
+  // "ViewModel" index. See TabContainerImpl::GetTabAtModelIndex(), and
+  // implementations in compound_tab_container.cc implementation. Thus, we need
+  // to add pinned tab count.
+  auto* tab_strip_model = tab_slot_controller_->GetBrowser()->tab_strip_model();
+  const int offset =
+      IsPinnedTabContainer() ? 0 : tab_strip_model->IndexOfFirstNonPinnedTab();
+
+  auto tab1_index = tab_strip_model->GetIndexOfTab(tile.first.Get()) - offset;
+  auto tab2_index = tab_strip_model->GetIndexOfTab(tile.second.Get()) - offset;
+  if (!controller_->IsValidModelIndex(tab1_index) ||
+      !controller_->IsValidModelIndex(tab2_index)) {
+    // In case the tiled tab is not in this container, this can happen.
+    // For instance, this container is for pinned tabs but tabs in the tile are
+    // unpinned.
+    return;
+  }
+
+  gfx::Rect bounding_rects;
+  for (auto i : {tab1_index, tab2_index}) {
+    bounding_rects.Union(GetTabAtModelIndex(i)->bounds());
+  }
+  const bool is_vertical_tab =
+      tabs::utils::ShouldShowVerticalTabs(tab_slot_controller_->GetBrowser());
+  if (!is_vertical_tab) {
+    // In order to make margin between the bounding box and tab strip.
+    // Need to compensate the amount of overlap because it's hidden by overlap
+    // at bottom.
+    int vertical_margin = GetTabAtModelIndex(tab1_index)->data().pinned ? 4 : 2;
+    bounding_rects.Inset(gfx::Insets::TLBR(
+        vertical_margin, brave_tabs::kHorizontalTabInset,
+        vertical_margin + GetLayoutConstant(TABSTRIP_TOOLBAR_OVERLAP),
+        brave_tabs::kHorizontalTabInset));
+  }
+
+  constexpr auto kRadius = 12.f;  // same value with --leo-radius-l
+
+  auto* cp = GetColorProvider();
+  DCHECK(cp);
+
+  cc::PaintFlags flags;
+  flags.setColor(cp->GetColor(
+      is_vertical_tab ? kColorBraveSplitViewTileBackgroundVertical
+                      : kColorBraveSplitViewTileBackgroundHorizontal));
+
+  canvas.DrawRoundRect(bounding_rects, kRadius, flags);
+
+  auto active_tab_handle =
+      tab_strip_model->GetTabAtIndex(tab_strip_model->active_index())
+          ->GetHandle();
+  if (!is_vertical_tab && active_tab_handle != tile.first &&
+      active_tab_handle != tile.second &&
+      !GetTabAtModelIndex(tab1_index)->IsMouseHovered() &&
+      !GetTabAtModelIndex(tab2_index)->IsMouseHovered()) {
+    constexpr int kSplitViewSeparatorHeight = 24;
+    auto separator_top = bounding_rects.top_center();
+    CHECK_GT(bounding_rects.height(), kSplitViewSeparatorHeight);
+    // Calculate gap between tab bounds top and separator top.
+    const int gap = (bounding_rects.height() - kSplitViewSeparatorHeight) / 2;
+    separator_top.Offset(0, gap);
+    auto separator_bottom = separator_top;
+    separator_bottom.Offset(0, kSplitViewSeparatorHeight);
+    canvas.DrawLine(separator_top, separator_bottom,
+                    cp->GetColor(kColorBraveSplitViewTileDivider));
+  }
+
+  bounding_rects.Outset(1);
+  flags.setStyle(cc::PaintFlags::kStroke_Style);
+  flags.setColor(cp->GetColor(kColorBraveSplitViewTileBackgroundBorder));
+  canvas.DrawRoundRect(bounding_rects, kRadius, flags);
 }
 
 void BraveTabContainer::OnUnlockLayout() {
@@ -271,11 +392,15 @@ void BraveTabContainer::CompleteAnimationAndLayout() {
     return;
   }
 
+  if (tabs::utils::ShouldShowVerticalTabs(tab_slot_controller_->GetBrowser())) {
+    last_layout_size_ = size();
+  }
+
   TabContainerImpl::CompleteAnimationAndLayout();
 
   // Should force tabs to layout as they might not change bounds, which makes
   // insets not updated.
-  base::ranges::for_each(children(), &views::View::Layout);
+  std::ranges::for_each(children(), &views::View::DeprecatedLayoutImmediately);
 }
 
 void BraveTabContainer::PaintChildren(const views::PaintInfo& paint_info) {
@@ -285,21 +410,58 @@ void BraveTabContainer::PaintChildren(const views::PaintInfo& paint_info) {
     if (!ZOrderableTabContainerElement::CanOrderView(child)) {
       continue;
     }
-    if (child->layer()) {
-      continue;
-    }
-
     orderable_children.emplace_back(child);
   }
 
   std::stable_sort(orderable_children.begin(), orderable_children.end());
+
+  if (auto* split_view_data = SplitViewBrowserData::FromBrowser(
+          tab_slot_controller_->GetBrowser())) {
+    ui::PaintRecorder recorder(paint_info.context(),
+                               paint_info.paint_recording_size(),
+                               paint_info.paint_recording_scale_x(),
+                               paint_info.paint_recording_scale_y(), nullptr);
+    PaintBoundingBoxForTiles(*recorder.canvas(), split_view_data);
+  }
 
   for (const ZOrderableTabContainerElement& child : orderable_children) {
     child.view()->Paint(paint_info);
   }
 }
 
-BrowserRootView::DropIndex BraveTabContainer::GetDropIndex(
+void BraveTabContainer::SetTabSlotVisibility() {
+  // During multiple tab closing including group, this method could be called
+  // but group_views_ could be empty already. We should clear group info in tabs
+  // in that case.
+  // https://github.com/brave/brave-browser/issues/39298
+  for (Tab* tab : layout_helper_->GetTabs()) {
+    if (std::optional<tab_groups::TabGroupId> group = tab->group();
+        group && !group_views_.contains(*group)) {
+      tab->SetGroup(std::nullopt);
+    }
+  }
+
+  TabContainerImpl::SetTabSlotVisibility();
+}
+
+void BraveTabContainer::InvalidateIdealBounds() {
+  if (tabs::utils::ShouldShowVerticalTabs(tab_slot_controller_->GetBrowser())) {
+    last_layout_size_ = gfx::Size();
+  }
+
+  TabContainerImpl::InvalidateIdealBounds();
+}
+
+void BraveTabContainer::Layout(PassKey) {
+  if (tabs::utils::ShouldShowVerticalTabs(tab_slot_controller_->GetBrowser()) &&
+      last_layout_size_ == size()) {
+    return;
+  }
+
+  LayoutSuperclass<TabContainerImpl>(this);
+}
+
+std::optional<BrowserRootView::DropIndex> BraveTabContainer::GetDropIndex(
     const ui::DropTargetEvent& event) {
   if (!tabs::utils::ShouldShowVerticalTabs(
           tab_slot_controller_->GetBrowser())) {
@@ -331,8 +493,6 @@ BrowserRootView::DropIndex BraveTabContainer::GetDropIndex(
         continue;
       }
 
-      const int model_index = GetModelIndexOf(tab).value();
-
       const bool is_tab_pinned = tab->data().pinned;
 
       // When dropping text or links onto pinned tabs, we need to take the
@@ -341,6 +501,7 @@ BrowserRootView::DropIndex BraveTabContainer::GetDropIndex(
         continue;
       }
 
+      const int model_index = GetModelIndexOf(tab).value();
       const bool first_in_group =
           tab->group().has_value() &&
           model_index == controller_->GetFirstTabInGroup(tab->group().value());
@@ -350,28 +511,42 @@ BrowserRootView::DropIndex BraveTabContainer::GetDropIndex(
 
       if (is_tab_pinned ? x >= (max_x - hot_width)
                         : y >= (max_y - hot_height)) {
-        return {model_index + 1, true /* drop_before */,
-                false /* drop_in_group */};
+        return BrowserRootView::DropIndex{
+            .index = model_index + 1,
+            .relative_to_index = kInsertBeforeIndex,
+            .group_inclusion = kDontIncludeInGroup};
       }
 
       if (is_tab_pinned ? x < tab->x() + hot_width
                         : y < tab->y() + hot_height) {
-        return {model_index, true /* drop_before */, first_in_group};
+        return BrowserRootView::DropIndex{
+            .index = model_index,
+            .relative_to_index = kInsertBeforeIndex,
+            .group_inclusion =
+                first_in_group ? kIncludeInGroup : kDontIncludeInGroup};
       }
 
-      return {model_index, false /* drop_before */, false /* drop_in_group */};
+      return BrowserRootView::DropIndex{.index = model_index,
+                                        .relative_to_index = kReplaceIndex,
+                                        .group_inclusion = kIncludeInGroup};
     } else {
       TabGroupHeader* const group_header = static_cast<TabGroupHeader*>(view);
       const int first_tab_index =
           controller_->GetFirstTabInGroup(group_header->group().value())
               .value();
-      return {first_tab_index, true /* drop_before */,
-              y >= max_y - group_header->height() / 2 /* drop_in_group */};
+      return BrowserRootView::DropIndex{
+          .index = first_tab_index,
+          .relative_to_index = kInsertBeforeIndex,
+          .group_inclusion = y >= max_y - group_header->height() / 2
+                                 ? kIncludeInGroup
+                                 : kDontIncludeInGroup};
     }
   }
 
   // The drop isn't over a tab, add it to the end.
-  return {GetTabCount(), true, false};
+  return BrowserRootView::DropIndex{.index = GetTabCount(),
+                                    .relative_to_index = kInsertBeforeIndex,
+                                    .group_inclusion = kDontIncludeInGroup};
 }
 
 // BraveTabContainer::DropArrow:
@@ -445,6 +620,20 @@ void BraveTabContainer::HandleDragExited() {
     return;
   }
   SetDropArrow({});
+}
+
+void BraveTabContainer::OnTileTabs(const TabTile& tile) {
+  UpdateTabsBorderInTile(tile);
+  SchedulePaint();
+}
+
+void BraveTabContainer::OnDidBreakTile(const TabTile& tile) {
+  UpdateTabsBorderInTile(tile);
+  SchedulePaint();
+}
+
+void BraveTabContainer::OnSwapTabsInTile(const TabTile& tile) {
+  UpdateTabsBorderInTile(tile);
 }
 
 gfx::Rect BraveTabContainer::GetDropBounds(int drop_index,
@@ -560,15 +749,23 @@ void BraveTabContainer::SetDropArrow(
   }
 
   // Let the controller know of the index update.
-  controller_->OnDropIndexUpdate(index->value, index->drop_before);
+  controller_->OnDropIndexUpdate(
+      index->index,
+      index->relative_to_index ==
+          BrowserRootView::DropIndex::RelativeToIndex::kInsertBeforeIndex);
 
   if (drop_arrow_ && (index == drop_arrow_->index())) {
     return;
   }
 
   bool is_beneath = false;
-  gfx::Rect drop_bounds = GetDropBounds(index->value, index->drop_before,
-                                        index->drop_in_group, &is_beneath);
+  gfx::Rect drop_bounds = GetDropBounds(
+      index->index,
+      index->relative_to_index ==
+          BrowserRootView::DropIndex::RelativeToIndex::kInsertBeforeIndex,
+      index->group_inclusion ==
+          BrowserRootView::DropIndex::GroupInclusion::kIncludeInGroup,
+      &is_beneath);
 
   if (!drop_arrow_) {
     DropArrow::Position position = DropArrow::Position::Vertical;
@@ -588,5 +785,37 @@ void BraveTabContainer::SetDropArrow(
   drop_arrow_->SetWindowBounds(drop_bounds);
 }
 
-BEGIN_METADATA(BraveTabContainer, TabContainerImpl)
+bool BraveTabContainer::IsPinnedTabContainer() const {
+  return tabs_view_model_.view_size() > 0 &&
+         tabs_view_model_.view_at(0)->data().pinned;
+}
+
+void BraveTabContainer::UpdateTabsBorderInTile(const TabTile& tile) {
+  auto* tab_strip_model = tab_slot_controller_->GetBrowser()->tab_strip_model();
+  const int offset =
+      IsPinnedTabContainer() ? 0 : tab_strip_model->IndexOfFirstNonPinnedTab();
+
+  auto tab1_index = tab_strip_model->GetIndexOfTab(tile.first.Get()) - offset;
+  auto tab2_index = tab_strip_model->GetIndexOfTab(tile.second.Get()) - offset;
+
+  if (!controller_->IsValidModelIndex(tab1_index) ||
+      !controller_->IsValidModelIndex(tab2_index)) {
+    // In case the tiled tab is not in this container, this can happen.
+    // For instance, this container is for pinned tabs but tabs in the tile
+    // are unpinned.
+    return;
+  }
+
+  auto* tab1 = GetTabAtModelIndex(tab1_index);
+  auto* tab2 = GetTabAtModelIndex(tab2_index);
+
+  // Tab's border varies per split view state.
+  // See BraveVerticalTabStyle::GetContentsInsets().
+  tab1->SetBorder(
+      views::CreateEmptyBorder(tab1->tab_style_views()->GetContentsInsets()));
+  tab2->SetBorder(
+      views::CreateEmptyBorder(tab2->tab_style_views()->GetContentsInsets()));
+}
+
+BEGIN_METADATA(BraveTabContainer)
 END_METADATA

@@ -53,12 +53,14 @@ class ConstellationLogStore : public metrics::LogStore {
   bool has_staged_log() const override;
   const std::string& staged_log() const override;
   std::string staged_log_type() const;
+  const std::string& staged_log_histogram_name() const;
   const std::string& staged_log_hash() const override;
   const std::string& staged_log_signature() const override;
   std::optional<uint64_t> staged_log_user_id() const override;
   void StageNextLog() override;
   void DiscardStagedLog(std::string_view reason = "") override;
   void MarkStagedLogAsSent() override;
+  const metrics::LogMetadata staged_log_metadata() const override;
 
   // |TrimAndPersistUnsentLogs| should not be used, since we persist everything
   // on the fly.
@@ -84,7 +86,7 @@ class ConstellationLogStore : public metrics::LogStore {
 
   size_t GetMaxEpochsToRetain() const;
 
-  const raw_ref<PrefService> local_state_;
+  const raw_ref<PrefService, DanglingUntriaged> local_state_;
   MetricLogType log_type_;
 
   base::flat_map<LogKey, std::string, LogKeyCompare> log_;

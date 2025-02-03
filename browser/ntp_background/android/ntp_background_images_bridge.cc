@@ -29,7 +29,6 @@
 #include "brave/components/ntp_background_images/browser/url_constants.h"
 #include "brave/components/ntp_background_images/browser/view_counter_service.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_android.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
@@ -64,9 +63,11 @@ NTPBackgroundImagesBridgeFactory::GetInstance() {
   return instance.get();
 }
 
-KeyedService* NTPBackgroundImagesBridgeFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+NTPBackgroundImagesBridgeFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new NTPBackgroundImagesBridge(Profile::FromBrowserContext(context));
+  return std::make_unique<NTPBackgroundImagesBridge>(
+      Profile::FromBrowserContext(context));
 }
 
 bool NTPBackgroundImagesBridgeFactory::ServiceIsCreatedWithBrowserContext()
@@ -100,7 +101,7 @@ static base::android::ScopedJavaLocalRef<jobject>
 JNI_NTPBackgroundImagesBridge_GetInstance(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile) {
-  auto* profile = ProfileAndroid::FromProfileAndroid(j_profile);
+  auto* profile = Profile::FromJavaObject(j_profile);
   return ntp_background_images::NTPBackgroundImagesBridgeFactory::GetInstance()
       ->GetForProfile(profile)
       ->GetJavaObject();
@@ -139,7 +140,7 @@ NTPBackgroundImagesBridge::CreateWallpaper(const base::Value::Dict& data) {
   JNIEnv* env = AttachCurrentThread();
 
   auto* image_path =
-      data.FindString(ntp_background_images::kWallpaperImagePathKey);
+      data.FindString(ntp_background_images::kWallpaperFilePathKey);
   auto* author = data.FindString(ntp_background_images::kImageAuthorKey);
   auto* link = data.FindString(ntp_background_images::kImageLinkKey);
 
@@ -155,7 +156,7 @@ NTPBackgroundImagesBridge::CreateBrandedWallpaper(
   JNIEnv* env = AttachCurrentThread();
 
   auto* image_path =
-      data.FindString(ntp_background_images::kWallpaperImagePathKey);
+      data.FindString(ntp_background_images::kWallpaperFilePathKey);
   auto* logo_image_path =
       data.FindStringByDottedPath(ntp_background_images::kLogoImagePath);
   if (!image_path || !logo_image_path)
@@ -172,12 +173,14 @@ NTPBackgroundImagesBridge::CreateBrandedWallpaper(
       data.FindBool(ntp_background_images::kIsSponsoredKey).value_or(false);
   auto* creative_instance_id =
       data.FindString(ntp_background_images::kCreativeInstanceIDKey);
+  auto* campaign_id = data.FindString(ntp_background_images::kCampaignIdKey);
   const std::string* wallpaper_id =
       data.FindString(ntp_background_images::kWallpaperIDKey);
 
   view_counter_service_->BrandedWallpaperWillBeDisplayed(
       wallpaper_id ? *wallpaper_id : "",
-      creative_instance_id ? *creative_instance_id : "");
+      creative_instance_id ? *creative_instance_id : "",
+      campaign_id ? *campaign_id : "");
 
   return Java_NTPBackgroundImagesBridge_createBrandedWallpaper(
       env, ConvertUTF8ToJavaString(env, *image_path), focal_point_x,

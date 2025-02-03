@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "brave_base/random.h"
+#include "brave/vendor/brave_base/random.h"
 
 #include <bit>
 #include <cmath>
@@ -11,14 +11,11 @@
 #include "base/bits.h"
 #include "crypto/random.h"
 
-namespace brave_base {
-namespace random {
+namespace brave_base::random {
 
 uint64_t Uniform64() {
   uint64_t x;
-
-  crypto::RandBytes(&x, sizeof x);
-
+  crypto::RandBytes(base::byte_span_from_ref(x));
   return x;
 }
 
@@ -122,5 +119,4 @@ double Uniform_01(uint64_t e, uint64_t u) {
 
 }  // namespace deterministic
 
-}  // namespace random
-}  // namespace brave_base
+}  // namespace brave_base::random

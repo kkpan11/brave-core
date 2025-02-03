@@ -57,10 +57,12 @@ export const getKeyLocale = (key: string) => {
     : getLocale(localeString)
 }
 
-const getFormattedKeyValue = (key: string, data?: BraveWallet.SIWEMessage) => {
-  if (!data) {
+const getFormattedKeyValue = (key: keyof BraveWallet.SIWEMessage,
+  data?: BraveWallet.SIWEMessage) => {
+  if (!data?.[key]) {
     return ''
   }
+
   if (key === 'origin') {
     return (
       <CodeBlock>
@@ -87,6 +89,7 @@ const getFormattedKeyValue = (key: string, data?: BraveWallet.SIWEMessage) => {
       )
     })
   }
+
   return data[key].toString()
 }
 
@@ -109,7 +112,8 @@ export const SignInWithEthereum = (props: Props) => {
   const dataKeys = !data.signData.ethSiweData
     ? []
     : Object.keys(data.signData.ethSiweData).filter(
-        (key) => data.signData?.ethSiweData?.[key] !== null
+        (key: keyof BraveWallet.SIWEMessage) =>
+          data.signData?.ethSiweData?.[key] !== null
       )
 
   const hasMessageAndResource =
@@ -140,7 +144,8 @@ export const SignInWithEthereum = (props: Props) => {
           fullHeight={true}
           padding='0px 16px'
         >
-          {dataKeys.map((objectKey: string, key: number) => (
+          {dataKeys.map((objectKey: keyof BraveWallet.SIWEMessage,
+            key: number) => (
             <React.Fragment key={objectKey}>
               <Row
                 justifyContent='flex-start'
@@ -275,12 +280,12 @@ export const SignInWithEthereum = (props: Props) => {
                 {getLocale('braveWalletSignTransactionMessageTitle')}:
               </Title>
               <VerticalSpace space='4px' />
-              <URLText
+              <MessageText
                 textSize='14px'
                 isBold={false}
               >
                 {data.signData.ethSiweData?.statement ?? ''}
-              </URLText>
+              </MessageText>
               <VerticalSpace space='16px' />
               <Title
                 isBold={true}

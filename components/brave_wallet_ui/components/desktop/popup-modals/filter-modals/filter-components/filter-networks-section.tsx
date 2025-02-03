@@ -4,18 +4,22 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
+import { skipToken } from '@reduxjs/toolkit/dist/query'
 
+// Constants
+import { emptyRewardsInfo } from '../../../../../common/async/base-query-cache'
+
+// Queries
 import {
-  useGetExternalRewardsWalletQuery,
-  useGetRewardsEnabledQuery,
-  useGetVisibleNetworksQuery
+  useGetVisibleNetworksQuery,
+  useGetRewardsInfoQuery
 } from '../../../../../common/slices/api.slice'
 
 // Types
-import { SupportedTestNetworks } from '../../../../../constants/types'
 import {
-  WalletStatus //
-} from '../../../../../common/async/brave_rewards_api_proxy'
+  BraveWallet,
+  SupportedTestNetworks
+} from '../../../../../constants/types'
 
 // Options
 import {
@@ -26,9 +30,6 @@ import {
 import {
   networkEntityAdapter //
 } from '../../../../../common/slices/entities/network.entity'
-import {
-  getNormalizedExternalRewardsNetwork //
-} from '../../../../../utils/rewards_utils'
 import { getLocale } from '../../../../../../common/locale'
 
 // Components
@@ -41,15 +42,21 @@ import { Row } from '../../../../shared/style'
 interface Props {
   filteredOutNetworkKeys: string[]
   setFilteredOutNetworkKeys: (keys: string[]) => void
+  networksSubset?: BraveWallet.NetworkInfo[]
 }
 
-export const FilterNetworksSection = (props: Props) => {
-  const { filteredOutNetworkKeys, setFilteredOutNetworkKeys } = props
-
+export const FilterNetworksSection = ({
+  filteredOutNetworkKeys,
+  setFilteredOutNetworkKeys,
+  networksSubset
+}: Props) => {
   // Queries
-  const { data: networks } = useGetVisibleNetworksQuery()
-  const { data: isRewardsEnabled } = useGetRewardsEnabledQuery()
-  const { data: externalRewardsInfo } = useGetExternalRewardsWalletQuery()
+  const { data: visibleNetworks = [] } = useGetVisibleNetworksQuery(
+    networksSubset ? skipToken : undefined
+  )
+  const { data: { rewardsNetwork: providerNetwork } = emptyRewardsInfo } =
+    useGetRewardsInfoQuery(networksSubset ? skipToken : undefined)
+  const networks = networksSubset || visibleNetworks
 
   // Memos
   const primaryNetworks = React.useMemo(() => {
@@ -73,13 +80,6 @@ export const FilterNetworksSection = (props: Props) => {
   }, [networks])
 
   // Computed
-  const providerNetwork =
-    isRewardsEnabled && externalRewardsInfo?.status === WalletStatus.kConnected
-      ? getNormalizedExternalRewardsNetwork(
-          externalRewardsInfo?.provider ?? undefined
-        )
-      : undefined
-
   const isSelectAll = React.useMemo(() => {
     return (
       filteredOutNetworkKeys.length > 0 &&
@@ -121,7 +121,7 @@ export const FilterNetworksSection = (props: Props) => {
         networkEntityAdapter.selectId(network).toString()
       )
     )
-  }, [networks, filteredOutNetworkKeys, setFilteredOutNetworkKeys, isSelectAll])
+  }, [networks, setFilteredOutNetworkKeys, isSelectAll])
 
   return (
     <>

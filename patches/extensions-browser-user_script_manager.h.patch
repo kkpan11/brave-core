@@ -1,8 +1,8 @@
 diff --git a/extensions/browser/user_script_manager.h b/extensions/browser/user_script_manager.h
-index 15614d29e85f9698f60602c2b97a698bd5fe3b80..63d5d133e76a4de80f9e0e7a22c960afd30b18d9 100644
+index faaf3db52b3e6795764dcc5cc5569e850ac09669..e59c71cfeff766dd38dd41ac2b158bd6bf6836dd 100644
 --- a/extensions/browser/user_script_manager.h
 +++ b/extensions/browser/user_script_manager.h
-@@ -26,7 +26,7 @@
+@@ -25,7 +25,7 @@
  namespace content {
  class BrowserContext;
  }

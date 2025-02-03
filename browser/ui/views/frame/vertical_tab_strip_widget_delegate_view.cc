@@ -51,11 +51,10 @@ VerticalTabStripWidgetDelegateView* VerticalTabStripWidgetDelegateView::Create(
 
   auto* delegate_view =
       new VerticalTabStripWidgetDelegateView(browser_view, host_view);
-  views::Widget::InitParams params;
+  views::Widget::InitParams params(views::Widget::InitParams::TYPE_CONTROL);
   params.delegate = delegate_view;
 
   params.parent = browser_view->GetWidget()->GetNativeView();
-  params.type = views::Widget::InitParams::TYPE_CONTROL;
   // We need this to pass the key events to the top level widget. i.e. we should
   // not get focus.
   params.activatable = views::Widget::InitParams::Activatable::kNo;
@@ -106,13 +105,12 @@ void VerticalTabStripWidgetDelegateView::ChildPreferredSizeChanged(
 
   // Setting minimum size for |host_| so that we can overlay vertical tabs over
   // the web view.
-  if (auto new_host_size = region_view_->GetMinimumSize();
-      new_host_size != host_->GetPreferredSize()) {
-    host_->SetPreferredSize(new_host_size);
-    return;
-  }
+  host_->SetPreferredSize(region_view_->GetMinimumSize());
 
-  // Layout widget manually because host won't trigger layout.
+  // The position could be changed, so we should lay out again.
+  host_->parent()->DeprecatedLayoutImmediately();
+
+  // Lay out the widget manually in case the host doesn't arrange it.
   UpdateWidgetBounds();
 }
 
@@ -179,7 +177,8 @@ void VerticalTabStripWidgetDelegateView::UpdateWidgetBounds() {
   }
 
   // Convert coordinate system based on Browser's widget.
-  gfx::Rect widget_bounds = host_->ConvertRectToWidget(host_->GetLocalBounds());
+  gfx::Rect host_bounds = host_->ConvertRectToWidget(host_->GetLocalBounds());
+  gfx::Rect widget_bounds = host_bounds;
   widget_bounds.set_width(region_view_->GetPreferredSize().width());
   if (widget_bounds.IsEmpty()) {
     widget->Hide();
@@ -194,6 +193,12 @@ void VerticalTabStripWidgetDelegateView::UpdateWidgetBounds() {
     SetBorder(insets.IsEmpty() ? nullptr : views::CreateEmptyBorder(insets));
   }
 
+  if (tabs::utils::IsVerticalTabOnRight(browser_view_->browser())) {
+    // TODO(sko) This feels like a little bit janky during animation.
+    // Test if we can alleviate it.
+    widget_bounds.set_x(host_bounds.right() - widget_bounds.width());
+  }
+
   const bool need_to_call_layout =
       widget->GetWindowBoundsInScreen().size() != widget_bounds.size();
   widget->SetBounds(widget_bounds);
@@ -203,7 +208,7 @@ void VerticalTabStripWidgetDelegateView::UpdateWidgetBounds() {
   }
 
   if (need_to_call_layout) {
-    Layout();
+    DeprecatedLayoutImmediately();
   }
 
 #if BUILDFLAG(IS_MAC)
@@ -225,16 +230,25 @@ void VerticalTabStripWidgetDelegateView::UpdateClip() {
   // https://github.com/chromium/chromium/blob/371d67fd9c7db16c32f22e3ba247a07aa5e81487/ui/views/controls/menu/menu_config_mac.mm#L35
   SkPath path;
   constexpr int kCornerRadius = 8;
-  path.moveTo(0, 0);
-  path.lineTo(width(), 0);
-  path.lineTo(width(), height() - 1);
-  path.lineTo(0 + kCornerRadius, height() - 1);
-  path.rArcTo(kCornerRadius, kCornerRadius, 0, SkPath::kSmall_ArcSize,
-              SkPathDirection::kCW, -kCornerRadius, -kCornerRadius);
+  if (tabs::utils::IsVerticalTabOnRight(browser_view_->browser())) {
+    path.moveTo(width(), 0);
+    path.lineTo(0, 0);
+    path.lineTo(0, height() - 1);
+    path.lineTo(width() - kCornerRadius, height() - 1);
+    path.rArcTo(kCornerRadius, kCornerRadius, 0, SkPath::kSmall_ArcSize,
+                SkPathDirection::kCCW, kCornerRadius, -kCornerRadius);
+  } else {
+    path.moveTo(0, 0);
+    path.lineTo(width(), 0);
+    path.lineTo(width(), height() - 1);
+    path.lineTo(kCornerRadius, height() - 1);
+    path.rArcTo(kCornerRadius, kCornerRadius, 0, SkPath::kSmall_ArcSize,
+                SkPathDirection::kCW, -kCornerRadius, -kCornerRadius);
+  }
   path.close();
   SetClipPath(path);
 }
 #endif
 
-BEGIN_METADATA(VerticalTabStripWidgetDelegateView, views::View)
+BEGIN_METADATA(VerticalTabStripWidgetDelegateView)
 END_METADATA

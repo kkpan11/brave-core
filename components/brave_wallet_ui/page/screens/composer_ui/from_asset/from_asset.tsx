@@ -4,6 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
+import Button from '@brave/leo/react/button'
 import { skipToken } from '@reduxjs/toolkit/query/react'
 
 // Utils
@@ -13,12 +14,20 @@ import {
   getPercentAmount
 } from '../../../../utils/balance-utils'
 import { getLocale } from '../../../../../common/locale'
-import { computeFiatAmount } from '../../../../utils/pricing-utils'
-import { getPriceIdForToken } from '../../../../utils/api-utils'
+import {
+  computeFiatAmount,
+  getPriceIdForToken
+} from '../../../../utils/pricing-utils'
 import Amount from '../../../../utils/amount'
+
+// Hooks
+import {
+  useOnClickOutside //
+} from '../../../../common/hooks/useOnClickOutside'
 
 // Queries
 import {
+  useGetBitcoinBalancesQuery,
   useGetDefaultFiatCurrencyQuery,
   useGetTokenSpotPricesQuery
 } from '../../../../common/slices/api.slice'
@@ -37,6 +46,12 @@ import { SelectButton } from '../select_button/select_button'
 import {
   LoadingSkeleton //
 } from '../../../../components/shared/loading-skeleton/index'
+import {
+  BalanceDetailsModal //
+} from '../../../../components/desktop/popup-modals/balance_details_modal/balance_details_modal'
+import {
+  ShieldedLabel //
+} from '../../../../components/shared/shielded_label/shielded_label'
 
 // Styled Components
 import {
@@ -47,7 +62,9 @@ import {
   NetworkText,
   AccountNameAndPresetsRow,
   NetworkAndFiatRow,
-  SelectTokenAndInputRow
+  SelectTokenAndInputRow,
+  InfoIcon,
+  AccountNameAndBalanceRow
 } from './from_asset.style'
 import { AmountInput, PresetButton } from '../shared_composer.style'
 import {
@@ -64,7 +81,7 @@ interface Props {
   token: BraveWallet.BlockchainToken | undefined
   network: BraveWallet.NetworkInfo | undefined
   account: BraveWallet.AccountInfo | undefined
-  tokenBalancesRegistry: TokenBalancesRegistry | undefined
+  tokenBalancesRegistry: TokenBalancesRegistry | undefined | null
   isLoadingBalances: boolean
 }
 
@@ -81,11 +98,37 @@ export const FromAsset = (props: Props) => {
     account
   } = props
 
+  // State
+  const [showBalanceDetailsModal, setShowBalanceDetailsModal] =
+    React.useState<boolean>(false)
+
+  // Refs
+  const balanceDetailsRef = React.useRef<HTMLDivElement>(null)
+
+  // Hooks
+  useOnClickOutside(
+    balanceDetailsRef,
+    () => setShowBalanceDetailsModal(false),
+    showBalanceDetailsModal
+  )
+
+  // Queries
+  const { data: bitcoinBalances, isLoading: isLoadingBitcoinBalances } =
+    useGetBitcoinBalancesQuery(
+      token && token?.coin === BraveWallet.CoinType.BTC && account?.accountId
+        ? account.accountId
+        : skipToken
+    )
+
   const { data: defaultFiatCurrency } = useGetDefaultFiatCurrencyQuery()
 
   const { data: spotPriceRegistry, isLoading: isLoadingSpotPrices } =
     useGetTokenSpotPricesQuery(
-      token && defaultFiatCurrency
+      token &&
+        !token.isNft &&
+        !token.isErc721 &&
+        !token.isErc1155 &&
+        defaultFiatCurrency
         ? {
             ids: [getPriceIdForToken(token)],
             toCurrency: defaultFiatCurrency
@@ -121,16 +164,25 @@ export const FromAsset = (props: Props) => {
     [onChange]
   )
 
-  const tokenBalance =
-    !account || !token || !tokenBalancesRegistry
-      ? ''
-      : getBalance(account.accountId, token, tokenBalancesRegistry)
+  const tokenBalance = React.useMemo(() => {
+    if (!account || !token || !tokenBalancesRegistry) {
+      return ''
+    }
+    if (token.coin === BraveWallet.CoinType.BTC && bitcoinBalances) {
+      return bitcoinBalances.availableBalance
+    }
+    return getBalance(account.accountId, token, tokenBalancesRegistry)
+  }, [account, token, tokenBalancesRegistry, bitcoinBalances])
+
+  const hasPendingBalance = !new Amount(
+    bitcoinBalances?.pendingBalance ?? '0'
+  ).isZero()
 
   const accountNameAndBalance = React.useMemo(() => {
     if (!token || !account) {
       return (
         <FromText
-          textSize='16px'
+          textSize='14px'
           isBold={false}
         >
           {getLocale('braveWalletFrom')}
@@ -140,7 +192,7 @@ export const FromAsset = (props: Props) => {
     if (token.isNft) {
       return (
         <FromText
-          textSize='16px'
+          textSize='14px'
           isBold={false}
         >
           {account.name}
@@ -148,34 +200,76 @@ export const FromAsset = (props: Props) => {
       )
     }
     return (
-      <Row width='unset'>
+      <AccountNameAndBalanceRow
+        width='unset'
+        justifyContent='flex-start'
+      >
         <FromText
-          textSize='16px'
+          textSize='14px'
           isBold={false}
         >
           {account.name}:
         </FromText>
-        {isLoadingBalances ? (
-          <LoadingSkeleton
-            height={20}
-            width={60}
-          />
-        ) : (
-          <BalanceText
-            textSize='16px'
-            isBold={true}
-          >
-            {formatTokenBalanceWithSymbol(
-              tokenBalance,
-              token.decimals,
-              token.symbol,
-              6
-            )}
-          </BalanceText>
-        )}
-      </Row>
+        <AccountNameAndBalanceRow
+          width='unset'
+          justifyContent='flex-start'
+        >
+          {isLoadingBalances || isLoadingBitcoinBalances ? (
+            <LoadingSkeleton
+              height={20}
+              width={60}
+            />
+          ) : (
+            <>
+              <BalanceText
+                textSize='14px'
+                isBold={true}
+                textColor='primary'
+              >
+                {formatTokenBalanceWithSymbol(
+                  tokenBalance,
+                  token.decimals,
+                  token.symbol,
+                  6
+                )}
+              </BalanceText>
+              {token.isShielded && <ShieldedLabel />}
+              {token.coin === BraveWallet.CoinType.BTC && hasPendingBalance && (
+                <>
+                  <BalanceText
+                    textSize='14px'
+                    isBold={true}
+                    textColor='primary'
+                  >
+                    {`(${getLocale('braveWalletAvailable')})`}
+                  </BalanceText>
+                  <div>
+                    <Button
+                      kind='plain'
+                      size='tiny'
+                      onClick={() => setShowBalanceDetailsModal(true)}
+                    >
+                      <Row>
+                        <InfoIcon />
+                        {getLocale('braveWalletDetails')}
+                      </Row>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </AccountNameAndBalanceRow>
+      </AccountNameAndBalanceRow>
     )
-  }, [token, tokenBalance, account, isLoadingBalances])
+  }, [
+    token,
+    tokenBalance,
+    account,
+    isLoadingBalances,
+    isLoadingBitcoinBalances,
+    hasPendingBalance
+  ])
 
   const fiatValue = React.useMemo(() => {
     if (!token || token.isNft) {
@@ -198,13 +292,12 @@ export const FromAsset = (props: Props) => {
         fullWidth={true}
         justifyContent='space-between'
         alignItems='center'
-        padding='32px 0px 58px 0px'
+        padding='0px 0px 32px 0px'
       >
         <AccountNameAndPresetsRow
           width='100%'
           alignItems='center'
           justifyContent='space-between'
-          padding='0px 16px'
           marginBottom={10}
         >
           {accountNameAndBalance}
@@ -224,7 +317,6 @@ export const FromAsset = (props: Props) => {
           width='100%'
           alignItems='center'
           justifyContent='space-between'
-          padding='0px 16px 0px 6px'
           marginBottom={10}
         >
           <Row width='unset'>
@@ -251,12 +343,12 @@ export const FromAsset = (props: Props) => {
           width='100%'
           alignItems='center'
           justifyContent='space-between'
-          padding='0px 16px'
         >
           {network && token && (
             <NetworkText
               textSize='14px'
               isBold={false}
+              textColor='secondary'
             >
               {getLocale('braveWalletPortfolioAssetNetworkDescription')
                 .replace('$1', '')
@@ -282,6 +374,15 @@ export const FromAsset = (props: Props) => {
           )}
         </NetworkAndFiatRow>
       </Column>
+      {showBalanceDetailsModal && token && (
+        <BalanceDetailsModal
+          ref={balanceDetailsRef}
+          onClose={() => setShowBalanceDetailsModal(false)}
+          token={token}
+          isLoadingBalances={isLoadingBitcoinBalances}
+          balances={bitcoinBalances}
+        />
+      )}
     </Wrapper>
   )
 }

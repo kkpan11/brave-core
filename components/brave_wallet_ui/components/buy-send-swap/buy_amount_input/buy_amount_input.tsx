@@ -10,7 +10,6 @@ import { BraveWallet } from '../../../constants/types'
 
 // Utils
 import { CurrencySymbols } from '../../../utils/currency-symbols'
-import Amount from '../../../utils/amount'
 
 // Components
 import {
@@ -31,7 +30,6 @@ import {
 export interface Props {
   autoFocus?: boolean
   selectedAsset?: BraveWallet.BlockchainToken | undefined
-  selectedNetwork?: BraveWallet.NetworkInfo
   buyAmount: string
   onAmountChange: (value: string) => void
   onShowCurrencySelection: () => void
@@ -56,7 +54,6 @@ const getAssetSymbol = (symbol?: string) => {
 export function BuyAmountInput({
   autoFocus,
   selectedAsset,
-  selectedNetwork,
   buyAmount,
   onAmountChange,
   onShowCurrencySelection,
@@ -76,7 +73,8 @@ export function BuyAmountInput({
       <Row justifyContent='space-between'>
         <AssetButton onClick={onShowCurrencySelection}>
           <AssetTicker role='currency'>
-            {CurrencySymbols[selectedFiatCurrencyCode]}
+            {CurrencySymbols
+              [selectedFiatCurrencyCode as keyof typeof CurrencySymbols]}
           </AssetTicker>
           <CaratDownIcon />
           <HorizontalSpace space='8px' />
@@ -94,15 +92,9 @@ export function BuyAmountInput({
         )}
         <AssetButton isERC721={selectedAsset?.isErc721 || selectedAsset?.isNft}>
           <Row>
-            <AssetIconWithPlaceholder
-              asset={selectedAsset}
-              network={selectedNetwork}
-            />
+            <AssetIconWithPlaceholder asset={selectedAsset} />
             <AssetTicker role='symbol'>
               {getAssetSymbol(selectedAsset?.symbol)}{' '}
-              {selectedAsset?.isErc721 && selectedAsset?.tokenId
-                ? '#' + new Amount(selectedAsset.tokenId).toNumber()
-                : ''}
             </AssetTicker>
           </Row>
         </AssetButton>

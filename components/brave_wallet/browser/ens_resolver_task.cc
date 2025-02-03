@@ -5,16 +5,15 @@
 
 #include "brave/components/brave_wallet/browser/ens_resolver_task.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/containers/contains.h"
-#include "base/functional/callback_helpers.h"
-#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "brave/components/api_request_helper/api_request_helper.h"
@@ -72,7 +71,7 @@ EnsResolverTaskError MakeInvalidParamsError() {
 }
 
 std::string GetParent(const std::string& domain) {
-  DCHECK(domain == "eth" || base::EndsWith(domain, ".eth"));
+  DCHECK(domain == "eth" || domain.ends_with(".eth"));
   if (domain == "eth") {
     return "";
   }
@@ -116,13 +115,13 @@ EnsResolverTaskError::~EnsResolverTaskError() = default;
 std::vector<uint8_t> MakeAddrCall(const std::string& domain) {
   return eth_abi::TupleEncoder()
       .AddFixedBytes(Namehash(domain))
-      .EncodeWithSelector(base::make_span(kAddrBytes32Selector));
+      .EncodeWithSelector(kAddrBytes32Selector);
 }
 
 std::vector<uint8_t> MakeContentHashCall(const std::string& domain) {
   return eth_abi::TupleEncoder()
       .AddFixedBytes(Namehash(domain))
-      .EncodeWithSelector(base::make_span(kContentHashBytes32Selector));
+      .EncodeWithSelector(kContentHashBytes32Selector);
 }
 
 OffchainLookupData::OffchainLookupData() = default;
@@ -155,18 +154,22 @@ std::optional<OffchainLookupData> OffchainLookupData::ExtractFromJson(
 
 std::optional<OffchainLookupData> OffchainLookupData::ExtractFromEthAbiPayload(
     eth_abi::Span bytes) {
-  auto [selector, args] =
+  auto selector_and_args =
       eth_abi::ExtractFunctionSelectorAndArgsFromCall(bytes);
+  if (!selector_and_args) {
+    return std::nullopt;
+  }
+  auto [selector, args] = *selector_and_args;
 
   // error OffchainLookup(address sender, string[] urls, bytes callData,
   // bytes4 callbackFunction, bytes extraData)
-  if (!base::ranges::equal(selector, kOffchainLookupSelector)) {
+  if (selector != kOffchainLookupSelector) {
     return std::nullopt;
   }
   auto sender = eth_abi::ExtractAddressFromTuple(args, 0);
   auto urls = eth_abi::ExtractStringArrayFromTuple(args, 1);
   auto call_data = eth_abi::ExtractBytesFromTuple(args, 2);
-  auto callback_function = eth_abi::ExtractFixedBytesFromTuple(args, 4, 3);
+  auto callback_function = eth_abi::ExtractFixedBytesFromTuple<4>(args, 3);
   auto extra_data = eth_abi::ExtractBytesFromTuple(args, 4);
 
   if (!sender.IsValid() || !urls || !call_data || !callback_function ||
@@ -289,7 +292,7 @@ void EnsResolverTask::FetchEnsResolver() {
 
 void EnsResolverTask::OnFetchEnsResolverDone(
     APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -335,7 +338,7 @@ void EnsResolverTask::FetchEnsip10Support() {
 
 void EnsResolverTask::OnFetchEnsip10SupportDone(
     APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -371,7 +374,7 @@ void EnsResolverTask::FetchEnsRecord() {
 
 void EnsResolverTask::OnFetchEnsRecordDone(
     APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -422,7 +425,7 @@ void EnsResolverTask::FetchWithEnsip10Resolve() {
 
 void EnsResolverTask::OnFetchWithEnsip10ResolveDone(
     APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -459,7 +462,7 @@ void EnsResolverTask::FetchOffchainData() {
   DCHECK(offchain_lookup_data_);
 
   GURL offchain_url;
-  bool data_substitued = false;
+  bool data_substituted = false;
   bool valid_sender = true;
 
   if (!allow_offchain_.has_value()) {
@@ -469,7 +472,7 @@ void EnsResolverTask::FetchOffchainData() {
     ScheduleWorkOnTask();
     return;
   } else if (!allow_offchain_.value()) {
-    // Offchain lookup explicily disabled.
+    // Offchain lookup explicitly disabled.
     task_error_.emplace(MakeInternalError());
     ScheduleWorkOnTask();
     return;
@@ -494,7 +497,7 @@ void EnsResolverTask::FetchOffchainData() {
   for (auto url_string : offchain_lookup_data_->urls) {
     base::ReplaceSubstringsAfterOffset(&url_string, 0, "{sender}",
                                        offchain_lookup_data_->sender.ToHex());
-    data_substitued = base::Contains(url_string, "{data}");
+    data_substituted = base::Contains(url_string, "{data}");
     base::ReplaceSubstringsAfterOffset(&url_string, 0, "{data}",
                                        ToHex(offchain_lookup_data_->call_data));
     GURL url(url_string);
@@ -512,7 +515,7 @@ void EnsResolverTask::FetchOffchainData() {
   }
 
   std::string payload;
-  if (!data_substitued) {
+  if (!data_substituted) {
     base::Value::Dict payload_dict;
     payload_dict.Set("sender", offchain_lookup_data_->sender.ToHex());
     payload_dict.Set("data", ToHex(offchain_lookup_data_->call_data));
@@ -527,7 +530,7 @@ void EnsResolverTask::FetchOffchainData() {
 }
 
 void EnsResolverTask::OnFetchOffchainDone(APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -542,14 +545,12 @@ void EnsResolverTask::OnFetchOffchainDone(APIRequestResult api_request_result) {
 
   offchain_lookup_attemps_left_--;
   DCHECK_GE(offchain_lookup_attemps_left_, 0);
-  DCHECK_EQ(offchain_lookup_data_->callback_function.size(), 4u);
-  eth_abi::Span4 callback_selector(
-      offchain_lookup_data_->callback_function.begin(), 4u);
 
-  offchain_callback_call_ = eth_abi::TupleEncoder()
-                                .AddBytes(*bytes_result)
-                                .AddBytes(offchain_lookup_data_->extra_data)
-                                .EncodeWithSelector(callback_selector);
+  offchain_callback_call_ =
+      eth_abi::TupleEncoder()
+          .AddBytes(*bytes_result)
+          .AddBytes(offchain_lookup_data_->extra_data)
+          .EncodeWithSelector(offchain_lookup_data_->callback_function);
 
   offchain_lookup_data_.reset();
 }
@@ -568,7 +569,7 @@ void EnsResolverTask::FetchOffchainCallback() {
 
 void EnsResolverTask::OnFetchOffchainCallbackDone(
     APIRequestResult api_request_result) {
-  absl::Cleanup cleanup([this]() { this->WorkOnTask(); });
+  absl::Cleanup cleanup([this] { this->WorkOnTask(); });
 
   if (!api_request_result.Is2XXResponseCode()) {
     task_error_.emplace(MakeInternalError());
@@ -608,9 +609,10 @@ void EnsResolverTask::OnFetchOffchainCallbackDone(
 
 void EnsResolverTask::RequestInternal(const std::string& json_payload,
                                       RequestIntermediateCallback callback) {
-  api_request_helper_->Request("POST", network_url_, json_payload,
-                               "application/json", std::move(callback),
-                               MakeCommonJsonRpcHeaders(json_payload));
+  api_request_helper_->Request(
+      "POST", network_url_, json_payload, "application/json",
+      std::move(callback),
+      MakeCommonJsonRpcHeaders(json_payload, network_url_));
 }
 
 }  // namespace brave_wallet

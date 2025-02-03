@@ -3,28 +3,45 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import styled from 'styled-components'
-import * as leo from '@brave/leo/tokens/css'
+import * as leo from '@brave/leo/tokens/css/variables'
 import Icon from '@brave/leo/react/icon'
+import ProgressRing from '@brave/leo/react/progressRing'
+
+// Shared Styles
 import {
   AssetIconProps,
   AssetIconFactory,
-  WalletButton
+  WalletButton,
+  Text,
+  Column,
+  Row
 } from '../../shared/style'
+import {
+  layoutPanelWidth //
+} from '../wallet-page-wrapper/wallet-page-wrapper.style'
 
-export const StyledWrapper = styled.div<{ isPanel?: boolean }>`
+export const HoverArea = styled.div<{
+  noHover?: boolean
+  isGrouped?: boolean
+}>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-direction: row;
   width: 100%;
-  padding: 12px ${(p) => (p.isPanel ? 0 : 12)}px;
-  border-radius: 10px;
+  padding: 12px;
+  border-radius: var(--hover-area-border-radius);
+  transition: background-color 300ms ease-out;
   &:hover {
-    background-color: ${(p) => p.theme.color.background01}85;
+    background-color: ${(p) =>
+      p.noHover ? 'none' : leo.color.page.background};
+  }
+  @media screen and (max-width: ${layoutPanelWidth}px) {
+    padding: ${(p) => (p.isGrouped ? 12 : 8)}px;
   }
 `
 
-export const ButtonArea = styled(WalletButton)<{
+export const Button = styled(WalletButton)<{
   disabled: boolean
   rightMargin?: number
 }>`
@@ -49,12 +66,9 @@ export const NameAndIcon = styled.div`
   text-align: left;
 `
 
-export const AssetName = styled.span`
-  font-family: Poppins;
-  font-size: 13px;
-  line-height: 20px;
-  letter-spacing: 0.01em;
-  color: ${(p) => p.theme.color.text01};
+export const AssetName = styled(Text)`
+  line-height: 22px;
+  color: ${leo.color.text.primary};
 `
 
 export const BalanceColumn = styled.div`
@@ -65,20 +79,14 @@ export const BalanceColumn = styled.div`
   text-align: right;
 `
 
-export const FiatBalanceText = styled.span`
-  font-family: Poppins;
-  font-size: 13px;
+export const FiatBalanceText = styled(Text)`
   line-height: 20px;
-  letter-spacing: 0.01em;
-  color: ${(p) => p.theme.color.text01};
+  color: ${leo.color.text.secondary};
 `
 
-export const AssetBalanceText = styled.span`
-  font-family: Poppins;
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: 0.01em;
-  color: ${(p) => p.theme.color.text03};
+export const AssetBalanceText = styled(Text)`
+  line-height: 22px;
+  color: ${leo.color.text.primary};
 `
 
 // Construct styled-component using JS object instead of string, for editor
@@ -103,12 +111,9 @@ export const Spacer = styled.div`
   height: 4px;
 `
 
-export const NetworkDescriptionText = styled.span`
-  font-family: Poppins;
-  font-size: 13px;
+export const NetworkDescriptionText = styled(Text)`
   line-height: 20px;
-  letter-spacing: 0.01em;
-  color: ${(p) => p.theme.color.text03};
+  color: ${leo.color.text.secondary};
 `
 
 export const AssetMenuWrapper = styled.div`
@@ -133,4 +138,33 @@ export const AssetMenuButtonIcon = styled(Icon).attrs({
 })`
   --leo-icon-size: 24px;
   color: ${leo.color.icon.default};
+`
+
+export const Wrapper = styled(Column)<{
+  showBorder?: boolean
+  isGrouped?: boolean
+}>`
+  border-radius: ${(p) => (p.showBorder ? 16 : 0)}px;
+  border: ${(p) =>
+    p.showBorder ? `1px solid ${leo.color.divider.subtle}` : 'none'};
+  --hover-area-border-radius: ${(p) => (p.isGrouped ? '0px' : '10px')};
+  &:last-child {
+    --hover-area-border-radius: ${(p) =>
+      p.isGrouped ? '0px 0px 10px 10px' : '10px'};
+  }
+`
+
+export const InfoBar = styled(Row)`
+  background-color: ${leo.color.systemfeedback.infoBackground};
+  border-radius: 12px;
+  padding: 8px 16px;
+`
+
+export const InfoText = styled(Text)`
+  line-height: 22px;
+  color: ${leo.color.systemfeedback.infoText};
+`
+
+export const LoadingRing = styled(ProgressRing)`
+  --leo-progressring-size: 20px;
 `

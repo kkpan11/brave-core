@@ -10,26 +10,19 @@ package org.chromium.chrome.browser.rewards.tipping;
 import android.view.View;
 
 import org.chromium.base.IntentUtils;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.BraveRewardsHelper;
-import org.chromium.chrome.browser.BraveRewardsNativeWorker;
 import org.chromium.chrome.browser.BraveRewardsObserver;
+import org.chromium.chrome.browser.init.ActivityProfileProvider;
 import org.chromium.chrome.browser.init.AsyncInitializationActivity;
-import org.chromium.chrome.browser.rewards.BraveRewardsBannerInfo;
+import org.chromium.chrome.browser.profiles.ProfileProvider;
 
-
-public class RewardsTippingBannerActivity
-        extends AsyncInitializationActivity implements BraveRewardsObserver {
+public class RewardsTippingBannerActivity extends AsyncInitializationActivity
+        implements BraveRewardsObserver {
     public static final String TAB_ID_EXTRA = "currentTabId";
     public static final String TIP_MONTHLY_EXTRA = "tipMonthly";
     public static final String TIP_AMOUNT_EXTRA = "tipAmount";
-    private BraveRewardsNativeWorker mBraveRewardsNativeWorker;
     private int mCurrentTabId = -1;
-    private BraveRewardsBannerInfo mBannerInfo;
-
-    private BraveRewardsHelper mIconFetcher;
-
-    private static final String IMAGE_URL_PREFIX = "chrome://rewards-image/";
 
     @Override
     protected void triggerLayoutInflation() {
@@ -60,5 +53,10 @@ public class RewardsTippingBannerActivity
     @Override
     public boolean shouldStartGpuProcess() {
         return true;
+    }
+
+    @Override
+    protected OneshotSupplier<ProfileProvider> createProfileProvider() {
+        return new ActivityProfileProvider(getLifecycleDispatcher());
     }
 }

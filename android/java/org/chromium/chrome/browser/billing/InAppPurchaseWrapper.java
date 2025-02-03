@@ -7,6 +7,11 @@ package org.chromium.chrome.browser.billing;
 
 import android.app.Activity;
 import android.content.Context;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.TextAppearanceSpan;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
@@ -28,6 +33,7 @@ import org.chromium.base.Log;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.BraveActivity;
 import org.chromium.chrome.browser.brave_leo.BraveLeoPrefUtils;
+import org.chromium.chrome.browser.brave_leo.BraveLeoUtils;
 import org.chromium.chrome.browser.util.BraveConstants;
 import org.chromium.chrome.browser.util.LiveDataUtil;
 import org.chromium.chrome.browser.vpn.utils.BraveVpnPrefUtils;
@@ -35,14 +41,18 @@ import org.chromium.chrome.browser.vpn.utils.BraveVpnUtils;
 import org.chromium.ui.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class InAppPurchaseWrapper {
+    public static final String MANAGE_SUBSCRIPTION_PAGE =
+            "https://play.google.com/store/account/subscriptions";
     private static final String TAG = "InAppPurchaseWrapper";
     private static final String LEO_MONTHLY_SUBSCRIPTION = "brave.leo.monthly";
+    private static final String LEO_YEARLY_SUBSCRIPTION = "brave.leo.yearly";
 
     private static final String VPN_NIGHTLY_MONTHLY_SUBSCRIPTION = "nightly.bravevpn.monthly";
     private static final String VPN_NIGHTLY_YEARLY_SUBSCRIPTION = "nightly.bravevpn.yearly";
@@ -60,7 +70,7 @@ public class InAppPurchaseWrapper {
     private static volatile InAppPurchaseWrapper sInAppPurchaseWrapper;
     private static Object sMutex = new Object();
 
-    private enum SubscriptionType {
+    public enum SubscriptionType {
         MONTHLY,
         YEARLY
     }
@@ -70,22 +80,49 @@ public class InAppPurchaseWrapper {
         LEO
     }
 
-    private MutableLiveData<ProductDetails> mMutableMonthlyProductDetails = new MutableLiveData();
-    private LiveData<ProductDetails> mMonthlyProductDetails = mMutableMonthlyProductDetails;
-    private void setMonthlyProductDetails(ProductDetails productDetails) {
-        mMutableMonthlyProductDetails.postValue(productDetails);
-    }
-    public LiveData<ProductDetails> getMonthlyProductDetails() {
-        return mMonthlyProductDetails;
+    private MutableLiveData<ProductDetails> mMutableMonthlyProductDetailsVPN =
+            new MutableLiveData();
+    private LiveData<ProductDetails> mMonthlyProductDetailsVPN = mMutableMonthlyProductDetailsVPN;
+    private MutableLiveData<ProductDetails> mMutableMonthlyProductDetailsLeo =
+            new MutableLiveData();
+    private LiveData<ProductDetails> mMonthlyProductDetailsLeo = mMutableMonthlyProductDetailsLeo;
+
+    private void setMonthlyProductDetails(
+            ProductDetails productDetails, SubscriptionProduct product) {
+        if (product.equals(SubscriptionProduct.LEO)) {
+            mMutableMonthlyProductDetailsLeo.postValue(productDetails);
+        } else if (product.equals(SubscriptionProduct.VPN)) {
+            mMutableMonthlyProductDetailsVPN.postValue(productDetails);
+        }
     }
 
-    private MutableLiveData<ProductDetails> mMutableYearlyProductDetails = new MutableLiveData();
-    private LiveData<ProductDetails> mYearlyProductDetails = mMutableYearlyProductDetails;
-    private void setYearlyProductDetails(ProductDetails productDetails) {
-        mMutableYearlyProductDetails.postValue(productDetails);
+    public LiveData<ProductDetails> getMonthlyProductDetails(SubscriptionProduct product) {
+        if (product.equals(SubscriptionProduct.LEO)) {
+            return mMonthlyProductDetailsLeo;
+        }
+
+        return mMonthlyProductDetailsVPN;
     }
-    public LiveData<ProductDetails> getYearlyProductDetails() {
-        return mYearlyProductDetails;
+
+    private MutableLiveData<ProductDetails> mMutableYearlyProductDetailsVPN = new MutableLiveData();
+    private LiveData<ProductDetails> mYearlyProductDetailsVPN = mMutableYearlyProductDetailsVPN;
+    private MutableLiveData<ProductDetails> mMutableYearlyProductDetailsLeo = new MutableLiveData();
+    private LiveData<ProductDetails> mYearlyProductDetailsLeo = mMutableYearlyProductDetailsLeo;
+
+    private void setYearlyProductDetails(
+            ProductDetails productDetails, SubscriptionProduct product) {
+        if (product.equals(SubscriptionProduct.LEO)) {
+            mMutableYearlyProductDetailsLeo.postValue(productDetails);
+        } else if (product.equals(SubscriptionProduct.VPN)) {
+            mMutableYearlyProductDetailsVPN.postValue(productDetails);
+        }
+    }
+
+    public LiveData<ProductDetails> getYearlyProductDetails(SubscriptionProduct product) {
+        if (product.equals(SubscriptionProduct.LEO)) {
+            return mYearlyProductDetailsLeo;
+        }
+        return mYearlyProductDetailsVPN;
     }
 
     private InAppPurchaseWrapper() {}
@@ -176,7 +213,9 @@ public class InAppPurchaseWrapper {
                         : VPN_NIGHTLY_YEARLY_SUBSCRIPTION;
             }
         } else if (product.equals(SubscriptionProduct.LEO)) {
-            return LEO_MONTHLY_SUBSCRIPTION;
+            return subscriptionType == SubscriptionType.MONTHLY
+                    ? LEO_MONTHLY_SUBSCRIPTION
+                    : LEO_YEARLY_SUBSCRIPTION;
         } else {
             assert false;
             return "";
@@ -186,53 +225,58 @@ public class InAppPurchaseWrapper {
     public void queryProductDetailsAsync(SubscriptionProduct product) {
         Map<String, ProductDetails> productDetails = new HashMap<>();
         List<QueryProductDetailsParams.Product> products = new ArrayList<>();
-        products.add(QueryProductDetailsParams.Product.newBuilder()
-                             .setProductId(getProductId(product, SubscriptionType.MONTHLY))
-                             .setProductType(BillingClient.ProductType.SUBS)
-                             .build());
-        if (!product.equals(SubscriptionProduct.LEO)) {
-            products.add(QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(getProductId(product, SubscriptionType.YEARLY))
-                    .setProductType(BillingClient.ProductType.SUBS)
-                    .build());
-        }
+        products.add(
+                QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(getProductId(product, SubscriptionType.MONTHLY))
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build());
+        products.add(
+                QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(getProductId(product, SubscriptionType.YEARLY))
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build());
         QueryProductDetailsParams queryProductDetailsParams =
                 QueryProductDetailsParams.newBuilder().setProductList(products).build();
 
         MutableLiveData<Boolean> _billingConnectionState = new MutableLiveData();
         LiveData<Boolean> billingConnectionState = _billingConnectionState;
         startBillingServiceConnection(_billingConnectionState);
-        LiveDataUtil.observeOnce(billingConnectionState, isConnected -> {
-            if (isConnected) {
-                mBillingClient.queryProductDetailsAsync(
-                        queryProductDetailsParams, (billingResult, productDetailsList) -> {
-                            // End connection after getting the product details
-                            endConnection();
+        LiveDataUtil.observeOnce(
+                billingConnectionState,
+                isConnected -> {
+                    if (isConnected) {
+                        mBillingClient.queryProductDetailsAsync(
+                                queryProductDetailsParams,
+                                (billingResult, productDetailsList) -> {
+                                    // End connection after getting the product details
+                                    endConnection();
 
-                            if (billingResult.getResponseCode()
-                                    == BillingClient.BillingResponseCode.OK) {
-                                for (ProductDetails productDetail : productDetailsList) {
-                                    productDetails.put(productDetail.getProductId(), productDetail);
-                                }
-                                setMonthlyProductDetails(
-                                        productDetails.get(getProductId(product,
-                                                SubscriptionType.MONTHLY)));
-                                if (!product.equals(SubscriptionProduct.LEO)) {
-                                    setYearlyProductDetails(
-                                            productDetails.get(
-                                                    getProductId(
-                                                            product,
-                                                            SubscriptionType.YEARLY)));
-                                }
-                            } else {
-                                Log.e(TAG,
-                                        "queryProductDetailsAsync failed"
-                                                + billingResult.getDebugMessage());
-                                showToast(billingResult.getDebugMessage());
-                            }
-                        });
-            }
-        });
+                                    if (billingResult.getResponseCode()
+                                            == BillingClient.BillingResponseCode.OK) {
+                                        for (ProductDetails productDetail : productDetailsList) {
+                                            productDetails.put(
+                                                    productDetail.getProductId(), productDetail);
+                                        }
+                                        setMonthlyProductDetails(
+                                                productDetails.get(
+                                                        getProductId(
+                                                                product, SubscriptionType.MONTHLY)),
+                                                product);
+                                        setYearlyProductDetails(
+                                                productDetails.get(
+                                                        getProductId(
+                                                                product, SubscriptionType.YEARLY)),
+                                                product);
+                                    } else {
+                                        Log.e(
+                                                TAG,
+                                                "queryProductDetailsAsync failed"
+                                                        + billingResult.getDebugMessage());
+                                        showToast(billingResult.getDebugMessage());
+                                    }
+                                });
+                    }
+                });
     }
 
     public void queryPurchases(MutableLiveData<PurchaseModel> mutableActivePurchases,
@@ -240,46 +284,57 @@ public class InAppPurchaseWrapper {
         MutableLiveData<Boolean> _billingConnectionState = new MutableLiveData();
         LiveData<Boolean> billingConnectionState = _billingConnectionState;
         startBillingServiceConnection(_billingConnectionState);
-        LiveDataUtil.observeOnce(billingConnectionState, isConnected -> {
-            if (isConnected) {
-                mBillingClient.queryPurchasesAsync(
-                        QueryPurchasesParams.newBuilder()
-                                .setProductType(BillingClient.ProductType.SUBS)
-                                .build(),
-                        (billingResult, purchases) -> {
-                            // End connection after getting purchases
-                            endConnection();
+        LiveDataUtil.observeOnce(
+                billingConnectionState,
+                isConnected -> {
+                    if (isConnected) {
+                        mBillingClient.queryPurchasesAsync(
+                                QueryPurchasesParams.newBuilder()
+                                        .setProductType(BillingClient.ProductType.SUBS)
+                                        .build(),
+                                (billingResult, purchases) -> {
+                                    // End connection after getting purchases
+                                    endConnection();
 
-                            PurchaseModel activePurchaseModel = null;
-                            if (billingResult.getResponseCode()
-                                    == BillingClient.BillingResponseCode.OK) {
-                                for (Purchase purchase : purchases) {
-                                    if (purchase.getPurchaseState()
-                                            != Purchase.PurchaseState.PURCHASED) {
-                                        continue;
+                                    PurchaseModel activePurchaseModel = null;
+                                    if (billingResult.getResponseCode()
+                                            == BillingClient.BillingResponseCode.OK) {
+                                        for (Purchase purchase : purchases) {
+                                            if (purchase.getPurchaseState()
+                                                    != Purchase.PurchaseState.PURCHASED) {
+                                                continue;
+                                            }
+                                            List<String> productIds = purchase.getProducts();
+                                            boolean isVPNProduct = isVPNProduct(productIds);
+                                            boolean isLeoProduct = isLeoProduct(productIds);
+                                            if ((isVPNProduct
+                                                            && type.equals(SubscriptionProduct.VPN))
+                                                    || (isLeoProduct
+                                                            && type.equals(
+                                                                    SubscriptionProduct.LEO))) {
+                                                activePurchaseModel =
+                                                        new PurchaseModel(
+                                                                purchase.getPurchaseToken(),
+                                                                purchase.getProducts()
+                                                                        .get(0)
+                                                                        .toString(),
+                                                                purchase);
+                                                break;
+                                            }
+                                        }
+                                    } else {
+                                        Log.e(
+                                                TAG,
+                                                "queryPurchases failed"
+                                                        + billingResult.getDebugMessage());
+                                        showToast(billingResult.getDebugMessage());
                                     }
-                                    List<String> productIds = purchase.getProducts();
-                                    boolean isVPNProduct = isVPNProduct(productIds);
-                                    boolean isLeoProduct = isLeoProduct(productIds);
-                                    if (isVPNProduct && type.equals(SubscriptionProduct.VPN) ||
-                                            isLeoProduct && type.equals(SubscriptionProduct.LEO)) {
-                                        activePurchaseModel = new PurchaseModel(
-                                                purchase.getPurchaseToken(),
-                                                purchase.getProducts().get(0).toString(), purchase);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Log.e(TAG,
-                                        "queryPurchases failed" + billingResult.getDebugMessage());
-                                showToast(billingResult.getDebugMessage());
-                            }
-                            mutableActivePurchases.postValue(activePurchaseModel);
-                        });
-            } else {
-                mutableActivePurchases.postValue(null);
-            }
-        });
+                                    mutableActivePurchases.postValue(activePurchaseModel);
+                                });
+                    } else {
+                        mutableActivePurchases.postValue(null);
+                    }
+                });
     }
 
     public void initiatePurchase(Activity activity, ProductDetails productDetails) {
@@ -297,12 +352,14 @@ public class InAppPurchaseWrapper {
         MutableLiveData<Boolean> _billingConnectionState = new MutableLiveData();
         LiveData<Boolean> billingConnectionState = _billingConnectionState;
         startBillingServiceConnection(_billingConnectionState);
-        LiveDataUtil.observeOnce(billingConnectionState, isConnected -> {
-            if (isConnected) {
-                BillingResult billingResult =
-                        mBillingClient.launchBillingFlow(activity, billingFlowParams);
-            }
-        });
+        LiveDataUtil.observeOnce(
+                billingConnectionState,
+                isConnected -> {
+                    if (isConnected) {
+                        BillingResult unused_billingResult =
+                                mBillingClient.launchBillingFlow(activity, billingFlowParams);
+                    }
+                });
     }
 
     public void processPurchases(Context context, Purchase activePurchase) {
@@ -321,43 +378,66 @@ public class InAppPurchaseWrapper {
             MutableLiveData<Boolean> _billingConnectionState = new MutableLiveData();
             LiveData<Boolean> billingConnectionState = _billingConnectionState;
             startBillingServiceConnection(_billingConnectionState);
-            LiveDataUtil.observeOnce(billingConnectionState, isConnected -> {
-                if (isConnected) {
-                    mBillingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult -> {
-                        // End connection after getting the resposne of the purchase aknowledgment
-                        endConnection();
-                        BraveActivity activity = null;
-                        try {
-                            activity = BraveActivity.getBraveActivity();
-                        } catch (BraveActivity.BraveActivityNotFoundException e) {
-                            Log.e(TAG, "acknowledgePurchase " + e.getMessage());
-                        }
-                        if (billingResult.getResponseCode()
-                                == BillingClient.BillingResponseCode.OK) {
-                            if (isVPNProduct) {
-                                BraveVpnPrefUtils.setSubscriptionPurchase(true);
-                                if (activity != null) {
-                                    BraveVpnUtils.openBraveVpnProfileActivity(activity);
-                                }
-                            } else if (isLeoProduct) {
-                                BraveLeoPrefUtils.setIsSubscriptionActive(true);
-                            }
-                            showToast(context.getResources().getString(
-                                    R.string.subscription_consumed));
-                        } else {
-                            showToast(
-                                    context.getResources().getString(R.string.fail_to_aknowledge));
+            LiveDataUtil.observeOnce(
+                    billingConnectionState,
+                    isConnected -> {
+                        if (isConnected) {
+                            mBillingClient.acknowledgePurchase(
+                                    acknowledgePurchaseParams,
+                                    billingResult -> {
+                                        // End connection after getting the response of the purchase
+                                        // acknowledgment
+                                        endConnection();
+                                        if (billingResult.getResponseCode()
+                                                == BillingClient.BillingResponseCode.OK) {
+                                            receiptAcknowledged(
+                                                    context, purchase, isVPNProduct, isLeoProduct);
+                                        } else {
+                                            showToast(
+                                                    context.getResources()
+                                                            .getString(
+                                                                    R.string.fail_to_aknowledge));
+                                        }
+                                    });
                         }
                     });
-                }
-            });
         } else {
             if (isVPNProduct) {
                 BraveVpnPrefUtils.setSubscriptionPurchase(true);
             } else if (isLeoProduct) {
-                BraveLeoPrefUtils.setIsSubscriptionActive(true);
+                receiptAcknowledged(context, purchase, false, true);
             }
         }
+    }
+
+    private void receiptAcknowledged(
+            Context context, Purchase purchase, boolean isVPNProduct, boolean isLeoProduct) {
+        BraveActivity activity = null;
+        try {
+            activity = BraveActivity.getBraveActivity();
+        } catch (BraveActivity.BraveActivityNotFoundException e) {
+            Log.e(TAG, "acknowledgePurchase " + e.getMessage());
+        }
+        if (isVPNProduct) {
+            BraveVpnPrefUtils.setSubscriptionPurchase(true);
+            if (activity != null) {
+                BraveVpnUtils.openBraveVpnProfileActivity(activity);
+            }
+        } else if (isLeoProduct && activity != null) {
+            activity.runOnUiThread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            BraveLeoPrefUtils.setIsSubscriptionActive(true);
+                            BraveLeoPrefUtils.setChatPackageName();
+                            BraveLeoPrefUtils.setChatProductId(
+                                    purchase.getProducts().get(0).toString());
+                            BraveLeoPrefUtils.setChatPurchaseToken(purchase.getPurchaseToken());
+                            BraveLeoUtils.bringMainActivityOnTop();
+                        }
+                    });
+        }
+        showToast(context.getResources().getString(R.string.subscription_consumed));
     }
 
     private boolean isVPNProduct(List<String> productIds) {
@@ -370,7 +450,8 @@ public class InAppPurchaseWrapper {
     }
 
     private boolean isLeoProduct(List<String> productIds) {
-        return productIds.contains(LEO_MONTHLY_SUBSCRIPTION);
+        return productIds.contains(LEO_MONTHLY_SUBSCRIPTION)
+                || productIds.contains(LEO_YEARLY_SUBSCRIPTION);
     }
 
     private PurchasesUpdatedListener getPurchasesUpdatedListener(Context context) {
@@ -464,24 +545,81 @@ public class InAppPurchaseWrapper {
         return null;
     }
 
-    public String getFormattedProductPrice(ProductDetails productDetails) {
+    public SpannableString getFormattedProductPrice(
+            Context context, ProductDetails productDetails, int stringRes) {
         ProductDetails.PricingPhase pricingPhase = getPricingPhase(productDetails);
         if (pricingPhase != null) {
             double price = ((double) pricingPhase.getPriceAmountMicros() / MICRO_UNITS);
             String priceString = String.format(Locale.getDefault(), "%.2f", price);
-            return pricingPhase.getPriceCurrencyCode() + " " + priceString;
+            String currencySymbol =
+                    Currency.getInstance(pricingPhase.getPriceCurrencyCode()).getSymbol();
+            String priceWithSymbol = currencySymbol + priceString;
+            String finalPrice =
+                    context.getResources()
+                            .getString(
+                                    stringRes,
+                                    pricingPhase.getPriceCurrencyCode() + " " + priceWithSymbol);
+            SpannableString priceSpannable = new SpannableString(finalPrice);
+            int index = finalPrice.indexOf(priceWithSymbol);
+            priceSpannable.setSpan(
+                    new TextAppearanceSpan(context, R.style.LargeSemibold),
+                    index,
+                    index + priceWithSymbol.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            priceSpannable.setSpan(
+                    new ForegroundColorSpan(context.getColor(android.R.color.white)),
+                    index,
+                    index + priceWithSymbol.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            return priceSpannable;
         }
         return null;
     }
 
-    public String getFormattedFullProductPrice(ProductDetails productDetails) {
+    public SpannableString getFormattedFullProductPrice(
+            Context context, ProductDetails productDetails) {
         ProductDetails.PricingPhase pricingPhase = getPricingPhase(productDetails);
         if (pricingPhase != null) {
             double yearlyPrice = ((double) pricingPhase.getPriceAmountMicros() / MICRO_UNITS) * 12;
             String priceString = String.format(Locale.getDefault(), "%.2f", yearlyPrice);
-            return pricingPhase.getPriceCurrencyCode() + priceString;
+            String currencySymbol =
+                    Currency.getInstance(pricingPhase.getPriceCurrencyCode()).getSymbol();
+            String priceWithSymbol = currencySymbol + priceString;
+            String finalPrice = pricingPhase.getPriceCurrencyCode() + " " + priceWithSymbol;
+            SpannableString priceSpannable = new SpannableString(finalPrice);
+            int index = finalPrice.indexOf(priceWithSymbol);
+            priceSpannable.setSpan(
+                    new TextAppearanceSpan(context, R.style.LargeSemibold),
+                    index,
+                    index + priceWithSymbol.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            priceSpannable.setSpan(
+                    new ForegroundColorSpan(context.getColor(android.R.color.white)),
+                    index,
+                    index + priceWithSymbol.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            return priceSpannable;
         }
         return null;
+    }
+
+    public int getYearlyDiscountPercentage(
+            ProductDetails monthlyProductDetails, ProductDetails yearlyProductDetails) {
+        ProductDetails.PricingPhase monthlyPricingPhase = getPricingPhase(monthlyProductDetails);
+        ProductDetails.PricingPhase yearlyPricingPhase = getPricingPhase(yearlyProductDetails);
+        if (monthlyPricingPhase != null && yearlyPricingPhase != null) {
+            double yearlyPrice =
+                    ((double) monthlyPricingPhase.getPriceAmountMicros() / MICRO_UNITS) * 12;
+            double yearlyActualPrice =
+                    ((double) yearlyPricingPhase.getPriceAmountMicros() / MICRO_UNITS);
+            if (yearlyPrice == 0) {
+                return 0;
+            }
+            double discountPrice = yearlyPrice - yearlyActualPrice;
+            double discountPercentage = (discountPrice / yearlyPrice) * 100;
+            return (int) Math.round(discountPercentage);
+        }
+        return 0;
     }
 
     private void showToast(String message) {

@@ -29,6 +29,22 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       state.userType = userTypeFromMojo(action.payload.userType)
       break
     }
+    case types.IS_TERMS_OF_SERVICE_UPDATE_REQUIRED: {
+      chrome.send('brave_rewards.isTermsOfServiceUpdateRequired')
+      break
+    }
+    case types.ON_IS_TERMS_OF_SERVICE_UPDATE_REQUIRED: {
+      state = {
+        ...state,
+        isUserTermsOfServiceUpdateRequired: action.payload.updateRequired
+      }
+      break
+    }
+    case types.ACCEPT_TERMS_OF_SERVICE_UPDATE: {
+      chrome.send('brave_rewards.acceptTermsOfServiceUpdate')
+      chrome.send('brave_rewards.isTermsOfServiceUpdateRequired')
+      break
+    }
     case types.GET_IS_AUTO_CONTRIBUTE_SUPPORTED: {
       chrome.send('brave_rewards.isAutoContributeSupported')
       break
@@ -51,8 +67,9 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
         break
       }
 
-      Object.keys(properties).map((property: string) => {
+      Object.keys(properties).map((property) => {
         if (properties[property] !== undefined && properties[property] !== 'ui') {
+          // @ts-expect-error - correct type for `property` should be added
           state[property] = properties[property]
         } else if (properties[property] === 'ui') {
           ui = Object.assign(ui, properties[property])
@@ -79,6 +96,8 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
         chrome.send('brave_rewards.saveSetting', [key, value.toString()])
       }
 
+      // @ts-expect-error - nothing here is typed (except state) so we
+      // hit a suppressImplicitAnyIndexErrors error here.
       state[key] = value
       break
     }
@@ -166,6 +185,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
     case types.ON_MODAL_CONNECT_OPEN: {
       let ui = state.ui
       ui.modalConnect = true
+      ui.modalConnectState = ''
       state = {
         ...state,
         ui
@@ -174,11 +194,14 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
     }
     case types.ON_CLEAR_ALERT: {
       let ui = state.ui
-      if (ui[action.payload.property] === undefined) {
+      const property: keyof typeof ui = action.payload.property
+      if (ui[property] === undefined) {
         break
       }
 
-      ui[action.payload.property] = null
+      // @ts-expect-error - not all properties of `ui` are nullable so this
+      // assignment is not sound.
+      ui[property] = null
       state = {
         ...state,
         ui
@@ -221,6 +244,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       state.adsData.notificationAdsEnabled = adsData.notificationAdsEnabled
       state.adsData.newTabAdsEnabled = adsData.newTabAdsEnabled
       state.adsData.newsAdsEnabled = adsData.newsAdsEnabled
+      state.adsData.searchAdsEnabled = adsData.searchAdsEnabled
       break
     }
     case types.GET_ADS_HISTORY: {
@@ -237,7 +261,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_AD_THUMB_UP: {
-      chrome.send('brave_rewards.toggleAdThumbUp', [action.payload.adContent])
+      chrome.send('brave_rewards.toggleAdThumbUp', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_AD_THUMB_UP: {
@@ -245,7 +269,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_AD_THUMB_DOWN: {
-      chrome.send('brave_rewards.toggleAdThumbDown', [action.payload.adContent])
+      chrome.send('brave_rewards.toggleAdThumbDown', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_AD_THUMB_DOWN: {
@@ -253,7 +277,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_AD_OPT_IN: {
-      chrome.send('brave_rewards.toggleAdOptIn', [action.payload.categoryContent])
+      chrome.send('brave_rewards.toggleAdOptIn', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_AD_OPT_IN: {
@@ -261,7 +285,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_AD_OPT_OUT: {
-      chrome.send('brave_rewards.toggleAdOptOut', [action.payload.categoryContent])
+      chrome.send('brave_rewards.toggleAdOptOut', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_AD_OPT_OUT: {
@@ -269,7 +293,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_SAVED_AD: {
-      chrome.send('brave_rewards.toggleSavedAd', [action.payload.adContent])
+      chrome.send('brave_rewards.toggleSavedAd', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_SAVED_AD: {
@@ -277,7 +301,7 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       break
     }
     case types.TOGGLE_FLAGGED_AD: {
-      chrome.send('brave_rewards.toggleFlaggedAd', [action.payload.adContent])
+      chrome.send('brave_rewards.toggleFlaggedAd', [action.payload.adHistory])
       break
     }
     case types.ON_TOGGLE_FLAGGED_AD: {
@@ -291,6 +315,8 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
       if (key) {
         chrome.send('brave_rewards.saveAdsSetting', [key, value.toString()])
         state.adsData = { ...state.adsData }
+        // @ts-expect-error - key and value are any so this hits a
+        // suppressImplicitAnyIndexErrors error.
         state.adsData[key] = value
       }
       break
@@ -324,6 +350,8 @@ const rewardsReducer: Reducer<Rewards.State | undefined> = (state: Rewards.State
 
       chrome.send('brave_rewards.connectExternalWallet', [path, query])
       ui.modalRedirect = 'show'
+      // The first non-empty path segment contains the wallet provider type.
+      ui.modalRedirectProvider = path.replace(/^\//, '').split('/')[0] || ''
 
       state = { ...state, ui }
       break

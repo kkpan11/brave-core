@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 
+#include "base/component_export.h"
 #include "base/files/file_path.h"
 #include "base/observer_list.h"
 #include "brave/components/brave_component_updater/browser/brave_component.h"
@@ -17,9 +18,11 @@ namespace brave_component_updater {
 
 class LocalDataFilesObserver;
 
-const char kLocalDataFilesComponentName[] = "Brave Local Data Updater";
-const char kLocalDataFilesComponentId[] = "afalakplffnnnlkncjhbmahjfjhmlkal";
-const char kLocalDataFilesComponentBase64PublicKey[] =
+inline constexpr char kLocalDataFilesComponentName[] =
+    "Brave Local Data Updater";
+inline constexpr char kLocalDataFilesComponentId[] =
+    "afalakplffnnnlkncjhbmahjfjhmlkal";
+inline constexpr char kLocalDataFilesComponentBase64PublicKey[] =
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs4TIQXRCftLpGmQZxmm6"
     "AU8pqGKLoDyi537HGQyRKcK7j/CSXCf3vwJr7xkV72p7bayutuzyNZ3740QxBPie"
     "sfBOp8bBb8d2VgTHP3b+SuNmK/rsSRsMRhT05x8AAr/7ab6U3rW0Gsalm2653xnn"
@@ -30,7 +33,8 @@ const char kLocalDataFilesComponentBase64PublicKey[] =
 
 // The component in charge of delegating access to different DAT files
 // such as tracking protection.
-class LocalDataFilesService : public BraveComponent {
+class COMPONENT_EXPORT(BRAVE_COMPONENT_UPDATER) LocalDataFilesService
+    : public BraveComponent {
  public:
   explicit LocalDataFilesService(BraveComponent::Delegate* delegate);
   LocalDataFilesService(const LocalDataFilesService&) = delete;
@@ -59,6 +63,7 @@ class LocalDataFilesService : public BraveComponent {
 };
 
 // Creates the LocalDataFilesService
+COMPONENT_EXPORT(BRAVE_COMPONENT_UPDATER)
 std::unique_ptr<LocalDataFilesService>
 LocalDataFilesServiceFactory(BraveComponent::Delegate* delegate);
 

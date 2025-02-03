@@ -51,13 +51,13 @@ std::optional<T> MaybeSampleCreativeAd(
 
     sum += probability;
 
-    if (rand <= sum || base::IsApproximatelyEqual(
+    if (sum >= rand || base::IsApproximatelyEqual(
                            rand, sum, std::numeric_limits<double>::epsilon())) {
       return creative_ad_predictor.creative_ad;
     }
   }
 
-  NOTREACHED_NORETURN() << "Sum should always be less than probability";
+  NOTREACHED() << "Sum should always be less than probability";
 }
 
 }  // namespace brave_ads

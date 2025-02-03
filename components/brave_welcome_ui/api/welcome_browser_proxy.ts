@@ -33,7 +33,9 @@ export interface WelcomeBrowserProxy {
   setP3AEnabled: (enabled: boolean) => void
   setMetricsReportingEnabled: (enabled: boolean) => void
   openSettingsPage: () => void
+  enableWebDiscovery: () => void
   getDefaultBrowser: () => Promise<string>
+  getWelcomeCompleteURL: () => Promise<string>
 }
 
 export { DefaultBrowserBrowserProxyImpl, ImportDataBrowserProxyImpl }
@@ -55,8 +57,16 @@ export class WelcomeBrowserProxyImpl implements WelcomeBrowserProxy {
     chrome.send('openSettingsPage')
   }
 
+  enableWebDiscovery () {
+    chrome.send('enableWebDiscovery')
+  }
+
   getDefaultBrowser (): Promise<string> {
     return sendWithPromise('getDefaultBrowser')
+  }
+
+  getWelcomeCompleteURL (): Promise<string> {
+    return sendWithPromise('getWelcomeCompleteURL')
   }
 
   static getInstance (): WelcomeBrowserProxy {

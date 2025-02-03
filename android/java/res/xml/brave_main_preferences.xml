@@ -29,7 +29,7 @@
         android:order="3"
         android:title="@string/brave_ui_brave_wallet"/>
     <org.chromium.components.browser_ui.settings.ChromeBasePreference
-        android:fragment="org.chromium.chrome.browser.settings.BraveVpnPreferences"
+        android:fragment="org.chromium.chrome.browser.vpn.settings.BraveVpnPreferences"
         android:key="brave_vpn"
         android:icon="@drawable/ic_vpn"
         android:order="4"
@@ -101,7 +101,13 @@
     <PreferenceCategory
         android:key="online_checkout_section"
         android:order="21"
-        android:title="@string/prefs_section_online_checkout"/>
+        android:title="@string/prefs_section_autofill_brave"/>
+    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference
+        android:key="autofill_private_window"
+        android:order="21"
+        android:icon="@drawable/ic_autofill"
+        android:title="@string/prefs_autofill_private_window_title"
+        android:summary="@string/prefs_autofill_private_window_summary"/>
     <PreferenceCategory
         android:key="support_section"
         android:order="24"

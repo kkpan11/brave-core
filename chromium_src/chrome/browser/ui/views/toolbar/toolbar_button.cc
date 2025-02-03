@@ -32,7 +32,9 @@ const gfx::VectorIcon& ToolbarButton_ChromiumImpl::GetVectorTouchIcon() const {
   return vector_icons_->touch_icon;
 }
 
-ToolbarButton::~ToolbarButton() = default;
+ToolbarButton::~ToolbarButton() {
+  views::InkDrop::Get(this)->GetInkDrop()->RemoveObserver(this);
+}
 
 void ToolbarButton::OnThemeChanged() {
   ToolbarButton_ChromiumImpl::OnThemeChanged();
@@ -55,8 +57,11 @@ void ToolbarButton::OnInkDropStateChanged(views::InkDropState state) {
   activated_ = state == views::InkDropState::ACTIVATED;
 
   if (!activated_) {
-    // Set upstream colors for deactivated state.
-    UpdateIcon();
+    // Set upstream colors for deactivated state. When called from the button
+    // destructor, the color provider may no longer be there.
+    if (GetColorProvider()) {
+      UpdateIcon();
+    }
     return;
   }
 
@@ -75,5 +80,5 @@ void ToolbarButton::OnInkDropStateChanged(views::InkDropState state) {
   }
 }
 
-BEGIN_METADATA(ToolbarButton, ToolbarButton_ChromiumImpl)
+BEGIN_METADATA(ToolbarButton)
 END_METADATA

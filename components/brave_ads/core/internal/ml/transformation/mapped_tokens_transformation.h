@@ -12,10 +12,11 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "brave/components/brave_ads/core/internal/ml/transformation/transformation.h"
 
 namespace brave_ads {
+
 namespace neural_text_classification::flat {
 struct MappedTokenTransformation;
 }  // namespace neural_text_classification::flat
@@ -25,12 +26,10 @@ namespace ml {
 class MappedTokensTransformation final : public Transformation {
  public:
   explicit MappedTokensTransformation(
-      const neural_text_classification::flat::MappedTokenTransformation*
+      const neural_text_classification::flat::MappedTokenTransformation&
           mapped_token_transformation);
 
   ~MappedTokensTransformation() override;
-
-  explicit MappedTokensTransformation(const std::string& parameters);
 
   std::optional<std::map<uint32_t, double>> GetCategoryFrequencies(
       const std::vector<std::string>& words) const;
@@ -39,11 +38,13 @@ class MappedTokensTransformation final : public Transformation {
       const std::unique_ptr<Data>& input_data) const override;
 
  private:
-  raw_ptr<const neural_text_classification::flat::MappedTokenTransformation>
+  const raw_ref<
+      const neural_text_classification::flat::MappedTokenTransformation>
       mapped_token_transformation_;
 };
 
 }  // namespace ml
+
 }  // namespace brave_ads
 
 #endif  // BRAVE_COMPONENTS_BRAVE_ADS_CORE_INTERNAL_ML_TRANSFORMATION_MAPPED_TOKENS_TRANSFORMATION_H_

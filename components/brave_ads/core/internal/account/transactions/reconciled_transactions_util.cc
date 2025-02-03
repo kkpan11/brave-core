@@ -5,7 +5,8 @@
 
 #include "brave/components/brave_ads/core/internal/account/transactions/reconciled_transactions_util.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/time/time.h"
 #include "brave/components/brave_ads/core/internal/common/time/time_util.h"
 
@@ -14,9 +15,9 @@ namespace brave_ads {
 namespace {
 
 bool HasReconciledTransactionsForDateRange(const TransactionList& transactions,
-                                           const base::Time from_time,
-                                           const base::Time to_time) {
-  return base::ranges::any_of(
+                                           base::Time from_time,
+                                           base::Time to_time) {
+  return std::ranges::any_of(
       transactions, [from_time, to_time](const TransactionInfo& transaction) {
         return DidReconcileTransactionWithinDateRange(transaction, from_time,
                                                       to_time);
@@ -26,28 +27,29 @@ bool HasReconciledTransactionsForDateRange(const TransactionList& transactions,
 }  // namespace
 
 bool DidReconcileTransaction(const TransactionInfo& transaction) {
-  return !transaction.reconciled_at.is_null();
+  return !!transaction.reconciled_at;
 }
 
-bool DidReconcileTransactionsLastMonth(const TransactionList& transactions) {
-  const base::Time from_time = GetLocalTimeAtBeginningOfLastMonth();
-  const base::Time to_time = GetLocalTimeAtEndOfLastMonth();
+bool DidReconcileTransactionsPreviousMonth(
+    const TransactionList& transactions) {
+  const base::Time from_time = LocalTimeAtBeginningOfPreviousMonth();
+  const base::Time to_time = LocalTimeAtEndOfPreviousMonth();
 
   return HasReconciledTransactionsForDateRange(transactions, from_time,
                                                to_time);
 }
 
 bool DidReconcileTransactionsThisMonth(const TransactionList& transactions) {
-  const base::Time from_time = GetLocalTimeAtBeginningOfThisMonth();
-  const base::Time to_time = GetLocalTimeAtEndOfThisMonth();
+  const base::Time from_time = LocalTimeAtBeginningOfThisMonth();
+  const base::Time to_time = LocalTimeAtEndOfThisMonth();
 
   return HasReconciledTransactionsForDateRange(transactions, from_time,
                                                to_time);
 }
 
 bool DidReconcileTransactionWithinDateRange(const TransactionInfo& transaction,
-                                            const base::Time from_time,
-                                            const base::Time to_time) {
+                                            base::Time from_time,
+                                            base::Time to_time) {
   if (!DidReconcileTransaction(transaction)) {
     return false;
   }

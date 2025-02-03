@@ -6,13 +6,13 @@
 #ifndef BRAVE_NET_HTTP_PARTITIONED_HOST_STATE_MAP_H_
 #define BRAVE_NET_HTTP_PARTITIONED_HOST_STATE_MAP_H_
 
+#include <algorithm>
 #include <array>
 #include <optional>
 #include <string>
 
 #include "base/auto_reset.h"
 #include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 #include "crypto/sha2.h"
 #include "net/base/net_export.h"
 
@@ -41,9 +41,6 @@ class NET_EXPORT PartitionedHostStateMapBase {
   // |k| and first 16 bytes from |partition_hash_|.
   // CHECKs if |partition_hash_| is not valid.
   HashedHost GetKeyWithPartitionHash(const HashedHost& k) const;
-
-  // Returns first `HashedHost::size() / 2` bytes from |k|.
-  static base::span<const uint8_t> GetHalfKey(const HashedHost& k);
 
  private:
   // Partition hash can be of these values:
@@ -116,20 +113,24 @@ class NET_EXPORT PartitionedHostStateMap : public PartitionedHostStateMapBase {
   // Removes all items with similar first 16 bytes of |k|, effectively ignoring
   // partition hash part.
   bool DeleteDataInAllPartitions(const key_type& k) {
-    auto equal_range_pair = base::ranges::equal_range(
-        map_, GetHalfKey(k),
+    static_assert(crypto::kSHA256Length == sizeof(key_type));
+    auto equal_range_pair = std::ranges::equal_range(
+        map_, base::span(k).template first<crypto::kSHA256Length / 2>(),
         [](const auto& v1, const auto& v2) {
           // Mimic std::less by calling memcmp on base::span arrays.
           DCHECK(v1.size() == v2.size());
           return memcmp(v1.data(), v2.data(), v1.size()) < 0;
         },
-        [](const value_type& v) { return GetHalfKey(v.first); });
+        [](const value_type& v) {
+          return base::span(v.first)
+              .template first<crypto::kSHA256Length / 2>();
+        });
 
-    if (equal_range_pair.first == equal_range_pair.second) {
+    if (equal_range_pair.begin() == equal_range_pair.end()) {
       return false;
     }
 
-    map_.erase(equal_range_pair.first, equal_range_pair.second);
+    map_.erase(equal_range_pair.begin(), equal_range_pair.end());
     return true;
   }
 

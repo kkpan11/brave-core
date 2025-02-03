@@ -6,6 +6,7 @@
 #ifndef BRAVE_BROWSER_UI_VIEWS_PLAYLIST_SELECTABLE_LIST_VIEW_H_
 #define BRAVE_BROWSER_UI_VIEWS_PLAYLIST_SELECTABLE_LIST_VIEW_H_
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@
 #include "brave/components/playlist/browser/playlist_constants.h"
 #include "brave/components/playlist/common/mojom/playlist.mojom.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/grit/brave_components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
 #include "ui/views/controls/button/button.h"
@@ -27,8 +29,8 @@ class ImageView;
 class ThumbnailView;
 
 class SelectableView : public views::Button {
+  METADATA_HEADER(SelectableView, views::Button)
  public:
-  METADATA_HEADER(SelectableView);
   using OnPressedCallback = base::RepeatingCallback<void(SelectableView&)>;
 
   SelectableView(const std::string& id,
@@ -45,7 +47,6 @@ class SelectableView : public views::Button {
   base::OnceCallback<void(const gfx::Image&)> GetThumbnailSetter();
 
   // views::Button:
-  int GetHeightForWidth(int width) const override;
   void OnThemeChanged() override;
 
  private:
@@ -126,10 +127,9 @@ class SelectableListView : public views::BoxLayoutView {
 
   void SetSelected(const std::vector<DataType>& data) {
     std::vector<std::string> ids;
-    base::ranges::transform(
-        data, std::back_inserter(ids), [](const auto& data) {
-          return SelectableDataTraits<DataType>::GetId(data);
-        });
+    std::ranges::transform(data, std::back_inserter(ids), [](const auto& data) {
+      return SelectableDataTraits<DataType>::GetId(data);
+    });
     SetSelected(ids);
   }
 
@@ -154,11 +154,10 @@ class SelectableListView : public views::BoxLayoutView {
 
   std::vector<DataType> GetSelected() {
     std::vector<DataType> items;
-    base::ranges::transform(
-        selected_views_, std::back_inserter(items),
-        [this](const auto& id_and_view) {
-          return data_.at(id_and_view.second->id())->Clone();
-        });
+    std::ranges::transform(selected_views_, std::back_inserter(items),
+                           [this](const auto& id_and_view) {
+                             return data_.at(id_and_view.second->id())->Clone();
+                           });
     return items;
   }
 
@@ -192,7 +191,7 @@ class SelectableListView : public views::BoxLayoutView {
     on_selection_changed_.Run();
   }
 
-  raw_ptr<ThumbnailProvider> thumbnail_provider_;
+  raw_ptr<ThumbnailProvider, DanglingUntriaged> thumbnail_provider_;
 
   base::RepeatingCallback<void()> on_selection_changed_;
 

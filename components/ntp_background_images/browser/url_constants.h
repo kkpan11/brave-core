@@ -17,6 +17,7 @@ inline constexpr char kCustomWallpaperHost[] = "custom-wallpaper";
 inline constexpr char kCustomWallpaperURL[] = "chrome://custom-wallpaper/";
 
 inline constexpr char kCampaignsKey[] = "campaigns";
+inline constexpr char kCampaigns2Key[] = "campaigns2";
 
 inline constexpr char kPublicKey[] = "publicKey";
 inline constexpr char kComponentIDKey[] = "componentID";
@@ -29,6 +30,9 @@ inline constexpr char kCampaignIdKey[] = "campaignId";
 
 inline constexpr char kWallpapersKey[] = "wallpapers";
 inline constexpr char kWallpaperFocalPointKey[] = "focalPoint";
+inline constexpr char kWallpaperConditionMatchersKey[] = "conditionMatchers";
+inline constexpr char kWallpaperConditionMatcherPrefPathKey[] = "prefPath";
+inline constexpr char kWallpaperConditionMatcherKey[] = "condition";
 
 inline constexpr char kImagesKey[] = "images";
 inline constexpr char kIsBackgroundKey[] = "isBackground";
@@ -50,8 +54,8 @@ inline constexpr char kCreativeInstanceIDKey[] = "creativeInstanceId";
 inline constexpr char kWallpaperIDKey[] = "wallpaperId";
 
 inline constexpr char kIsSponsoredKey[] = "isSponsored";
-inline constexpr char kWallpaperImageURLKey[] = "wallpaperImageUrl";
-inline constexpr char kWallpaperImagePathKey[] = "wallpaperImagePath";
+inline constexpr char kWallpaperURLKey[] = "wallpaperImageUrl";
+inline constexpr char kWallpaperFilePathKey[] = "wallpaperImagePath";
 inline constexpr char kWallpaperColorKey[] = "wallpaperColor";
 inline constexpr char kWallpaperTypeKey[] = "type";
 inline constexpr char kWallpaperRandomKey[] = "random";

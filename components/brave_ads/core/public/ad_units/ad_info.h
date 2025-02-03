@@ -8,13 +8,12 @@
 
 #include <string>
 
-#include "brave/components/brave_ads/core/public/ad_units/ad_type.h"
-#include "brave/components/brave_ads/core/public/export.h"
+#include "brave/components/brave_ads/core/mojom/brave_ads.mojom.h"
 #include "url/gurl.h"
 
 namespace brave_ads {
 
-struct ADS_EXPORT AdInfo {
+struct AdInfo {
   AdInfo();
 
   AdInfo(const AdInfo&);
@@ -29,7 +28,7 @@ struct ADS_EXPORT AdInfo {
 
   [[nodiscard]] bool IsValid() const;
 
-  AdType type = AdType::kUndefined;
+  mojom::AdType type = mojom::AdType::kUndefined;
   std::string placement_id;
   std::string creative_instance_id;
   std::string creative_set_id;

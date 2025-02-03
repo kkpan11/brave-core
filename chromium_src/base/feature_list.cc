@@ -5,12 +5,15 @@
 
 #include "base/feature_list.h"
 
+#include <algorithm>
+#include <optional>
+
+#include "base/check_op.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/feature_override.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 
 namespace base {
 namespace internal {
@@ -35,18 +38,17 @@ UnsortedDefaultStateOverrides& GetUnsortedDefaultStateOverrides() {
 }
 
 const DefaultStateOverrides& GetDefaultStateOverrides() {
-  static const NoDestructor<DefaultStateOverrides> default_state_overrides([] {
+  static const NoDestructor<DefaultStateOverrides> kDefaultStateOverrides([] {
     DefaultStateOverrides sorted_overrides =
         std::move(GetUnsortedDefaultStateOverrides());
     DCHECK_EQ(GetUnsortedDefaultStateOverrides().capacity(), 0u);
-    DLOG_IF(ERROR, sorted_overrides.size() > kDefaultStateOverridesReserve)
-        << "Please increase kDefaultStateOverridesReserve. Feature overrides "
-           "count: "
-        << sorted_overrides.size()
-        << ", reserve size: " << kDefaultStateOverridesReserve;
+#if !defined(COMPONENT_BUILD)
+    CHECK_GE(kDefaultStateOverridesReserve, sorted_overrides.size())
+        << "kDefaultStateOverridesReserve should be increased";
+#endif
     return sorted_overrides;
   }());
-  return *default_state_overrides;
+  return *kDefaultStateOverrides;
 }
 
 }  // namespace
@@ -62,10 +64,11 @@ FeatureDefaultStateOverrider::FeatureDefaultStateOverrider(
       DCHECK(new_overrides.insert(override.first).second)
           << "Feature " << override.first.get().name
           << " is duplicated in the current override macros";
-      DCHECK(!ranges::any_of(default_state_overrides,
-                             [&override](const auto& v) {
-                               return &v.first.get() == &override.first.get();
-                             }))
+      DCHECK(!std::ranges::any_of(default_state_overrides,
+                                  [&override](const auto& v) {
+                                    return &v.first.get() ==
+                                           &override.first.get();
+                                  }))
           << "Feature " << override.first.get().name
           << " has already been overridden";
     }
@@ -94,10 +97,26 @@ bool FeatureList::IsFeatureOverridden(const std::string& feature_name) const {
   for (const auto& default_state_override : default_state_overrides) {
     const Feature& feature = default_state_override.first.get();
     if (feature.name == feature_name) {
-      return feature.default_state != default_state_override.second;
+      return true;
     }
   }
   return false;
+}
+
+std::optional<bool> FeatureList::GetStateIfOverridden(const Feature& feature) {
+  auto state = GetStateIfOverridden_ChromiumImpl(feature);
+  if (state.has_value()) {
+    return state;
+  }
+
+  const auto& default_state_overrides = internal::GetDefaultStateOverrides();
+  const auto default_state_override_it = default_state_overrides.find(feature);
+  if (default_state_override_it != default_state_overrides.end()) {
+    return default_state_override_it->second ==
+           FeatureState::FEATURE_ENABLED_BY_DEFAULT;
+  }
+
+  return std::nullopt;
 }
 
 // static
@@ -115,8 +134,10 @@ FeatureState FeatureList::GetCompileTimeFeatureState(const Feature& feature) {
 // includes the compile time override check.
 #define default_state name&& GetCompileTimeFeatureState(feature)
 #define IsFeatureOverridden IsFeatureOverridden_ChromiumImpl
+#define GetStateIfOverridden GetStateIfOverridden_ChromiumImpl
 
 #include "src/base/feature_list.cc"
 
+#undef GetStateIfOverridden
 #undef IsFeatureOverridden
 #undef default_state

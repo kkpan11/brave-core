@@ -31,21 +31,28 @@ public class AccountsPermissionsHelper {
         return mAccountsWithPermissions;
     }
 
+    @SuppressWarnings("NoStreams")
     private static boolean containsAccount(AccountId[] accounts, AccountId searchFor) {
-        return Arrays.stream(accounts).anyMatch(
-                acc -> { return WalletUtils.accountIdsEqual(acc, searchFor); });
+        return Arrays.stream(accounts)
+                .anyMatch(
+                        acc -> {
+                            return WalletUtils.accountIdsEqual(acc, searchFor);
+                        });
     }
 
+    @SuppressWarnings("NoStreams")
     public void checkAccounts(Runnable runWhenDone) {
         AccountId[] allAccountIds =
-                Arrays.stream(mAccounts).map(acc -> acc.accountId).toArray(AccountId[] ::new);
-        mBraveWalletService.hasPermission(allAccountIds, (success, filteredAccounts) -> {
-            mAccountsWithPermissions =
-                    Arrays.stream(mAccounts)
-                            .filter(acc -> containsAccount(filteredAccounts, acc.accountId))
-                            .collect(Collectors.toCollection(HashSet::new));
+                Arrays.stream(mAccounts).map(acc -> acc.accountId).toArray(AccountId[]::new);
+        mBraveWalletService.hasPermission(
+                allAccountIds,
+                (success, filteredAccounts) -> {
+                    mAccountsWithPermissions =
+                            Arrays.stream(mAccounts)
+                                    .filter(acc -> containsAccount(filteredAccounts, acc.accountId))
+                                    .collect(Collectors.toCollection(HashSet::new));
 
-            runWhenDone.run();
-        });
+                    runWhenDone.run();
+                });
     }
 }

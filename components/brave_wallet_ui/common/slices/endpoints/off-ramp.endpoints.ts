@@ -9,11 +9,10 @@ import { WalletApiEndpointBuilderParams } from '../api-base.slice'
 
 // Utils
 import {
-  getBatTokensFromList,
-  getNativeTokensFromList,
-  getUniqueAssets
+  addLogoToToken,
+  getUniqueAssets,
+  sortNativeAndAndBatAssetsToTop
 } from '../../../utils/asset-utils'
-import { addLogoToToken } from '../../async/lib'
 import { mapLimit } from 'async'
 import { handleEndpointError } from '../../../utils/api-utils'
 
@@ -29,7 +28,8 @@ export const offRampEndpoints = ({ query }: WalletApiEndpointBuilderParams) => {
       queryFn: async (_arg, _store, _extraOptions, baseQuery) => {
         try {
           const {
-            data: { blockchainRegistry }
+            data: { blockchainRegistry },
+            cache
           } = baseQuery(undefined)
           const { kRamp } = BraveWallet.OffRampProvider
 
@@ -45,30 +45,19 @@ export const offRampEndpoints = ({ query }: WalletApiEndpointBuilderParams) => {
             await mapLimit(
               rampAssets.flatMap((p) => p.tokens),
               10,
-              async (token: BraveWallet.BlockchainToken) =>
-                await addLogoToToken(token)
+              async (token: BraveWallet.BlockchainToken) => {
+                const tokenLogo = await cache.getTokenLogo(token)
+                return addLogoToToken(token, tokenLogo)
+              }
             )
 
-          // separate native assets from tokens
-          const {
-            tokens: rampTokenOptions,
-            nativeAssets: rampNativeAssetOptions
-          } = getNativeTokensFromList(rampAssetOptions)
-
-          // separate BAT from other tokens
-          const { bat: rampBatTokens, nonBat: rampNonBatTokens } =
-            getBatTokensFromList(rampTokenOptions)
-
           // moves Gas coins and BAT to front of list
-          const sortedRampOptions = [
-            ...rampNativeAssetOptions,
-            ...rampBatTokens,
-            ...rampNonBatTokens
-          ]
+          const sortedRampOptions =
+            sortNativeAndAndBatAssetsToTop(rampAssetOptions)
 
           const results = {
             rampAssetOptions: sortedRampOptions,
-            allAssetOptions: getUniqueAssets([...sortedRampOptions])
+            allAssetOptions: getUniqueAssets(sortedRampOptions)
           }
 
           return {
@@ -96,7 +85,6 @@ export const offRampEndpoints = ({ query }: WalletApiEndpointBuilderParams) => {
         assetSymbol: string
         offRampProvider: BraveWallet.OffRampProvider
         chainId: string
-        address: string
         amount: string
         fiatCurrencyCode: string
       }
@@ -107,7 +95,6 @@ export const offRampEndpoints = ({ query }: WalletApiEndpointBuilderParams) => {
           const { url, error } = await api.assetRatioService.getSellUrl(
             arg.offRampProvider,
             arg.chainId,
-            arg.address,
             arg.assetSymbol,
             arg.amount,
             arg.fiatCurrencyCode

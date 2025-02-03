@@ -11,21 +11,10 @@
 #include "brave/components/brave_ads/core/internal/creatives/creative_ad_info.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/exclusion_rule_feature.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/exclusion_rule_util.h"
-#include "brave/components/brave_ads/core/public/account/confirmations/confirmation_type.h"
+#include "brave/components/brave_ads/core/mojom/brave_ads.mojom.h"
 #include "brave/components/brave_ads/core/public/user_engagement/site_visit/site_visit_feature.h"
 
 namespace brave_ads {
-
-namespace {
-
-bool DoesRespectCap(const AdEventList& ad_events,
-                    const CreativeAdInfo& creative_ad) {
-  return DoesRespectCampaignCap(
-      creative_ad, ad_events, ConfirmationType::kLanded,
-      kShouldExcludeAdIfLandedOnPageWithinTimeWindow.Get(), kPageLandCap.Get());
-}
-
-}  // namespace
 
 PageLandExclusionRule::PageLandExclusionRule(AdEventList ad_events)
     : ad_events_(std::move(ad_events)) {}
@@ -39,7 +28,10 @@ std::string PageLandExclusionRule::GetUuid(
 
 base::expected<void, std::string> PageLandExclusionRule::ShouldInclude(
     const CreativeAdInfo& creative_ad) const {
-  if (!DoesRespectCap(ad_events_, creative_ad)) {
+  if (!DoesRespectCampaignCap(
+          creative_ad, ad_events_, mojom::ConfirmationType::kLanded,
+          kShouldExcludeAdIfLandedOnPageWithinTimeWindow.Get(),
+          kPageLandCap.Get())) {
     return base::unexpected(base::ReplaceStringPlaceholders(
         "campaignId $1 has exceeded the page land frequency cap",
         {creative_ad.campaign_id}, nullptr));

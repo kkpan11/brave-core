@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_ads/core/internal/user_engagement/conversions/actions/conversion_action_types_util.h"
 
+#include "brave/components/brave_ads/core/mojom/brave_ads.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 // npm run test -- brave_unit_tests --filter=BraveAds*
@@ -14,42 +15,39 @@ namespace brave_ads {
 TEST(BraveAdsConversionActionTypesUtilTest, ToViewThroughConversionActionType) {
   // Act & Assert
   EXPECT_EQ(ConversionActionType::kViewThrough,
-            ToConversionActionType(ConfirmationType::kViewed));
+            ToConversionActionType(mojom::ConfirmationType::kViewedImpression));
 }
 
 TEST(BraveAdsConversionActionTypesUtilTest,
      ToClickThroughConversionActionType) {
   // Act & Assert
   EXPECT_EQ(ConversionActionType::kClickThrough,
-            ToConversionActionType(ConfirmationType::kClicked));
+            ToConversionActionType(mojom::ConfirmationType::kClicked));
 }
 
 TEST(BraveAdsConversionActionTypesUtilTest,
      StringToViewThroughConversionActionType) {
   // Act & Assert
-  EXPECT_EQ(ConversionActionType::kViewThrough,
-            StringToConversionActionType("view"));
+  EXPECT_EQ(ConversionActionType::kViewThrough, ToConversionActionType("view"));
 }
 
 TEST(BraveAdsConversionActionTypesUtilTest,
      StringToClickThroughConversionActionType) {
   // Act & Assert
   EXPECT_EQ(ConversionActionType::kClickThrough,
-            StringToConversionActionType("click"));
+            ToConversionActionType("click"));
 }
 
 TEST(BraveAdsConversionActionTypesUtilTest,
      ViewThroughConversionActionTypeToString) {
   // Act & Assert
-  EXPECT_EQ("view",
-            ConversionActionTypeToString(ConversionActionType::kViewThrough));
+  EXPECT_EQ("view", ToString(ConversionActionType::kViewThrough));
 }
 
 TEST(BraveAdsConversionActionTypesUtilTest,
      ClickThroughConversionActionTypeToString) {
   // Act & Assert
-  EXPECT_EQ("click",
-            ConversionActionTypeToString(ConversionActionType::kClickThrough));
+  EXPECT_EQ("click", ToString(ConversionActionType::kClickThrough));
 }
 
 }  // namespace brave_ads

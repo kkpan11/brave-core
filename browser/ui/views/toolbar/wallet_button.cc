@@ -27,11 +27,11 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/menus/simple_menu_model.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/layout/fill_layout.h"
 
@@ -129,11 +129,6 @@ WalletButton::WalletButton(View* backup_anchor_view, Profile* profile)
                    // already shows a panel on click
       prefs_(profile->GetPrefs()),
       backup_anchor_view_(backup_anchor_view) {
-  pref_change_registrar_.Init(prefs_);
-  pref_change_registrar_.Add(
-      kShowWalletIconOnToolbar,
-      base::BindRepeating(&WalletButton::OnPreferenceChanged,
-                          base::Unretained(this)));
   SetTooltipText(
       brave_l10n::GetLocalizedResourceUTF16String(IDS_TOOLTIP_WALLET));
 
@@ -146,8 +141,6 @@ WalletButton::WalletButton(View* backup_anchor_view, Profile* profile)
       std::make_unique<views::Button::DefaultButtonControllerDelegate>(this));
   menu_button_controller_ = menu_button_controller.get();
   SetButtonController(std::move(menu_button_controller));
-
-  UpdateVisibility();
 
   notification_source_ =
       std::make_unique<brave::WalletButtonNotificationSource>(
@@ -213,14 +206,16 @@ void WalletButton::UpdateImageAndText(bool activated) {
     color_id = kColorToolbarButtonActivated;
   }
 
-  constexpr int kIconSize = 16;
-  auto icon = gfx::CreateVectorIcon(kLeoProductBraveWalletIcon, kIconSize,
-                                    color_provider->GetColor(color_id));
-
   if (counter_ == 0) {
-    SetImage(views::Button::STATE_NORMAL, icon);
+    SetImageModel(views::Button::STATE_NORMAL,
+                  ui::ImageModel::FromVectorIcon(
+                      kLeoProductBraveWalletIcon,
+                      color_provider->GetColor(color_id), GetIconSize()));
     return;
   }
+
+  auto icon = gfx::CreateVectorIcon(kLeoProductBraveWalletIcon, GetIconSize(),
+                                    color_provider->GetColor(color_id));
 
   size_t icon_size = std::max(icon.width(), icon.height());
   auto badge_size = brave::BraveIconWithBadgeImageSource::GetMaxBadgeSize();
@@ -238,16 +233,9 @@ void WalletButton::UpdateImageAndText(bool activated) {
   auto text = GetBadgeText();
   image_source->SetBadge(std::make_unique<IconWithBadgeImageSource::Badge>(
       text, brave::kBadgeTextColor, brave::kBadgeNotificationBG));
-  SetImage(views::Button::STATE_NORMAL,
-           gfx::ImageSkia(std::move(image_source), preferred_size));
-}
-
-void WalletButton::UpdateVisibility() {
-  SetVisible(prefs_->GetBoolean(kShowWalletIconOnToolbar));
-}
-
-void WalletButton ::OnPreferenceChanged() {
-  UpdateVisibility();
+  SetImageModel(views::Button::STATE_NORMAL,
+                ui::ImageModel::FromImageSkia(
+                    gfx::ImageSkia(std::move(image_source), preferred_size)));
 }
 
 void WalletButton::ShowWalletBubble() {
@@ -285,5 +273,5 @@ views::View* WalletButton::GetAsAnchorView() {
   return anchor_view;
 }
 
-BEGIN_METADATA(WalletButton, ToolbarButton)
+BEGIN_METADATA(WalletButton)
 END_METADATA

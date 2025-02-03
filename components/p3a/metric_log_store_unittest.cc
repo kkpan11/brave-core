@@ -52,11 +52,11 @@ class P3AMetricLogStoreTest : public testing::Test,
   }
 
   void UpdateSomeValues(size_t message_count) {
-    auto* histogram_it = p3a::kCollectedTypicalHistograms.begin();
+    auto histogram_it = p3a::kCollectedTypicalHistograms.begin();
     for (size_t i = 1; i <= message_count &&
                        histogram_it != p3a::kCollectedTypicalHistograms.end();
          i++) {
-      log_store->UpdateValue(std::string(*histogram_it), 2);
+      log_store->UpdateValue(std::string(histogram_it->first), 2);
       histogram_it++;
     }
   }

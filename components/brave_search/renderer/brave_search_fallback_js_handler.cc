@@ -13,8 +13,8 @@
 #include "content/public/renderer/render_frame.h"
 #include "gin/arguments.h"
 #include "gin/function_template.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_script_source.h"
@@ -101,7 +101,8 @@ v8::Local<v8::Promise> BraveSearchFallbackJSHandler::FetchBackupResults(
     const std::string& country,
     const std::string& geo,
     bool filter_explicit_results,
-    int page_index) {
+    int page_index,
+    const std::string& cookie_header_value) {
   if (!EnsureConnected())
     return v8::Local<v8::Promise>();
 
@@ -113,6 +114,9 @@ v8::Local<v8::Promise> BraveSearchFallbackJSHandler::FetchBackupResults(
     promise_resolver->Reset(isolate_, resolver.ToLocalChecked());
     brave_search_fallback_->FetchBackupResults(
         query_string, lang, country, geo, filter_explicit_results, page_index,
+        cookie_header_value.empty()
+            ? std::nullopt
+            : std::make_optional<std::string>(cookie_header_value),
         base::BindOnce(&BraveSearchFallbackJSHandler::OnFetchBackupResults,
                        base::Unretained(this), std::move(promise_resolver)));
 

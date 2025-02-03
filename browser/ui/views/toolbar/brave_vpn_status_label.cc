@@ -14,6 +14,7 @@
 #include "brave/grit/brave_generated_resources.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
 
 using ConnectionState = brave_vpn::mojom::ConnectionState;
 using PurchasedState = brave_vpn::mojom::PurchasedState;
@@ -75,24 +76,12 @@ void BraveVPNStatusLabel::OnConnectionStateChanged(ConnectionState state) {
   UpdateState();
 }
 
-gfx::Size BraveVPNStatusLabel::CalculatePreferredSize(
-    const views::SizeBounds& available_size) const {
-  auto size = views::Label::CalculatePreferredSize(available_size);
-  if (longest_state_string_id_ == -1)
-    return size;
-  auto text =
-      brave_l10n::GetLocalizedResourceUTF16String(longest_state_string_id_);
-  if (text == GetText())
-    return size;
-  size.set_width(font_list().GetExpectedTextWidth(text.length()) +
-                 GetInsets().width());
-  size.set_height(GetHeightForWidth(size.width()));
-  return size;
-}
-
 void BraveVPNStatusLabel::UpdateState() {
   const auto state = service_->GetConnectionState();
 
   SetText(brave_l10n::GetLocalizedResourceUTF16String(
       GetStringIdForConnectionState(state)));
 }
+
+BEGIN_METADATA(BraveVPNStatusLabel)
+END_METADATA

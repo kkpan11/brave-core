@@ -5,18 +5,21 @@
 
 #include "brave/components/brave_ads/core/internal/creatives/notification_ads/notification_ad_manager.h"
 
+#include <algorithm>
+
 #include "base/check.h"
-#include "base/ranges/algorithm.h"
 #include "base/values.h"
-#include "brave/components/brave_ads/core/internal/client/ads_client_util.h"
+#include "brave/components/brave_ads/core/internal/ads_client/ads_client_util.h"
 #include "brave/components/brave_ads/core/internal/global_state/global_state.h"
+#include "brave/components/brave_ads/core/internal/prefs/pref_util.h"
 #include "brave/components/brave_ads/core/public/ad_units/notification_ad/notification_ad_info.h"
 #include "brave/components/brave_ads/core/public/ad_units/notification_ad/notification_ad_value_util.h"
+#include "brave/components/brave_ads/core/public/ads_client/ads_client.h"
 #include "brave/components/brave_ads/core/public/prefs/pref_names.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#include "brave/components/brave_ads/core/internal/browser/browser_util.h"
+#include "brave/components/brave_ads/core/internal/application_state/browser_util.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
 namespace brave_ads {
@@ -45,7 +48,7 @@ std::optional<NotificationAdInfo> NotificationAdManager::MaybeGetForPlacementId(
   CHECK(!placement_id.empty());
 
   const auto iter =
-      base::ranges::find(ads_, placement_id, &NotificationAdInfo::placement_id);
+      std::ranges::find(ads_, placement_id, &NotificationAdInfo::placement_id);
   if (iter == ads_.cend()) {
     return std::nullopt;
   }
@@ -58,11 +61,11 @@ void NotificationAdManager::Add(const NotificationAdInfo& ad) {
 
   ads_.push_back(ad);
 
-  ShowNotificationAd(ad);
+  GetAdsClient().ShowNotificationAd(ad);
 
 #if BUILDFLAG(IS_ANDROID)
   if (ads_.size() > kMaximumNotificationAds) {
-    CloseNotificationAd(ads_.front().placement_id);
+    GetAdsClient().CloseNotificationAd(ads_.front().placement_id);
     ads_.pop_front();
   }
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -71,15 +74,15 @@ void NotificationAdManager::Add(const NotificationAdInfo& ad) {
 }
 
 void NotificationAdManager::Remove(const std::string& placement_id,
-                                   const bool should_close) {
+                                   bool should_close) {
   CHECK(!placement_id.empty());
 
   if (should_close) {
-    CloseNotificationAd(placement_id);
+    GetAdsClient().CloseNotificationAd(placement_id);
   }
 
   const auto iter =
-      base::ranges::find(ads_, placement_id, &NotificationAdInfo::placement_id);
+      std::ranges::find(ads_, placement_id, &NotificationAdInfo::placement_id);
   if (iter == ads_.cend()) {
     return;
   }
@@ -92,11 +95,12 @@ void NotificationAdManager::Remove(const std::string& placement_id,
 void NotificationAdManager::RemoveAll(bool should_close) {
   if (should_close) {
     for (const auto& ad : ads_) {
-      CloseNotificationAd(ad.placement_id);
+      GetAdsClient().CloseNotificationAd(ad.placement_id);
     }
   }
 
   ads_.clear();
+  ads_.shrink_to_fit();
 
   SetProfileListPref(prefs::kNotificationAds, NotificationAdsToValue(ads_));
 }
@@ -104,8 +108,8 @@ void NotificationAdManager::RemoveAll(bool should_close) {
 bool NotificationAdManager::Exists(const std::string& placement_id) const {
   CHECK(!placement_id.empty());
 
-  return base::ranges::find(ads_, placement_id,
-                            &NotificationAdInfo::placement_id) != ads_.cend();
+  return std::ranges::find(ads_, placement_id,
+                           &NotificationAdInfo::placement_id) != ads_.cend();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

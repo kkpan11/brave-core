@@ -7,7 +7,6 @@
 
 #include <optional>
 
-#include "absl/types/optional.h"
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
@@ -22,7 +21,7 @@ constexpr char kUnderscoreSeparator = '_';
 constexpr char kCodeSetSeparator = '.';
 constexpr char kVariantSeparator = '@';
 
-std::string NormalizeLocale(const std::string& locale) {
+std::string NormalizeLocale(std::string_view locale) {
   // Calculate length of locale excluding charset and variant.
   const std::string::size_type pos = locale.find_first_of(base::StrCat(
       {std::string{kCodeSetSeparator}, std::string{kVariantSeparator}}));
@@ -53,7 +52,7 @@ std::string& LastLocale() {
 
 }  // namespace
 
-LocaleSubtagInfo ParseLocaleSubtags(const std::string& locale) {
+LocaleSubtagInfo ParseLocaleSubtags(std::string_view locale) {
   if (CachedLocaleSubtag() && LastLocale() == locale) {
     return *CachedLocaleSubtag();
   }

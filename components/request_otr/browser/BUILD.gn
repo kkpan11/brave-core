@@ -34,7 +34,7 @@ source_set("browser") {
   deps += [
     "//base",
     "//brave/components/brave_component_updater/browser",
-    "//brave/components/brave_shields/browser:browser",
+    "//brave/components/brave_shields/content/browser",
     "//brave/components/l10n/common:common",
     "//brave/components/p3a_utils",
     "//brave/components/request_otr/common:common",
@@ -43,6 +43,7 @@ source_set("browser") {
     "//brave/components/time_period_storage",
     "//brave/extensions:common",
     "//components/prefs:prefs",
+    "//components/profile_metrics",
     "//components/security_interstitials/content:security_interstitial_page",
     "//components/security_interstitials/core:core",
     "//components/user_prefs:user_prefs",

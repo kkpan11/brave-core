@@ -7,8 +7,10 @@ import(
     "//brave/browser/brave_vpn/win/brave_vpn_wireguard_service/allowlist.gni")
 import("//brave/build/config.gni")
 import("//brave/components/brave_vpn/common/buildflags/buildflags.gni")
+import("//brave/tools/crates/cargo_audit/config.gni")
 import("//build/config/locales.gni")
 import("//build/config/zip.gni")
+import("//chrome/browser/buildflags.gni")
 import("//extensions/buildflags/buildflags.gni")
 import("//media/media_options.gni")
 import("//third_party/icu/config.gni")
@@ -192,7 +194,6 @@ if (is_android) {
       "//brave/android/java/org/chromium/chrome/browser/onboarding/animations/privacy_protection.json",
       "//brave/android/java/org/chromium/chrome/browser/onboarding/animations/save_data_and_battery.json",
       "//brave/android/java/org/chromium/chrome/browser/onboarding/animations/website_loads_faster.json",
-      "//brave/android/java/org/chromium/chrome/browser/shields/disconnect_entitylist.json",
       "//brave/android/java/org/chromium/chrome/browser/vpn/brave_vpn_confirm.json",
     ]
     disable_compression = false
@@ -516,7 +517,13 @@ action("create_dist_zips") {
   } else {  # !is_win
     script = "//brave/script/create-dist.py"
 
-    inputs = get_target_outputs(":brave_license_dist_resources")
+    inputs = []
+    deps = [ "app/$current_os:dist_resources" ]
+
+    if (!is_mac) {
+      inputs += get_target_outputs(":brave_license_dist_resources")
+      deps += [ ":brave_license_dist_resources" ]
+    }
 
     if (!is_mac && !is_android && !is_ios) {
       inputs += get_target_outputs(":brave_dist_resources")
@@ -535,13 +542,12 @@ action("create_dist_zips") {
 
     dir_inputs = []
     if (is_mac) {
-      dir_inputs += [ "$brave_exe" ]
+      dir_inputs += [ brave_exe ]
+      rebase_base_dir = rebase_path(root_out_dir)
+      deps += [ "//brave/build/mac:finalize_app" ]
+    } else {
+      rebase_base_dir = rebase_path(brave_dist_dir, root_out_dir)
     }
-
-    deps = [
-      ":brave_license_dist_resources",
-      "app/$current_os:dist_resources",
-    ]
 
     if (!is_mac && !is_android && !is_ios) {
       deps += [
@@ -555,11 +561,6 @@ action("create_dist_zips") {
     }
 
     rebase_output = rebase_path(output)
-    if (is_mac) {
-      rebase_base_dir = rebase_path(root_out_dir)
-    } else {
-      rebase_base_dir = rebase_path(brave_dist_dir, root_out_dir)
-    }
     args = [
       "--base-dir=$rebase_base_dir",
       "--inputs=$file_inputs",
@@ -588,6 +589,10 @@ if (is_mac) {
       args += [ "--skip_signing" ]
     }
 
+    if (enable_updater) {
+      args += [ "--enable_updater" ]
+    }
+
     deps = [ "//chrome:chrome_app_plist" ]
   }
 
@@ -604,37 +609,6 @@ if (is_mac) {
   }
 }
 
-cargo_audit_target_dir = "$root_build_dir/cargo_audit"
-cargo_audit_exe = "$cargo_audit_target_dir/release/cargo-audit"
-cargo_audit_src = "//brave/tools/crates/cargo_audit/v0_18/crate"
-if (host_os == "win") {
-  cargo_audit_exe += ".exe"
-}
-
-action("build_cargo_audit") {
-  script = "//build/gn_run_binary.py"
-
-  cargo_exe = "//third_party/rust-toolchain/bin/cargo"
-  if (host_os == "win") {
-    cargo_exe += ".exe"
-  }
-
-  inputs = [
-    cargo_exe,
-    "$cargo_audit_src/Cargo.lock",
-  ]
-  outputs = [ cargo_audit_exe ]
-  args = [
-    rebase_path(cargo_exe),
-    "build",
-    "--release",
-    "--manifest-path",
-    rebase_path("$cargo_audit_src/Cargo.toml"),
-    "--target-dir",
-    rebase_path(cargo_audit_target_dir),
-  ]
-}
-
 action("audit_deps") {
   script = "//brave/script/audit_deps.py"
 
@@ -649,7 +623,7 @@ action("audit_deps") {
     args += [ "--audit_dev_deps" ]
   }
 
-  deps = [ ":build_cargo_audit" ]
+  deps = [ "//brave/tools/crates/cargo_audit:build_cargo_audit" ]
 }
 
 if (is_redirect_cc_build) {

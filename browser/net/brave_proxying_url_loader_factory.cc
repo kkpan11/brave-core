@@ -14,8 +14,8 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
 #include "brave/browser/net/brave_request_handler.h"
-#include "brave/components/brave_shields/browser/adblock_stub_response.h"
-#include "brave/components/brave_shields/common/features.h"
+#include "brave/components/brave_shields/content/browser/adblock_stub_response.h"
+#include "brave/components/brave_shields/core/common/features.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -30,6 +30,7 @@
 #include "net/url_request/redirect_util.h"
 #include "net/url_request/url_request.h"
 #include "services/network/public/cpp/parsed_headers.h"
+#include "services/network/public/cpp/url_loader_factory_builder.h"
 #include "services/network/public/mojom/early_hints.mojom.h"
 #include "url/origin.h"
 
@@ -91,8 +92,7 @@ BraveProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     BraveProxyingURLLoaderFactory& factory,
     uint64_t request_id,
     int32_t network_service_request_id,
-    int render_process_id,
-    int frame_tree_node_id,
+    content::FrameTreeNodeId frame_tree_node_id,
     uint32_t options,
     const network::ResourceRequest& request,
     content::BrowserContext* browser_context,
@@ -104,7 +104,6 @@ BraveProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
       request_(request),
       request_id_(request_id),
       network_service_request_id_(network_service_request_id),
-      render_process_id_(render_process_id),
       frame_tree_node_id_(frame_tree_node_id),
       options_(options),
       browser_context_(browser_context),
@@ -147,9 +146,8 @@ void BraveProxyingURLLoaderFactory::InProgressRequest::RestartInternal() {
       base::BindRepeating(&InProgressRequest::ContinueToBeforeSendHeaders,
                           weak_factory_.GetWeakPtr());
   redirect_url_ = GURL();
-  ctx_ = brave::BraveRequestInfo::MakeCTX(request_, render_process_id_,
-                                          frame_tree_node_id_, request_id_,
-                                          browser_context_, ctx_);
+  ctx_ = brave::BraveRequestInfo::MakeCTX(request_, frame_tree_node_id_,
+                                          request_id_, browser_context_, ctx_);
   int result = factory_->request_handler_->OnBeforeURLRequest(
       ctx_, continuation, &redirect_url_);
 
@@ -393,9 +391,8 @@ void BraveProxyingURLLoaderFactory::InProgressRequest::
     auto continuation = base::BindRepeating(
         &InProgressRequest::ContinueToSendHeaders, weak_factory_.GetWeakPtr());
 
-    ctx_ = brave::BraveRequestInfo::MakeCTX(request_, render_process_id_,
-                                            frame_tree_node_id_, request_id_,
-                                            browser_context_, ctx_);
+    ctx_ = brave::BraveRequestInfo::MakeCTX(
+        request_, frame_tree_node_id_, request_id_, browser_context_, ctx_);
     int result = factory_->request_handler_->OnBeforeStartTransaction(
         ctx_, continuation, &request_.headers);
 
@@ -464,13 +461,11 @@ void BraveProxyingURLLoaderFactory::InProgressRequest::ContinueToSendHeaders(
         removed_headers.begin(), removed_headers.end());
 
     for (auto& set_header : set_headers) {
-      std::string header_value;
-      if (request_.headers.GetHeader(set_header, &header_value)) {
-        pending_follow_redirect_params_->modified_headers.SetHeader(
-            set_header, header_value);
-      } else {
-        NOTREACHED();
-      }
+      std::optional<std::string> header_value =
+          request_.headers.GetHeader(set_header);
+      CHECK(header_value);
+      pending_follow_redirect_params_->modified_headers.SetHeader(
+          set_header, *header_value);
     }
 
     if (target_loader_.is_bound()) {
@@ -582,9 +577,8 @@ void BraveProxyingURLLoaderFactory::InProgressRequest::
 
   auto split_once_callback = base::SplitOnceCallback(std::move(continuation));
   if (request_.url.SchemeIsHTTPOrHTTPS()) {
-    ctx_ = brave::BraveRequestInfo::MakeCTX(request_, render_process_id_,
-                                            frame_tree_node_id_, request_id_,
-                                            browser_context_, ctx_);
+    ctx_ = brave::BraveRequestInfo::MakeCTX(
+        request_, frame_tree_node_id_, request_id_, browser_context_, ctx_);
     int result = factory_->request_handler_->OnHeadersReceived(
         ctx_, std::move(split_once_callback.first),
         current_response_head_->headers.get(), &override_headers_,
@@ -634,16 +628,13 @@ void BraveProxyingURLLoaderFactory::InProgressRequest::OnRequestError(
 BraveProxyingURLLoaderFactory::BraveProxyingURLLoaderFactory(
     BraveRequestHandler& request_handler,
     content::BrowserContext* browser_context,
-    int render_process_id,
-    int frame_tree_node_id,
-    mojo::PendingReceiver<network::mojom::URLLoaderFactory> receiver,
-    mojo::PendingRemote<network::mojom::URLLoaderFactory> target_factory,
+    content::FrameTreeNodeId frame_tree_node_id,
+    network::URLLoaderFactoryBuilder& factory_builder,
     scoped_refptr<RequestIDGenerator> request_id_generator,
     DisconnectCallback on_disconnect,
     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner)
     : request_handler_(request_handler),
       browser_context_(browser_context),
-      render_process_id_(render_process_id),
       frame_tree_node_id_(frame_tree_node_id),
       request_id_generator_(request_id_generator),
       disconnect_callback_(std::move(on_disconnect)),
@@ -653,6 +644,8 @@ BraveProxyingURLLoaderFactory::BraveProxyingURLLoaderFactory(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(proxy_receivers_.empty());
   DCHECK(!target_factory_.is_bound());
+
+  auto [receiver, target_factory] = factory_builder.Append();
 
   target_factory_.Bind(std::move(target_factory));
   target_factory_.set_disconnect_handler(
@@ -669,23 +662,17 @@ BraveProxyingURLLoaderFactory::BraveProxyingURLLoaderFactory(
 BraveProxyingURLLoaderFactory::~BraveProxyingURLLoaderFactory() = default;
 
 // static
-bool BraveProxyingURLLoaderFactory::MaybeProxyRequest(
+void BraveProxyingURLLoaderFactory::MaybeProxyRequest(
     content::BrowserContext* browser_context,
     content::RenderFrameHost* render_frame_host,
-    int render_process_id,
-    mojo::PendingReceiver<network::mojom::URLLoaderFactory>* factory_receiver,
+    network::URLLoaderFactoryBuilder& factory_builder,
     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto proxied_receiver = std::move(*factory_receiver);
-  mojo::PendingRemote<network::mojom::URLLoaderFactory> target_factory_remote;
-  *factory_receiver = target_factory_remote.InitWithNewPipeAndPassReceiver();
-
   ResourceContextData::StartProxying(
-      browser_context, render_process_id,
-      render_frame_host ? render_frame_host->GetFrameTreeNodeId() : 0,
-      std::move(proxied_receiver), std::move(target_factory_remote),
-      navigation_response_task_runner);
-  return true;
+      browser_context,
+      render_frame_host ? render_frame_host->GetFrameTreeNodeId()
+                        : content::FrameTreeNodeId(),
+      factory_builder, navigation_response_task_runner);
 }
 
 void BraveProxyingURLLoaderFactory::CreateLoaderAndStart(
@@ -704,10 +691,9 @@ void BraveProxyingURLLoaderFactory::CreateLoaderAndStart(
   const uint64_t brave_request_id = request_id_generator_->Generate();
 
   auto result = requests_.emplace(std::make_unique<InProgressRequest>(
-      *this, brave_request_id, request_id, render_process_id_,
-      frame_tree_node_id_, options, request, browser_context_,
-      traffic_annotation, std::move(loader_receiver), std::move(client),
-      navigation_response_task_runner_));
+      *this, brave_request_id, request_id, frame_tree_node_id_, options,
+      request, browser_context_, traffic_annotation, std::move(loader_receiver),
+      std::move(client), navigation_response_task_runner_));
   (*result.first)->Restart();
 }
 

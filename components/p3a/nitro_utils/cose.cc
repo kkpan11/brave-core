@@ -3,6 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(https://github.com/brave/brave-browser/issues/41661): Remove this and
+// convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "brave/components/p3a/nitro_utils/cose.h"
 
 #include <optional>
@@ -17,11 +23,11 @@
 #include "crypto/sha2.h"
 #include "crypto/signature_verifier.h"
 #include "net/cert/asn1_util.h"
-#include "net/cert/pki/trust_store.h"
 #include "net/cert/time_conversions.h"
 #include "third_party/boringssl/src/include/openssl/bn.h"
 #include "third_party/boringssl/src/include/openssl/bytestring.h"
 #include "third_party/boringssl/src/include/openssl/ecdsa.h"
+#include "third_party/boringssl/src/pki/trust_store.h"
 
 namespace nitro_utils {
 
@@ -189,19 +195,19 @@ bool CoseSign1::DecodeFromBytes(const std::vector<uint8_t>& data) {
   return true;
 }
 
-bool CoseSign1::Verify(const net::ParsedCertificateList& cert_chain) {
+bool CoseSign1::Verify(const bssl::ParsedCertificateList& cert_chain) {
   CHECK_GT(cert_chain.size(), 1U);
 
-  net::der::GeneralizedTime time_now;
+  bssl::der::GeneralizedTime time_now;
   CHECK(net::EncodeTimeAsGeneralizedTime(base::Time::Now(), &time_now));
 
-  net::CertPathErrors cert_path_errors;
+  bssl::CertPathErrors cert_path_errors;
 
-  net::VerifyCertificateChain(
-      cert_chain, net::CertificateTrust::ForTrustAnchor(), this, time_now,
-      net::KeyPurpose::ANY_EKU, net::InitialExplicitPolicy::kFalse,
-      std::set<net::der::Input>(), net::InitialPolicyMappingInhibit::kFalse,
-      net::InitialAnyPolicyInhibit::kFalse, nullptr, &cert_path_errors);
+  bssl::VerifyCertificateChain(
+      cert_chain, bssl::CertificateTrust::ForTrustAnchor(), this, time_now,
+      bssl::KeyPurpose::ANY_EKU, bssl::InitialExplicitPolicy::kFalse,
+      std::set<bssl::der::Input>(), bssl::InitialPolicyMappingInhibit::kFalse,
+      bssl::InitialAnyPolicyInhibit::kFalse, nullptr, &cert_path_errors);
 
   if (cert_path_errors.ContainsHighSeverityErrors()) {
     LOG(ERROR) << "COSE verification: bad certificate chain: "
@@ -261,18 +267,22 @@ const cbor::Value& CoseSign1::payload() {
 }
 
 bool CoseSign1::IsSignatureAlgorithmAcceptable(
-    net::SignatureAlgorithm signature_algorithm,
-    net::CertErrors* errors) {
+    bssl::SignatureAlgorithm signature_algorithm,
+    bssl::CertErrors* errors) {
   return true;
 }
 
 bool CoseSign1::IsPublicKeyAcceptable(EVP_PKEY* public_key,
-                                      net::CertErrors* errors) {
+                                      bssl::CertErrors* errors) {
   return true;
 }
 
-net::SignatureVerifyCache* CoseSign1::GetVerifyCache() {
+bssl::SignatureVerifyCache* CoseSign1::GetVerifyCache() {
   return nullptr;
+}
+
+bool CoseSign1::AcceptPreCertificates() {
+  return true;
 }
 
 }  // namespace nitro_utils

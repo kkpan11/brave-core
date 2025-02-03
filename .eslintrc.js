@@ -21,14 +21,16 @@ module.exports = {
     'es6': true,
     'jest/globals': true
   },
-  'plugins': ['jest', 'licenses'],
+  'plugins': ['jest', 'licenses', 'no-unsanitized', 'react-hooks'],
   'globals': {
     'chrome': 'readonly'
   },
   'parserOptions': {
-    'project': './tsconfig-lint.json'
+    'project': './tsconfig-lint.json',
   },
   'rules': {
+    'no-unsanitized/method': 'error',
+    'no-unsanitized/property': 'error',
     'licenses/header': [
       2,
       {
@@ -86,6 +88,8 @@ module.exports = {
     '@typescript-eslint/prefer-optional-chain': 0,
     '@typescript-eslint/prefer-nullish-coalescing': 0,
     '@typescript-eslint/no-misused-promises': 0,
+    '@typescript-eslint/no-unsafe-argument': 0,
+    '@typescript-eslint/unbound-method': 0,
     'no-mixed-operators': 0,
     'no-prototype-builtins': 0,
     '@typescript-eslint/promise-function-async': 0,
@@ -114,35 +118,67 @@ module.exports = {
     'multiline-ternary': 0,
     '@typescript-eslint/prefer-readonly': 0,
     '@typescript-eslint/key-spacing': 0,
+    'import/no-absolute-path': 0,
+    '@typescript-eslint/class-literal-property-style': 1,
     /* TODO(nullhook): ENABLE the below rules in the future */
     'no-useless-call': 0,
     '@typescript-eslint/consistent-type-assertions': 0,
     '@typescript-eslint/no-non-null-assertion': 0,
     '@typescript-eslint/no-invalid-void-type': 0,
     'prefer-const': 0,
-    '@typescript-eslint/return-await': 0,
+    '@typescript-eslint/return-await': 0
   },
-  "overrides": [
+  'overrides': [
+    // opt-in directories for line length warnings
     {
-      // opt-in directories for line length warnings
-      "files": [
-        "components/brave_wallet/**/*.js",
-        "components/brave_wallet/**/*.ts",
-        "components/brave_wallet/**/*.tsx",
-        "components/brave_wallet_ui/**/*.js",
-        "components/brave_wallet_ui/**/*.ts",
-        "components/brave_wallet_ui/**/*.tsx"
+      'files': [
+        'components/brave_wallet/**/*.js',
+        'components/brave_wallet/**/*.ts',
+        'components/brave_wallet/**/*.tsx',
+        'components/brave_wallet_ui/**/*.js',
+        'components/brave_wallet_ui/**/*.ts',
+        'components/brave_wallet_ui/**/*.tsx'
       ],
-      "rules": {
+      'rules': {
         'max-len': [
           1,
           {
             'code': 80,
             'ignoreStrings': true, // to allow long import paths
             'ignoreUrls': true, // allow URLs to be clickable
-            'ignoreRegExpLiterals': true,
+            'ignoreRegExpLiterals': true
           }
         ],
+        'react-hooks/rules-of-hooks': 'error', // Checks rules of Hooks
+        'react-hooks/exhaustive-deps': 'warn' // Checks effect dependencies
+      }
+    },
+    // opt-in directories react-hooks linting
+    {
+      'files': [
+        'components/brave_wallet/**/*.js',
+        'components/brave_wallet/**/*.ts',
+        'components/brave_wallet/**/*.tsx',
+        'components/brave_wallet_ui/**/*.js',
+        'components/brave_wallet_ui/**/*.ts',
+        'components/brave_wallet_ui/**/*.tsx'
+      ],
+      'rules': {
+        'react-hooks/rules-of-hooks': 'error', // Checks rules of Hooks
+        'react-hooks/exhaustive-deps': 'warn' // Checks effect dependencies
+      }
+    },
+    // opt-out stories for rules of hooks, or we can't use useState in the render functions
+    // https://github.com/storybookjs/eslint-plugin-storybook/pull/149
+    // Note: Just using that plugin doesn't help as we opt back in to the rules
+    // of hooks for wallet.
+    {
+      'files': [
+        'components/**/*.stories.tsx',
+        'components/**/stories/*.tsx',
+      ],
+      'rules': {
+        'react-hooks/rules-of-hooks': 'off', // Don't check hooks
       }
     }
   ]

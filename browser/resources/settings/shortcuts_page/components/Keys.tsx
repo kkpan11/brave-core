@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import styled, { css } from 'styled-components'
-import { color, font, radius, spacing } from '@brave/leo/tokens/css'
+import { color, font, radius, spacing } from '@brave/leo/tokens/css/variables'
 
 const Kbd = styled.div<{ large?: boolean; square?: boolean }>`
   display: inline-block;
@@ -75,7 +75,7 @@ export default function Keys({
     <>
       {keys.map((k, i) => (
         <Kbd key={i} large={large} square={k.length <= 2 && k !== ' '}>
-          {keySymbols[k]}
+          {keySymbols[k as keyof typeof keySymbols]}
           {k}
         </Kbd>
       ))}

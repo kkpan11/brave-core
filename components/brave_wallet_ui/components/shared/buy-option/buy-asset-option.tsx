@@ -4,6 +4,7 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
+import { useParams } from 'react-router'
 import { skipToken } from '@reduxjs/toolkit/query/react'
 
 // types
@@ -21,26 +22,31 @@ import {
   checkIfTokenNeedsNetworkIcon,
   getAssetIdKey
 } from '../../../utils/asset-utils'
-import { getTokenPriceAmountFromRegistry } from '../../../utils/pricing-utils'
-import { getPriceIdForToken } from '../../../utils/api-utils'
-import { WalletSelectors } from '../../../common/selectors'
+import {
+  getTokenPriceAmountFromRegistry,
+  getPriceIdForToken
+} from '../../../utils/pricing-utils'
 
 // hooks
 import {
   useGetNetworkQuery,
   useGetTokenSpotPricesQuery
 } from '../../../common/slices/api.slice'
-import { useSafeWalletSelector } from '../../../common/hooks/use-safe-selector'
 
 // components
-import { IconsWrapper, MediumAssetIcon, NetworkIconWrapper } from '../style'
+import {
+  IconsWrapper,
+  MediumAssetIcon,
+  NetworkIconWrapper,
+  Row
+} from '../style'
 import { withPlaceholderIcon } from '../create-placeholder-icon/index'
 import { CreateNetworkIcon } from '../create-network-icon/index'
 import { NftIcon } from '../nft-icon/nft-icon'
 
 // styles
 import {
-  BuyAssetOptionWrapper,
+  AssetButton,
   AssetName,
   NameAndIcon,
   NameColumn,
@@ -65,12 +71,10 @@ const AssetIconWithPlaceholder = withPlaceholderIcon(
 )
 const NftAssetIconWithPlaceholder = withPlaceholderIcon(NftIcon, ICON_CONFIG)
 
-export const BuyAssetOptionItem = React.forwardRef<HTMLButtonElement, Props>(
+export const BuyAssetOptionItem = React.forwardRef<HTMLDivElement, Props>(
   ({ onClick, token, isPanel, selectedCurrency }, ref) => {
-    // redux
-    const selectedOnRampAssetId = useSafeWalletSelector(
-      WalletSelectors.selectedOnRampAssetId
-    )
+    // routing
+    const { assetId: selectedOnRampAssetId } = useParams<{ assetId: string }>()
 
     // query Params
     const tokenIds = React.useMemo(() => {
@@ -126,61 +130,54 @@ export const BuyAssetOptionItem = React.forwardRef<HTMLButtonElement, Props>(
     }
 
     return (
-      <BuyAssetOptionWrapper
+      <Row
+        padding='6px 12px'
         ref={ref}
-        isSelected={isSelected}
-        onClick={handleOnClick}
       >
-        <NameAndIcon>
-          <IconsWrapper marginRight='14px'>
-            {token.isErc721 || token.isNft ? (
-              <NftAssetIconWithPlaceholder
-                asset={token}
-                network={tokenNetwork}
-              />
-            ) : (
-              <AssetIconWithPlaceholder
-                asset={token}
-                network={tokenNetwork}
-              />
-            )}
-            {tokenNetwork &&
-              !isPanel &&
-              checkIfTokenNeedsNetworkIcon(
-                tokenNetwork,
-                token.contractAddress
-              ) && (
-                <NetworkIconWrapper>
-                  <CreateNetworkIcon
-                    network={tokenNetwork}
-                    marginRight={0}
-                  />
-                </NetworkIconWrapper>
+        <AssetButton
+          isSelected={isSelected}
+          onClick={handleOnClick}
+        >
+          <NameAndIcon>
+            <IconsWrapper marginRight='14px'>
+              {token.isErc721 || token.isNft ? (
+                <NftAssetIconWithPlaceholder asset={token} />
+              ) : (
+                <AssetIconWithPlaceholder asset={token} />
               )}
-          </IconsWrapper>
-          <NameColumn>
-            <AssetName>
-              {token.name}{' '}
-              {token.isErc721 && token.tokenId
-                ? '#' + new Amount(token.tokenId).toNumber()
-                : ''}
-            </AssetName>
-            <NetworkDescriptionText>
-              {networkDescription}
-            </NetworkDescriptionText>
-          </NameColumn>
-        </NameAndIcon>
+              {tokenNetwork &&
+                !isPanel &&
+                checkIfTokenNeedsNetworkIcon(
+                  tokenNetwork,
+                  token.contractAddress
+                ) && (
+                  <NetworkIconWrapper>
+                    <CreateNetworkIcon
+                      network={tokenNetwork}
+                      marginRight={0}
+                    />
+                  </NetworkIconWrapper>
+                )}
+            </IconsWrapper>
+            <NameColumn>
+              <AssetName>{token.name}</AssetName>
+              <NetworkDescriptionText>
+                {networkDescription}
+              </NetworkDescriptionText>
+            </NameColumn>
+          </NameAndIcon>
 
-        {selectedCurrency && (
-          <PriceContainer>
-            {isFetchingPrice || isLoadingPrice ? (
-              <LoadIcon />
-            ) : (
-              <PriceText>{price.formatAsFiat(selectedCurrency)}</PriceText>
-            )}
-          </PriceContainer>
-        )}
-      </BuyAssetOptionWrapper>
+          {selectedCurrency && (
+            <PriceContainer>
+              {isFetchingPrice || isLoadingPrice ? (
+                <LoadIcon />
+              ) : (
+                <PriceText>{price.formatAsFiat(selectedCurrency)}</PriceText>
+              )}
+            </PriceContainer>
+          )}
+        </AssetButton>
+      </Row>
     )
   }
 )

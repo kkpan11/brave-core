@@ -4,13 +4,12 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
-import { useDispatch, useSelector } from 'react-redux'
 import { skipToken } from '@reduxjs/toolkit/query/react'
 import { Redirect, Route, Switch, useHistory, useParams } from 'react-router'
 
 // Selectors
 import { useSafeUISelector } from '../../../common/hooks/use-safe-selector'
-import { UISelectors, WalletSelectors } from '../../../common/selectors'
+import { UISelectors } from '../../../common/selectors'
 
 // utils
 import { getLocale } from '../../../../common/locale'
@@ -42,8 +41,10 @@ import {
   useGetOnRampNetworksQuery,
   useLazyGetBuyUrlQuery
 } from '../../../common/slices/api.slice'
-import { useAccountsQuery } from '../../../common/slices/api.slice.extra'
-import { useScrollIntoView } from '../../../common/hooks/use-scroll-into-view'
+import {
+  useAccountsQuery,
+  useReceiveAddressQuery
+} from '../../../common/slices/api.slice.extra'
 
 // style
 import {
@@ -51,9 +52,9 @@ import {
   Flex,
   LoadingIcon,
   Row,
-  VerticalSpace
+  VerticalSpace,
+  LeoSquaredButton
 } from '../../../components/shared/style'
-import { NextButtonRow } from '../onboarding/onboarding.style'
 import {
   ScrollContainer,
   SearchWrapper,
@@ -63,7 +64,9 @@ import {
   Divider,
   Alert,
   AlertText,
-  InfoIcon
+  InfoIcon,
+  TokenListWrapper,
+  StyledWrapper
 } from './fund-wallet.style'
 
 // components
@@ -75,7 +78,6 @@ import SearchBar from '../../../components/shared/search-bar'
 import SelectAccountItem from '../../../components/shared/select-account-item'
 import SelectAccount from '../../../components/shared/select-account'
 import { BuyAssetOptionItem } from '../../../components/shared/buy-option/buy-asset-option'
-import { NavButton } from '../../../components/extension/buttons/nav-button/index'
 import CreateAccountTab from '../../../components/buy-send-swap/create-account'
 import {
   BuyAmountInput //
@@ -93,34 +95,20 @@ import {
   NetworkFilterSelector //
 } from '../../../components/desktop/network-filter-selector'
 import { BuyOptions } from '../../../options/buy-with-options'
-import { WalletActions } from '../../../common/actions'
 import {
   makeFundWalletPurchaseOptionsRoute,
-  makeFundWalletRoute
+  makeAndroidFundWalletRoute
 } from '../../../utils/routes-utils'
-
-const itemSize = 82
-
-function getItemSize(index: number): number {
-  return itemSize
-}
-
-const getItemKey = (i: number, data: BraveWallet.BlockchainToken[]) =>
-  getAssetIdKey(data[i])
+import { networkSupportsAccount } from '../../../utils/network-utils'
 
 interface Props {
   isAndroid?: boolean
 }
+interface Params {
+  assetId: string
+}
 
 export const FundWalletScreen = ({ isAndroid }: Props) => {
-  // redux
-  const dispatch = useDispatch()
-
-  // clear selected asset on page mount
-  React.useEffect(() => {
-    dispatch(WalletActions.selectOnRampAssetId(undefined))
-  }, [])
-
   // render
   return (
     <Switch>
@@ -131,31 +119,31 @@ export const FundWalletScreen = ({ isAndroid }: Props) => {
         <PurchaseOptionSelection isAndroid={isAndroid} />
       </Route>
 
-      <Route>
+      <Route
+        path={WalletRoutes.FundWalletPage}
+        exact
+      >
         <AssetSelection isAndroid={isAndroid} />
       </Route>
+
+      <Redirect to={WalletRoutes.FundWalletPage} />
     </Switch>
   )
 }
 
 function AssetSelection({ isAndroid }: Props) {
-  // router
-  const { currencyCode, buyAmount: buyAmountParam } = useParams<{
-    currencyCode?: string
-    buyAmount?: string
-  }>()
+  // routing
   const history = useHistory()
+  const { assetId: selectedOnRampAssetId } = useParams<Params>()
   const params = new URLSearchParams(history.location.search)
+  const currencyCode = params.get('currencyCode')
+  const buyAmountParam = params.get('buyAmount')
   const searchParam = params.get('search')
   const chainIdParam = params.get('chainId')
   const coinTypeParam = params.get('coinType')
 
   // redux
-  const dispatch = useDispatch()
   const isPanel = useSafeUISelector(UISelectors.isPanel)
-  const selectedOnRampAssetId = useSelector(
-    WalletSelectors.selectedOnRampAssetId
-  )
 
   // state
   const [selectedCurrency, setSelectedCurrency] = React.useState<string>(
@@ -199,32 +187,7 @@ function AssetSelection({ isAndroid }: Props) {
     (opt) => getAssetIdKey(opt) === selectedOnRampAssetId
   )
 
-  const { data: selectedNetwork = AllNetworksOption } = useGetNetworkQuery(
-    selectedAsset ||
-      (selectedNetworkFilter.chainId === AllNetworksOption.chainId
-        ? skipToken
-        : selectedNetworkFilter)
-  )
-
   const { data: options } = useGetOnRampAssetsQuery()
-  const allBuyAssetOptions = options?.allAssetOptions || []
-
-  // refs
-  const listItemRefs = React.useRef<Map<string, HTMLButtonElement> | null>(null)
-
-  const getRefsMap = React.useCallback(
-    function () {
-      if (!listItemRefs.current) {
-        // Initialize the Map on first usage.
-        listItemRefs.current = new Map()
-      }
-      return listItemRefs.current
-    },
-    [listItemRefs]
-  )
-
-  // custom hooks
-  const scrollIntoView = useScrollIntoView()
 
   // methods
   // This filters a list of assets when the user types in search bar
@@ -237,43 +200,36 @@ function AssetSelection({ isAndroid }: Props) {
 
   const renderToken: RenderTokenFunc<BraveWallet.BlockchainToken> =
     React.useCallback(
-      ({ item: asset }) => {
+      ({ item: asset, ref }) => {
         const assetId = getAssetIdKey(asset)
         return (
           <BuyAssetOptionItem
-            ref={(node) => {
-              const refs = getRefsMap()
-              if (node) {
-                refs.set(assetId, node)
-              } else {
-                refs.delete(assetId)
-              }
-            }}
             selectedCurrency={selectedCurrency}
             key={assetId}
             token={asset}
-            onClick={() => dispatch(WalletActions.selectOnRampAssetId(assetId))}
+            onClick={() => history.push(makeAndroidFundWalletRoute(assetId))}
+            ref={ref}
           />
         )
       },
-      [selectedCurrency, getRefsMap, dispatch]
+      [history, selectedCurrency]
     )
 
   // memos & computed
   const assetsForFilteredNetwork = React.useMemo(() => {
-    if (!allBuyAssetOptions) {
+    if (!options?.allAssetOptions) {
       return []
     }
 
     const assets =
       selectedNetworkFilter.chainId === AllNetworksOption.chainId
-        ? allBuyAssetOptions
-        : allBuyAssetOptions.filter(
+        ? options.allAssetOptions
+        : options.allAssetOptions.filter(
             ({ chainId }) => selectedNetworkFilter.chainId === chainId
           )
 
     return assets
-  }, [selectedNetworkFilter.chainId, allBuyAssetOptions])
+  }, [selectedNetworkFilter.chainId, options?.allAssetOptions])
 
   const assetListSearchResults = React.useMemo(() => {
     if (searchValue === '') {
@@ -290,14 +246,11 @@ function AssetSelection({ isAndroid }: Props) {
 
   const assetsUI = React.useMemo(
     () =>
-      allBuyAssetOptions?.length ? (
+      options?.allAssetOptions?.length ? (
         <VirtualizedTokensList
-          getItemKey={getItemKey}
-          getItemSize={getItemSize}
           userAssetList={assetListSearchResults}
-          estimatedItemSize={itemSize}
+          selectedAssetId={selectedOnRampAssetId}
           renderToken={renderToken}
-          maximumViewableTokens={isPanel ? 2.5 : 4.5}
         />
       ) : (
         <Column>
@@ -308,7 +261,12 @@ function AssetSelection({ isAndroid }: Props) {
           />
         </Column>
       ),
-    [assetListSearchResults, renderToken, isPanel]
+    [
+      options?.allAssetOptions,
+      assetListSearchResults,
+      selectedOnRampAssetId,
+      renderToken
+    ]
   )
 
   const networksFilterOptions: BraveWallet.NetworkInfo[] = React.useMemo(() => {
@@ -322,16 +280,6 @@ function AssetSelection({ isAndroid }: Props) {
   }`
 
   // effects
-  React.useEffect(() => {
-    // scroll selected item into view
-    if (selectedOnRampAssetId) {
-      const ref = getRefsMap().get(selectedOnRampAssetId)
-      if (ref) {
-        scrollIntoView(ref, true)
-      }
-    }
-  }, [selectedOnRampAssetId, getRefsMap, scrollIntoView])
-
   React.useEffect(() => {
     // initialize selected currency
     if (defaultFiatCurrency) {
@@ -349,7 +297,6 @@ function AssetSelection({ isAndroid }: Props) {
         cardHeader={
           <PageTitleHeader
             title={pageTitle}
-            showBackButton
             onBack={() => setShowFiatSelection(false)}
           />
         }
@@ -375,19 +322,26 @@ function AssetSelection({ isAndroid }: Props) {
       wrapContentInBox={true}
       hideNav={isAndroid}
       hideHeader={isAndroid}
+      useFullHeight={true}
       cardHeader={<PageTitleHeader title={pageTitle} />}
     >
-      <Column
-        padding='0 12px'
-        fullWidth
+      <StyledWrapper
+        fullWidth={true}
+        justifyContent='flex-start'
       >
-        <SelectAssetWrapper>
-          <Row marginBottom={8}>
+        <SelectAssetWrapper
+          fullWidth={true}
+          fullHeight={true}
+          justifyContent='flex-start'
+        >
+          <Row
+            marginBottom={8}
+            padding='0 12px'
+          >
             <BuyAmountInput
               onAmountChange={setBuyAmount}
               buyAmount={buyAmount}
               selectedAsset={selectedAsset}
-              selectedNetwork={selectedNetwork}
               autoFocus={true}
               onShowCurrencySelection={() => setShowFiatSelection(true)}
               selectedFiatCurrencyCode={selectedCurrency}
@@ -395,7 +349,7 @@ function AssetSelection({ isAndroid }: Props) {
           </Row>
 
           <FilterTokenRow
-            horizontalPadding={0}
+            horizontalPadding={12}
             isV2={false}
           >
             <Column
@@ -415,86 +369,94 @@ function AssetSelection({ isAndroid }: Props) {
               networkListSubset={networksFilterOptions}
               selectedNetwork={selectedNetworkFromFilter}
               onSelectNetwork={setSelectedNetworkFilter}
+              dropdownPosition='right'
             />
           </FilterTokenRow>
 
-          {assetsUI}
-
-          <VerticalSpace space='24px' />
+          <TokenListWrapper
+            fullWidth={true}
+            justifyContent='flex-start'
+          >
+            {assetsUI}
+          </TokenListWrapper>
         </SelectAssetWrapper>
+        <Row
+          width='unset'
+          padding='20px 0px 0px 0px'
+        >
+          <LeoSquaredButton
+            size={isPanel ? 'medium' : 'large'}
+            onClick={() => {
+              if (!selectedOnRampAssetId) {
+                return
+              }
 
-        <NextButtonRow>
-          <NavButton
-            buttonType='primary'
-            text={
-              selectedAsset
-                ? getLocale('braveWalletBuyContinueButton')
-                : getLocale('braveWalletBuySelectAsset')
-            }
-            onSubmit={() => {
               const searchValueLower = searchValue.toLowerCase()
 
               // save latest form values in router history
               history.replace(
-                makeFundWalletRoute(
-                  selectedCurrency,
+                makeAndroidFundWalletRoute(selectedOnRampAssetId, {
+                  currencyCode: selectedCurrency,
                   buyAmount,
                   // save latest search-box value (if it matches selection name
                   // or symbol)
-                  searchValue &&
+                  searchText:
+                    searchValue &&
                     (selectedAsset?.name
                       .toLowerCase()
                       .startsWith(searchValueLower) ||
                       selectedAsset?.symbol
                         .toLowerCase()
                         .startsWith(searchValueLower))
-                    ? searchValue
-                    : undefined,
+                      ? searchValue
+                      : undefined,
                   // saving network filter (if it matches selection)
-                  selectedAsset?.chainId === selectedNetworkFilter.chainId
-                    ? selectedNetworkFilter.chainId || AllNetworksOption.chainId
-                    : AllNetworksOption.chainId,
-                  selectedAsset?.coin === selectedNetworkFilter.coin
-                    ? selectedNetworkFilter.coin.toString() ||
+                  chainId:
+                    selectedAsset?.chainId === selectedNetworkFilter.chainId
+                      ? selectedNetworkFilter.chainId ||
+                        AllNetworksOption.chainId
+                      : AllNetworksOption.chainId,
+                  coinType:
+                    selectedAsset?.coin === selectedNetworkFilter.coin
+                      ? selectedNetworkFilter.coin.toString() ||
                         AllNetworksOption.coin.toString()
-                    : AllNetworksOption.coin.toString()
-                )
+                      : AllNetworksOption.coin.toString()
+                })
               )
 
               // go to payment option selection
               history.push(
-                makeFundWalletPurchaseOptionsRoute(
-                  selectedCurrency,
-                  buyAmount || '0'
-                )
+                makeFundWalletPurchaseOptionsRoute(selectedOnRampAssetId, {
+                  buyAmount: buyAmount || '0',
+                  currencyCode: selectedCurrency
+                })
               )
             }}
-            disabled={!isNextStepEnabled}
-            isV2={true}
-            minWidth='360px'
-          />
-        </NextButtonRow>
-      </Column>
+            isDisabled={!isNextStepEnabled}
+          >
+            {selectedAsset
+              ? getLocale('braveWalletBuyContinueButton')
+              : getLocale('braveWalletBuySelectAsset')}
+          </LeoSquaredButton>
+        </Row>
+      </StyledWrapper>
     </WalletPageWrapper>
   )
 }
 
 function PurchaseOptionSelection({ isAndroid }: Props) {
   // routing
-  const params = useParams<{
-    currencyCode: string
-    buyAmount: string
-  }>()
-  // redux
-  const selectedOnRampAssetId = useSelector(
-    WalletSelectors.selectedOnRampAssetId
-  )
+  const history = useHistory()
+  const { assetId: selectedOnRampAssetId } = useParams<Params>()
+  const params = new URLSearchParams(history.location.search)
+  const currencyCodeParam = params.get('currencyCode')
+  const buyAmountParam = params.get('buyAmount')
 
   // queries
   const { accounts } = useAccountsQuery()
   const { data: fiatCurrencies = [] } = useGetOnRampFiatCurrenciesQuery()
   const selectedCurrency = fiatCurrencies.find(
-    (c) => c.currencyCode === params.currencyCode
+    (c) => c.currencyCode === currencyCodeParam
   )
   const currencyCode = selectedCurrency ? selectedCurrency.currencyCode : 'USD'
 
@@ -507,18 +469,14 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
 
   const [getBuyUrl] = useLazyGetBuyUrlQuery()
 
-  const accountsForSelectedAssetCoinType = React.useMemo(() => {
-    return selectedAsset
-      ? selectedAsset.coin === BraveWallet.CoinType.FIL
-        ? accounts.filter((a) =>
-            a.accountId.coin === selectedAsset.coin &&
-            selectedAsset.chainId === BraveWallet.FILECOIN_TESTNET
-              ? a.accountId.address.startsWith('t')
-              : !a.accountId.address.startsWith('t')
-          )
-        : accounts.filter((a) => a.accountId.coin === selectedAsset.coin)
-      : []
-  }, [selectedAsset, accounts])
+  const accountsForSelectedAssetNetwork = React.useMemo(() => {
+    if (!assetNetwork) {
+      return []
+    }
+    return accounts.filter((a) =>
+      networkSupportsAccount(assetNetwork, a.accountId)
+    )
+  }, [assetNetwork, accounts])
 
   // state
   const [showAccountSearch, setShowAccountSearch] =
@@ -526,29 +484,27 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
   const [accountSearchText, setAccountSearchText] = React.useState<string>('')
   const [selectedAccount, setSelectedAccount] = React.useState<
     BraveWallet.AccountInfo | undefined
-  >(accountsForSelectedAssetCoinType[0])
+  >(accountsForSelectedAssetNetwork[0])
 
   // state-dependant queries
+  const { receiveAddress: generatedAddress } = useReceiveAddressQuery(
+    selectedAccount?.accountId
+  )
+
   const { data: buyWithStripeUrl } = useGetBuyUrlQuery(
-    selectedAsset && assetNetwork && selectedAccount
+    selectedAsset && assetNetwork && generatedAddress
       ? {
           assetSymbol: selectedAsset.symbol.toLowerCase(),
           onRampProvider: BraveWallet.OnRampProvider.kStripe,
           chainId: assetNetwork.chainId,
-          address: selectedAccount.address,
-          amount: params.buyAmount,
+          address: generatedAddress,
+          amount: buyAmountParam || '0',
           currencyCode: currencyCode.toLowerCase()
         }
       : skipToken
   )
 
   // memos
-  const accountsForSelectedAssetNetwork = React.useMemo(() => {
-    return assetNetwork
-      ? accounts.filter((a) => a.accountId.coin === assetNetwork.coin)
-      : []
-  }, [assetNetwork, accounts])
-
   const accountListSearchResults = React.useMemo(() => {
     if (accountSearchText === '') {
       return accountsForSelectedAssetNetwork
@@ -629,7 +585,7 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
 
   const openBuyAssetLink = React.useCallback(
     async (buyOption: BraveWallet.OnRampProvider) => {
-      if (!selectedAsset || !assetNetwork || !selectedAccount) {
+      if (!selectedAsset || !assetNetwork || !generatedAddress) {
         return
       }
 
@@ -643,13 +599,14 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
               : selectedAsset.symbol,
           onRampProvider: buyOption,
           chainId: assetNetwork.chainId,
-          address: selectedAccount.address,
-          amount: params.buyAmount,
+          address: generatedAddress,
+          amount: buyAmountParam || '0',
           currencyCode:
             buyOption === BraveWallet.OnRampProvider.kStripe
               ? currencyCode.toLowerCase()
               : currencyCode
         }).unwrap()
+
         if (url && chrome.tabs !== undefined) {
           chrome.tabs.create({ url }, () => {
             if (chrome.runtime.lastError) {
@@ -667,20 +624,20 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
       }
     },
     [
+      buyAmountParam,
       selectedAsset,
       assetNetwork,
-      selectedAccount,
       getBuyUrl,
-      params,
-      currencyCode
+      currencyCode,
+      generatedAddress
     ]
   )
 
   // effects
   React.useEffect(() => {
     // force selected account option state
-    setSelectedAccount(accountsForSelectedAssetCoinType[0])
-  }, [accountsForSelectedAssetCoinType[0]])
+    setSelectedAccount(accountsForSelectedAssetNetwork[0])
+  }, [accountsForSelectedAssetNetwork])
 
   // render
   if (!selectedOnRampAssetId) {
@@ -695,8 +652,7 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
       cardHeader={
         <PageTitleHeader
           title={pageTitle}
-          showBackButton
-          onBack={() => history.back()}
+          onBack={history.goBack}
         />
       }
     >
@@ -708,7 +664,7 @@ function PurchaseOptionSelection({ isAndroid }: Props) {
           // Creates wallet Account if needed
           <CreateAccountTab
             network={assetNetwork}
-            onCancel={() => history.back()}
+            onCancel={history.goBack}
             onCreated={setSelectedAccount}
           />
         ) : showAccountSearch || !selectedAccount ? (

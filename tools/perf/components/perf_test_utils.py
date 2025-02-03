@@ -4,15 +4,21 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 import logging
 import os
+import re
 import subprocess
 import tempfile
+import time
 import platform
 
 from threading import Timer
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.request import urlopen
 
-from lib.util import extract_zip
+import components.path_util as path_util
+
+
+def IsSha1Hash(s: str) -> bool:
+  return re.match(r'[a-f0-9]{40}', s) is not None
 
 
 def ToChromiumPlatformName(target_os: str) -> str:
@@ -47,6 +53,7 @@ def TerminateProcess(p):
 def GetProcessOutput(args: List[str],
                      cwd: Optional[str] = None,
                      check=False,
+                     output_to_debug=True,
                      timeout: Optional[int] = None) -> Tuple[bool, str]:
   if logging.root.isEnabledFor(logging.DEBUG):
     logging.debug('Run binary: %s, cwd = %s  output:', ' '.join(args), cwd)
@@ -69,7 +76,8 @@ def GetProcessOutput(args: List[str],
         line = process.stdout.readline()
         if line:
           output += line
-          logging.debug(line.rstrip())
+          if output_to_debug:
+            logging.debug(line.rstrip())
         if not line and process.poll() is not None:
           break
     finally:
@@ -92,16 +100,28 @@ def GetProcessOutput(args: List[str],
                                      universal_newlines=True)
     return True, output
   except subprocess.CalledProcessError as e:
-    logging.error(e.output)
+    if output_to_debug:
+      logging.error(e.output)
     if check:
       raise
     return False, e.output
 
 
-def DownloadFile(url: str, output: str):
-  logging.debug('Downloading %s', url)
-  f = urlopen(url)
-  data = f.read()
+def DownloadFile(url: str, output: str, timeout_sec=3 * 60):
+
+  def load_data():
+    for _ in range(3):
+      try:
+        logging.info('Downloading %s to %s', url, output)
+        f = urlopen(url, timeout=timeout_sec)
+        return f.read()
+      except Exception:
+        logging.error('Download attempt failed')
+        time.sleep(5)
+    raise RuntimeError(f'Can\'t download {url}')
+
+  data = load_data()
+  os.makedirs(os.path.dirname(output), exist_ok=True)
   with open(output, 'wb') as output_file:
     output_file.write(data)
 
@@ -109,4 +129,6 @@ def DownloadFile(url: str, output: str):
 def DownloadArchiveAndUnpack(output_directory: str, url: str):
   _, f = tempfile.mkstemp(dir=output_directory)
   DownloadFile(url, f)
+  with path_util.SysPath(path_util.GetBraveScriptDir(), 0):
+    from lib.util import extract_zip  # pylint: disable=import-outside-toplevel
   extract_zip(f, output_directory)

@@ -18,7 +18,8 @@ namespace {
 bool AllowFingerprintingForHost(blink::CanvasRenderingContextHost* host) {
   if (!host)
     return true;
-  return brave::AllowFingerprinting(host->GetTopExecutionContext());
+  return brave::AllowFingerprinting(host->GetTopExecutionContext(),
+                                    ContentSettingsType::BRAVE_WEBCOMPAT_WEBGL);
 }
 
 }  // namespace
@@ -103,11 +104,12 @@ WebGLRenderingContextBase::getSupportedExtensions() {
 
 // If fingerprinting is disallowed and they're asking for information about any
 // extension other than WebGLDebugRendererInfo, don't give it to them.
-ScriptValue WebGLRenderingContextBase::getExtension(ScriptState* script_state,
-                                                    const String& name) {
-  if (!AllowFingerprintingForHost(Host()))
+ScriptObject WebGLRenderingContextBase::getExtension(ScriptState* script_state,
+                                                     const String& name) {
+  if (!AllowFingerprintingForHost(Host())) {
     if (name != WebGLDebugRendererInfo::ExtensionName())
-      return ScriptValue::CreateNull(script_state->GetIsolate());
+      return ScriptObject::CreateNull(script_state->GetIsolate());
+  }
   return getExtension_ChromiumImpl(script_state, name);
 }
 

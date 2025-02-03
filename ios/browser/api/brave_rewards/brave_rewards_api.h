@@ -9,7 +9,7 @@
 #import <Foundation/Foundation.h>
 #import "rewards.mojom.objc.h"
 
-@class RewardsObserver, PromotionSolution, RewardsNotification;
+@class RewardsObserver, RewardsNotification;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -145,32 +145,6 @@ OBJC_EXPORT
 - (void)removeRecurringTipForPublisherWithId:(NSString*)publisherId
     NS_SWIFT_NAME(removeRecurringTip(publisherId:));
 
-#pragma mark - Promotions
-
-@property(nonatomic, readonly)
-    NSArray<BraveRewardsPromotion*>* pendingPromotions;
-
-@property(nonatomic, readonly)
-    NSArray<BraveRewardsPromotion*>* finishedPromotions;
-
-/// Updates `pendingPromotions` and `finishedPromotions` based on the database
-- (void)updatePendingAndFinishedPromotions:(nullable void (^)())completion;
-
-- (void)fetchPromotions:
-    (nullable void (^)(NSArray<BraveRewardsPromotion*>* grants))completion;
-
-- (void)claimPromotion:(NSString*)promotionId
-             publicKey:(NSString*)deviceCheckPublicKey
-            completion:(void (^)(BraveRewardsResult result,
-                                 NSString* _Nonnull nonce))completion;
-
-- (void)attestPromotion:(NSString*)promotionId
-               solution:(PromotionSolution*)solution
-             completion:
-                 (nullable void (^)(BraveRewardsResult result,
-                                    BraveRewardsPromotion* _Nullable promotion))
-                     completion;
-
 #pragma mark - Misc
 
 - (void)rewardsInternalInfo:
@@ -181,39 +155,12 @@ OBJC_EXPORT
 
 @property(nonatomic, readonly, copy) NSString* rewardsDatabasePath;
 
-- (void)fetchAutoContributeProperties:
-    (void (^)(BraveRewardsAutoContributeProperties* _Nullable properties))
-        completion;
-
-#pragma mark - Reporting
-
-@property(nonatomic) UInt32 selectedTabId;
-
-/// Report that a page has loaded in the current browser tab, and the HTML is
-/// available for analysis
-- (void)reportLoadedPageWithURL:(NSURL*)url
-                          tabId:(UInt32)tabId
-    NS_SWIFT_NAME(reportLoadedPage(url:tabId:));
-
-- (void)reportXHRLoad:(NSURL*)url
-                tabId:(UInt32)tabId
-        firstPartyURL:(NSURL*)firstPartyURL
-          referrerURL:(nullable NSURL*)referrerURL;
-
-/// Report that a tab with a given id navigated or was closed by the user
-- (void)reportTabNavigationOrClosedWithTabId:(UInt32)tabId
-    NS_SWIFT_NAME(reportTabNavigationOrClosed(tabId:));
-
 #pragma mark - Preferences
 
 /// The number of seconds before a publisher is added.
 - (void)setMinimumVisitDuration:(int)minimumVisitDuration;
 /// The minimum number of visits before a publisher is added
 - (void)setMinimumNumberOfVisits:(int)minimumNumberOfVisits;
-/// The auto-contribute amount
-- (void)setContributionAmount:(double)contributionAmount;
-/// Whether or not the user will automatically contribute
-- (void)setAutoContributeEnabled:(bool)autoContributeEnabled;
 /// A custom user agent for network operations on rewards
 @property(nonatomic, copy, nullable) NSString* customUserAgent;
 

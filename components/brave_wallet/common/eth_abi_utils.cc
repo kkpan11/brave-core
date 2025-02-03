@@ -6,36 +6,37 @@
 #include "brave/components/brave_wallet/common/eth_abi_utils.h"
 
 #include <algorithm>
-#include <iterator>
 #include <limits>
 #include <optional>
 
 #include "base/check.h"
 #include "base/check_op.h"
+#include "base/containers/extend.h"
 #include "base/containers/span.h"
-#include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+#include "base/containers/to_vector.h"
 #include "brave/components/brave_wallet/common/brave_wallet_types.h"
 #include "brave/components/brave_wallet/common/eth_address.h"
 
 namespace brave_wallet::eth_abi {
 namespace {
 
-void Uint256ToBytes(uint256_t value, base::span<uint8_t> destination) {
-  DCHECK_EQ(destination.size(), kRowLength);
-  for (size_t i = 0; i < kRowLength; ++i) {
-    destination[kRowLength - i - 1] = static_cast<uint8_t>(value & 0xFF);
-    value >>= 8;
-  }
+void Uint256ToSpan(uint256_t value,
+                   base::span<uint8_t, kRowLength> destination) {
+  destination.copy_from(base::byte_span_from_ref(value));
+  std::ranges::reverse(destination);
 }
 
-size_t PaddedSize(size_t bytes_size) {
+size_t Padding(size_t bytes_size) {
   size_t row_pad = bytes_size % kRowLength;
-  return bytes_size + (row_pad ? kRowLength - row_pad : 0);
+  return (row_pad ? kRowLength - row_pad : 0);
 }
 
 size_t PaddedRowCount(size_t bytes_size) {
-  return PaddedSize(bytes_size) / kRowLength;
+  return (bytes_size + Padding(bytes_size)) / kRowLength;
+}
+
+void ExtendWithZeros(std::vector<uint8_t>& destination, size_t count) {
+  destination.resize(destination.size() + count, 0);
 }
 
 uint256_t BytesToUint256(Span32 data) {
@@ -62,14 +63,6 @@ std::optional<size_t> BytesToSize(Span32 data) {
   return static_cast<size_t>(result);
 }
 
-std::optional<Span32> ToSpan32(Span data) {
-  if (data.size() != kRowLength) {
-    return std::nullopt;
-  }
-
-  return Span32(data.data(), kRowLength);
-}
-
 Span ExtractRows(Span data, size_t row, size_t row_count) {
   if (data.size() % kRowLength) {
     return {};
@@ -86,15 +79,15 @@ Span ExtractRows(Span data, size_t row, size_t row_count) {
 }
 
 std::optional<Span32> ExtractRow(Span data, size_t row) {
-  return ToSpan32(ExtractRows(data, row, 1));
+  return ExtractRows(data, row, 1).to_fixed_extent<kRowLength>();
 }
 
 bool CheckPadding(Span data, size_t padded_data_size) {
   if (data.size() < padded_data_size) {
     return false;
   }
-  return base::ranges::all_of(data.subspan(padded_data_size),
-                              [](uint8_t b) { return b == 0; });
+  return std::ranges::all_of(data.subspan(padded_data_size),
+                             [](uint8_t b) { return b == 0; });
 }
 
 std::optional<Span32> ExtractHeadFromTuple(Span data, size_t tuple_pos) {
@@ -102,19 +95,42 @@ std::optional<Span32> ExtractHeadFromTuple(Span data, size_t tuple_pos) {
 }
 
 EthAddress ExtractAddress(Span32 address_encoded) {
-  return EthAddress::FromBytes(address_encoded.subspan(12));
+  return EthAddress::FromBytes(address_encoded.subspan<12>());
 }
 
 }  // namespace
 
-std::pair<Span, Span> ExtractFunctionSelectorAndArgsFromCall(Span data) {
-  if (data.size() < 4) {
-    return {};
+namespace internal {
+
+std::optional<Span32> ExtractFixedBytesRowFromTuple(Span data,
+                                                    size_t fixed_size,
+                                                    size_t tuple_pos) {
+  CHECK(fixed_size > 0 && fixed_size <= 32);
+
+  // Head contains bytes itself.
+  auto head = ExtractHeadFromTuple(data, tuple_pos);
+  if (!head) {
+    return std::nullopt;
   }
-  if ((data.size() - 4) % kRowLength) {
-    return {};
+
+  if (!CheckPadding(*head, fixed_size)) {
+    return std::nullopt;
   }
-  return {data.subspan(0, 4), data.subspan(4)};
+
+  return head;
+}
+
+}  // namespace internal
+
+std::optional<std::pair<Span4, Span>> ExtractFunctionSelectorAndArgsFromCall(
+    Span data) {
+  if (data.size() < kSelectorLength) {
+    return std::nullopt;
+  }
+  if ((data.size() - kSelectorLength) % kRowLength) {
+    return std::nullopt;
+  }
+  return data.split_at<kSelectorLength>();
 }
 
 std::pair<std::optional<size_t>, Span> ExtractArrayInfo(Span data) {
@@ -129,7 +145,7 @@ std::pair<std::optional<size_t>, Span> ExtractArrayInfo(Span data) {
 }
 
 EthAddress ExtractAddress(Span address_encoded) {
-  auto span32 = ToSpan32(address_encoded);
+  auto span32 = address_encoded.to_fixed_extent<kRowLength>();
   if (!span32) {
     return EthAddress();
   }
@@ -167,8 +183,7 @@ std::optional<std::vector<uint8_t>> ExtractBytes(Span bytes_encoded) {
   if (!CheckPadding(padded_bytes_data, *bytes_len)) {
     return std::nullopt;
   }
-  Span bytes_result = padded_bytes_data.subspan(0, *bytes_len);
-  return std::vector<uint8_t>{bytes_result.begin(), bytes_result.end()};
+  return base::ToVector(padded_bytes_data.first(*bytes_len));
 }
 
 std::optional<std::string> ExtractString(Span string_encoded) {
@@ -194,8 +209,8 @@ std::optional<std::string> ExtractString(Span string_encoded) {
     return std::nullopt;
   }
 
-  Span string_result = padded_string_data.subspan(0, *string_len);
-  return std::string{string_result.begin(), string_result.end()};
+  return std::string(
+      base::as_string_view(padded_string_data.first(*string_len)));
 }
 
 std::optional<std::vector<std::string>> ExtractStringArray(Span string_array) {
@@ -358,62 +373,34 @@ std::optional<std::vector<uint8_t>> ExtractBytesFromTuple(Span data,
   return ExtractBytes(bytes);
 }
 
-std::optional<std::vector<uint8_t>>
-ExtractFixedBytesFromTuple(Span data, size_t fixed_size, size_t tuple_pos) {
-  if (fixed_size == 0 || fixed_size > 32) {
-    NOTREACHED();
-    return std::nullopt;
-  }
-
-  // Head contains bytes itself.
-  auto head = ExtractHeadFromTuple(data, tuple_pos);
-  if (!head) {
-    return std::nullopt;
-  }
-
-  if (!CheckPadding(head->subspan(0), fixed_size)) {
-    return std::nullopt;
-  }
-
-  return std::vector<uint8_t>{head->begin(), head->begin() + fixed_size};
-}
-
-// NOLINTNEXTLINE(runtime/references)
 size_t AppendEmptyRow(std::vector<uint8_t>& destination) {
-  destination.resize(destination.size() + kRowLength, 0);
+  ExtendWithZeros(destination, kRowLength);
   return kRowLength;
 }
 
-// NOLINTNEXTLINE(runtime/references)
 size_t AppendRow(std::vector<uint8_t>& destination, uint256_t value) {
   // Append 32 bytes.
-  destination.resize(destination.size() + kRowLength, 0);
+  ExtendWithZeros(destination, kRowLength);
   // Pick last 32 bytes and copy value to it.
-  Uint256ToBytes(value, base::make_span(destination).last(kRowLength));
+  Uint256ToSpan(value, base::span(destination).last<kRowLength>());
   return kRowLength;
 }
 
-// NOLINTNEXTLINE(runtime/references)
 size_t AppendRow(std::vector<uint8_t>& destination, Span32 value) {
-  DCHECK_EQ(value.size(), kRowLength);
-  // Append 32 bytes.
-  destination.resize(destination.size() + kRowLength, 0);
-  // Pick last 32 bytes and copy value to it.
-  base::ranges::copy(value,
-                     base::make_span(destination).last(kRowLength).begin());
+  base::Extend(destination, value);
   return kRowLength;
 }
 
-// NOLINTNEXTLINE(runtime/references)
 size_t AppendBytesWithPadding(std::vector<uint8_t>& destination, Span bytes) {
-  auto padded_size = PaddedSize(bytes.size());
-  destination.resize(destination.size() + padded_size);
-  base::ranges::copy(bytes,
-                     base::make_span(destination).last(padded_size).begin());
-  return padded_size;
+  auto padding = Padding(bytes.size());
+  destination.reserve(destination.size() + padding);
+
+  base::Extend(destination, bytes);
+  ExtendWithZeros(destination, padding);
+
+  return bytes.size() + padding;
 }
 
-// NOLINTNEXTLINE(runtime/references)
 size_t AppendBytes(std::vector<uint8_t>& destination, Span bytes) {
   size_t total_added_bytes = 0;
   total_added_bytes += AppendRow(destination, bytes.size());
@@ -421,7 +408,6 @@ size_t AppendBytes(std::vector<uint8_t>& destination, Span bytes) {
   return total_added_bytes;
 }
 
-// NOLINTNEXTLINE(runtime/references)
 void EncodeTuple(std::vector<uint8_t>& destination,
                  Span bytes_0,
                  Span bytes_1) {
@@ -431,18 +417,18 @@ void EncodeTuple(std::vector<uint8_t>& destination,
   bytes_added += AppendEmptyRow(destination);  // bytes_1 offset placeholder
 
   // fill bytes_0 offset placeholder
-  Uint256ToBytes(uint256_t(bytes_added),
-                 base::make_span(destination)
-                     .subspan(tuple_base)
-                     .subspan(0 * kRowLength, kRowLength));
+  Uint256ToSpan(uint256_t(bytes_added), base::span(destination)
+                                            .subspan(tuple_base)
+                                            .subspan(0 * kRowLength)
+                                            .first<kRowLength>());
 
   bytes_added += AppendBytes(destination, bytes_0);
 
   // fill bytes_1 offset placeholder
-  Uint256ToBytes(uint256_t(bytes_added),
-                 base::make_span(destination)
-                     .subspan(tuple_base)
-                     .subspan(1 * kRowLength, kRowLength));
+  Uint256ToSpan(uint256_t(bytes_added), base::span(destination)
+                                            .subspan(tuple_base)
+                                            .subspan(1 * kRowLength)
+                                            .first<kRowLength>());
 
   bytes_added += AppendBytes(destination, bytes_1);
 }
@@ -479,14 +465,13 @@ TupleEncoder& TupleEncoder::AddAddress(const EthAddress& address) {
   auto address_size = address.bytes().size();
   DCHECK_GE(element.head.size(), address_size);
   // Address is uint160 which should be right aligned in 32 bytes row.
-  base::ranges::copy(address.bytes(),
-                     base::make_span(element.head).last(address_size).begin());
+  base::span(element.head).last(address_size).copy_from(address.bytes());
   return *this;
 }
 
 TupleEncoder& TupleEncoder::AddUint256(const uint256_t& val) {
   auto& element = AppendElement();
-  Uint256ToBytes(val, element.head);
+  Uint256ToSpan(val, element.head);
   return *this;
 }
 
@@ -495,8 +480,7 @@ TupleEncoder& TupleEncoder::AddFixedBytes(Span bytes) {
   DCHECK_LE(bytes.size(), kRowLength);
   auto& element = AppendElement();
   // Copy bytes at the beginning of head. Remaining bytes are padded with 0.
-  base::ranges::copy(bytes.first(std::min(bytes.size(), kRowLength)),
-                     element.head.begin());
+  base::span(element.head).copy_prefix_from(bytes);
   return *this;
 }
 
@@ -508,7 +492,7 @@ TupleEncoder& TupleEncoder::AddBytes(Span bytes) {
 
 TupleEncoder& TupleEncoder::AddString(const std::string& string) {
   auto& element = AppendElement();
-  AppendBytes(element.tail, base::as_bytes(base::make_span(string)));
+  AppendBytes(element.tail, base::as_byte_span(string));
   return *this;
 }
 
@@ -549,7 +533,6 @@ void TupleEncoder::EncodeTo(std::vector<uint8_t>& destination) const {
   size_t bytes_added = 0;
   // Fills head rows with in-place values or with empty offset placeholders.
   for (auto& element : elements_) {
-    DCHECK_EQ(kRowLength, element.head.size());
     bytes_added += AppendRow(destination, element.head);
   }
 
@@ -559,13 +542,81 @@ void TupleEncoder::EncodeTo(std::vector<uint8_t>& destination) const {
     }
 
     // Fills offset placeholder with current bytes offset.
-    Uint256ToBytes(uint256_t(bytes_added),
-                   base::make_span(destination)
-                       .subspan(tuple_base)
-                       .subspan(i * kRowLength, kRowLength));
+    Uint256ToSpan(uint256_t(bytes_added), base::span(destination)
+                                              .subspan(tuple_base)
+                                              .subspan(i * kRowLength)
+                                              .first<kRowLength>());
 
     bytes_added += AppendBytesWithPadding(destination, elements_[i].tail);
   }
+}
+
+Type::Type(TypeKind kind) : kind(kind), m(std::nullopt) {}
+Type::Type(TypeKind kind, size_t m) : kind(kind), m(m) {}
+Type::~Type() = default;
+Type::Type(Type&& other) noexcept
+    : kind(other.kind),
+      m(other.m),
+      array_type(std::move(other.array_type)),
+      tuple_types(std::move(other.tuple_types)) {}
+
+TypeBuilder::TypeBuilder(TypeKind kind) : type_{kind} {}
+TypeBuilder::TypeBuilder(TypeKind kind, size_t m) : type_{kind, m} {}
+
+TypeBuilder& TypeBuilder::SetArrayType(Type array_type) {
+  type_.array_type = std::make_unique<Type>(std::move(array_type));
+  return *this;
+}
+
+TypeBuilder& TypeBuilder::AddTupleType(Type tuple_type) {
+  type_.tuple_types.push_back(std::move(tuple_type));
+  return *this;
+}
+
+Type TypeBuilder::build() {
+  return std::move(type_);
+}
+
+TypeBuilder Array(size_t m) {
+  return TypeBuilder(TypeKind::kArray, m);
+}
+
+Type Address() {
+  return Type{TypeKind::kAddress};
+}
+
+Type Uint(size_t m) {
+  CHECK(m > 0 && m <= 256 && m % 8 == 0) << "Invalid M for uint<M> type: " << m;
+  return Type{TypeKind::kUintM, m};
+}
+
+Type Uint() {
+  return Type{TypeKind::kUintM, 256};
+}
+
+Type Bool() {
+  return Type{TypeKind::kBool};
+}
+
+Type Bytes() {
+  return Type{TypeKind::kBytes};
+}
+
+Type Bytes(size_t m) {
+  CHECK(m > 0 && m <= 32) << "Invalid M for bytes<M> type: " << m;
+  return Type{TypeKind::kBytes, m};
+}
+
+Type String() {
+  return Type{TypeKind::kString};
+}
+
+TypeBuilder Array() {
+  return TypeBuilder(TypeKind::kArray);
+}
+
+TypeBuilder Tuple() {
+  return TypeBuilder(TypeKind::kTuple);
 }
 
 }  // namespace brave_wallet::eth_abi

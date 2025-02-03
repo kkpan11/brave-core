@@ -21,8 +21,6 @@
 #include "brave/components/brave_ads/core/internal/creatives/creatives_info.h"
 #include "brave/components/brave_ads/core/internal/creatives/inline_content_ads/creative_inline_content_ad_info.h"
 #include "brave/components/brave_ads/core/internal/creatives/new_tab_page_ads/creative_new_tab_page_ad_info.h"
-#include "brave/components/brave_ads/core/internal/creatives/new_tab_page_ads/creative_new_tab_page_ad_wallpaper_focal_point_info.h"
-#include "brave/components/brave_ads/core/internal/creatives/new_tab_page_ads/creative_new_tab_page_ad_wallpaper_info.h"
 #include "brave/components/brave_ads/core/internal/creatives/notification_ads/creative_notification_ad_info.h"
 #include "brave/components/brave_ads/core/internal/creatives/promoted_content_ads/creative_promoted_content_ad_info.h"
 
@@ -86,13 +84,11 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
         creative_ad.daily_cap = campaign.daily_cap;
         creative_ad.priority = campaign.priority;
         creative_ad.pass_through_rate = campaign.pass_through_rate;
-        creative_ad.has_conversion = !creative_set.conversions.empty();
         creative_ad.per_day = creative_set.per_day;
         creative_ad.per_week = creative_set.per_week;
         creative_ad.per_month = creative_set.per_month;
         creative_ad.total_max = creative_set.total_max;
         creative_ad.value = creative_set.value;
-        creative_ad.embedding = creative_set.embedding;
         creative_ad.split_test_group = creative_set.split_test_group;
         creative_ad.dayparts = dayparts;
         creative_ad.geo_targets = geo_targets;
@@ -121,7 +117,7 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
           creatives.notification_ads.push_back(creative_ad);
           ++entries;
 
-          const std::string top_level_segment_name =
+          const std::string& top_level_segment_name =
               segment_name_hierarchy.front();
           CHECK(!top_level_segment_name.empty());
 
@@ -153,7 +149,6 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
         creative_ad.daily_cap = campaign.daily_cap;
         creative_ad.priority = campaign.priority;
         creative_ad.pass_through_rate = campaign.pass_through_rate;
-        creative_ad.has_conversion = !creative_set.conversions.empty();
         creative_ad.per_day = creative_set.per_day;
         creative_ad.per_week = creative_set.per_week;
         creative_ad.per_month = creative_set.per_month;
@@ -190,7 +185,7 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
           creatives.inline_content_ads.push_back(creative_ad);
           ++entries;
 
-          const std::string top_level_segment_name =
+          const std::string& top_level_segment_name =
               segment_name_hierarchy.front();
           CHECK(!top_level_segment_name.empty());
 
@@ -222,30 +217,19 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
         creative_ad.daily_cap = campaign.daily_cap;
         creative_ad.priority = campaign.priority;
         creative_ad.pass_through_rate = campaign.pass_through_rate;
-        creative_ad.has_conversion = !creative_set.conversions.empty();
         creative_ad.per_day = creative_set.per_day;
         creative_ad.per_week = creative_set.per_week;
         creative_ad.per_month = creative_set.per_month;
         creative_ad.total_max = creative_set.total_max;
         creative_ad.value = creative_set.value;
         creative_ad.split_test_group = creative_set.split_test_group;
+        creative_ad.condition_matchers = creative.payload.condition_matchers;
         creative_ad.dayparts = dayparts;
         creative_ad.geo_targets = geo_targets;
         creative_ad.target_url = creative.payload.target_url;
 
         creative_ad.company_name = creative.payload.company_name;
-        creative_ad.image_url = creative.payload.image_url;
         creative_ad.alt = creative.payload.alt;
-
-        CHECK(!creative.payload.wallpapers.empty());
-        for (const auto& catalog_new_tab_page_ad_wallpaper :
-             creative.payload.wallpapers) {
-          creative_ad.wallpapers.push_back(CreativeNewTabPageAdWallpaperInfo{
-              .image_url = catalog_new_tab_page_ad_wallpaper.image_url,
-              .focal_point = CreativeNewTabPageAdWallpaperFocalPointInfo{
-                  .x = catalog_new_tab_page_ad_wallpaper.focal_point.x,
-                  .y = catalog_new_tab_page_ad_wallpaper.focal_point.y}});
-        }
 
         // Segments
         for (const auto& segment : creative_set.segments) {
@@ -267,7 +251,7 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
           creatives.new_tab_page_ads.push_back(creative_ad);
           ++entries;
 
-          const std::string top_level_segment_name =
+          const std::string& top_level_segment_name =
               segment_name_hierarchy.front();
           CHECK(!top_level_segment_name.empty());
 
@@ -299,7 +283,6 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
         creative_ad.daily_cap = campaign.daily_cap;
         creative_ad.priority = campaign.priority;
         creative_ad.pass_through_rate = campaign.pass_through_rate;
-        creative_ad.has_conversion = !creative_set.conversions.empty();
         creative_ad.per_day = creative_set.per_day;
         creative_ad.per_week = creative_set.per_week;
         creative_ad.per_month = creative_set.per_month;
@@ -333,7 +316,7 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
           creatives.promoted_content_ads.push_back(creative_ad);
           ++entries;
 
-          const std::string top_level_segment_name =
+          const std::string& top_level_segment_name =
               segment_name_hierarchy.front();
           CHECK(!top_level_segment_name.empty());
 
@@ -367,6 +350,7 @@ CreativesInfo BuildCreatives(const CatalogInfo& catalog) {
         if (!creative_set_conversion.IsValid()) {
           BLOG(1, "Creative set id " << creative_set.id
                                      << " has an invalid conversion");
+
           continue;
         }
 

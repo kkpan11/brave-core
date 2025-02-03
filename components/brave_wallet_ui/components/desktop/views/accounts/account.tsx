@@ -4,15 +4,18 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
+import Button from '@brave/leo/react/button'
+import Icon from '@brave/leo/react/icon'
 import { Redirect, useParams, useLocation, useHistory } from 'react-router'
 import { useDispatch } from 'react-redux'
 import { skipToken } from '@reduxjs/toolkit/query/react'
 
 // Selectors
 import {
+  useSafeUISelector,
   useSafeWalletSelector //
 } from '../../../../common/hooks/use-safe-selector'
-import { WalletSelectors } from '../../../../common/selectors'
+import { UISelectors, WalletSelectors } from '../../../../common/selectors'
 
 // Types
 import {
@@ -20,7 +23,9 @@ import {
   CoinTypesMap,
   WalletRoutes,
   AccountModalTypes,
-  AccountPageTabs
+  AccountPageTabs,
+  SupportedTestNetworks,
+  BitcoinTestnetKeyringIds
 } from '../../../../constants/types'
 
 // utils
@@ -30,28 +35,33 @@ import { getBalance } from '../../../../utils/balance-utils'
 import { filterNetworksForAccount } from '../../../../utils/network-utils'
 import {
   makeAccountRoute,
-  makeAccountTransactionRoute
+  makeAccountTransactionRoute,
+  makePortfolioAssetRoute,
+  openTab
 } from '../../../../utils/routes-utils'
 
 import Amount from '../../../../utils/amount'
 import {
   getTokenPriceAmountFromRegistry,
-  computeFiatAmount
+  computeFiatAmount,
+  getPriceIdForToken
 } from '../../../../utils/pricing-utils'
-import { getPriceIdForToken } from '../../../../utils/api-utils'
 import {
   selectAllVisibleUserAssetsFromQueryResult //
 } from '../../../../common/slices/entities/blockchain-token.entity'
-import { getAssetIdKey } from '../../../../utils/asset-utils'
+import { getAssetIdKey, isTokenWatchOnly } from '../../../../utils/asset-utils'
 
 // Styled Components
 import {
   ControlsWrapper,
   AssetsWrapper,
   NFTsWrapper,
-  TransactionsWrapper
+  TransactionsWrapper,
+  EmptyStateWrapper,
+  SyncAlert,
+  SyncAlertWrapper
 } from './style'
-import { Column, VerticalSpace, Text } from '../../../shared/style'
+import { Column, Row, VerticalSpace, Text } from '../../../shared/style'
 import { EmptyTransactionsIcon } from '../portfolio/style'
 import { NftGrid } from '../nfts/components/nfts.styles'
 
@@ -68,7 +78,7 @@ import {
 } from '../../card-headers/account-details-header'
 import {
   SegmentedControl //
-} from '../../../shared/segmented-control/segmented-control'
+} from '../../../shared/segmented_control/segmented_control'
 import {
   NFTGridViewItem //
 } from '../portfolio/components/nft-grid-view/nft-grid-view-item'
@@ -81,6 +91,13 @@ import {
 import {
   WalletPageWrapper //
 } from '../../wallet-page-wrapper/wallet-page-wrapper'
+import {
+  EmptyTokenListState //
+} from '../portfolio/components/empty-token-list-state/empty-token-list-state'
+import {
+  ViewOnBlockExplorerModal //
+} from '../../popup-modals/view_on_block_explorer_modal/view_on_block_explorer_modal'
+import { ZCashSyncModal } from '../../popup-modals/zcash_sync_modal/zcash_sync_modal'
 
 // options
 import { AccountDetailsOptions } from '../../../../options/nav-options'
@@ -92,7 +109,11 @@ import {
   useGetVisibleNetworksQuery,
   useGetUserTokensRegistryQuery,
   useGetTransactionsQuery,
-  useGetTokenSpotPricesQuery
+  useGetTokenSpotPricesQuery,
+  useStartShieldSyncMutation,
+  useGetChainTipStatusQuery,
+  useGetZCashAccountInfoQuery,
+  useStopShieldSyncMutation
 } from '../../../../common/slices/api.slice'
 import {
   querySubscriptionOptions60s //
@@ -100,10 +121,17 @@ import {
 import {
   useBalancesFetcher //
 } from '../../../../common/hooks/use-balances-fetcher'
+import { useExplorer } from '../../../../common/hooks/explorer'
 
 // Actions
 import { AccountsTabActions } from '../../../../page/reducers/accounts-tab-reducer'
 import { useAccountsQuery } from '../../../../common/slices/api.slice.extra'
+
+const INDIVIDUAL_TESTNET_ACCOUNT_KEYRING_IDS = [
+  ...BitcoinTestnetKeyringIds,
+  BraveWallet.KeyringId.kFilecoinTestnet,
+  BraveWallet.KeyringId.kZCashTestnet
+]
 
 const removedNFTsRouteOptions = AccountDetailsOptions.filter(
   (option) => option.id !== 'nfts'
@@ -118,6 +146,19 @@ const coinSupportsAssets = (coin: BraveWallet.CoinType) => {
 }
 
 export const Account = () => {
+  // safe selectors
+  const assetAutoDiscoveryCompleted = useSafeWalletSelector(
+    WalletSelectors.assetAutoDiscoveryCompleted
+  )
+  const isZCashShieldedTransactionsEnabled = useSafeWalletSelector(
+    WalletSelectors.isZCashShieldedTransactionsEnabled
+  )
+  const isPanel = useSafeUISelector(UISelectors.isPanel)
+
+  // mutations
+  const [startShieldSync] = useStartShieldSyncMutation()
+  const [stopShieldSync] = useStopShieldSyncMutation()
+
   // routing
   const { accountId: addressOrUniqueKey, selectedTab } = useParams<{
     accountId: string
@@ -156,17 +197,73 @@ export const Account = () => {
       : skipToken,
     { skip: !selectedAccount }
   )
+  const { data: zcashAccountInfo } = useGetZCashAccountInfoQuery(
+    isZCashShieldedTransactionsEnabled &&
+      selectedAccount?.accountId.coin === BraveWallet.CoinType.ZEC
+      ? selectedAccount.accountId
+      : skipToken
+  )
 
-  // safe selectors
-  const assetAutoDiscoveryCompleted = useSafeWalletSelector(
-    WalletSelectors.assetAutoDiscoveryCompleted
+  const isShieldedAccount =
+    isZCashShieldedTransactionsEnabled &&
+    !!zcashAccountInfo &&
+    !!zcashAccountInfo.accountShieldBirthday
+
+  const { data: chainTipStatus } = useGetChainTipStatusQuery(
+    isShieldedAccount && selectedAccount ? selectedAccount.accountId : skipToken
   )
 
   // state
   const [showAddNftModal, setShowAddNftModal] = React.useState<boolean>(false)
+  const [showViewOnBlockExplorerModal, setShowViewOnBlockExplorerModal] =
+    React.useState<boolean>(false)
+  const [showSyncAccountModal, setShowSyncAccountModal] =
+    React.useState<boolean>(false)
+  const [syncWarningDismissed, setSyncWarningDismissed] =
+    React.useState<boolean>(false)
 
-  // custom hooks
+  // Computed
+  const blocksBehind = chainTipStatus
+    ? chainTipStatus.chainTip - chainTipStatus.latestScannedBlock
+    : 0
+
+  const showSyncWarning =
+    isShieldedAccount &&
+    (blocksBehind > 1000 || chainTipStatus === null) &&
+    !syncWarningDismissed
+
+  // custom hooks & memos
   const scrollIntoView = useScrollIntoView()
+
+  const networksFilteredByAccountsCoinType = React.useMemo(() => {
+    return !selectedAccount
+      ? []
+      : networkList.filter(
+          (network) => network.coin === selectedAccount.accountId.coin
+        )
+  }, [networkList, selectedAccount])
+
+  const networkForSelectedAccount = React.useMemo(() => {
+    if (!selectedAccount) {
+      return
+    }
+    // BTC, ZEC and FIL use different accounts for testnet.
+    // This checks if the selectedAccount is a testnet account
+    // and finds the appropriate network to use.
+    if (
+      INDIVIDUAL_TESTNET_ACCOUNT_KEYRING_IDS.includes(
+        selectedAccount.accountId.keyringId
+      )
+    )
+      return networksFilteredByAccountsCoinType.find((network) =>
+        SupportedTestNetworks.includes(network.chainId)
+      )
+    return networksFilteredByAccountsCoinType.find(
+      (network) => !SupportedTestNetworks.includes(network.chainId)
+    )
+  }, [selectedAccount, networksFilteredByAccountsCoinType])
+
+  const onClickViewOnBlockExplorer = useExplorer(networkForSelectedAccount)
 
   // memos
   const transactionList = React.useMemo(() => {
@@ -222,6 +319,16 @@ export const Account = () => {
         : skipToken
     )
 
+  const { data: spamTokenBalancesRegistry } = useBalancesFetcher(
+    networkList
+      ? {
+          accounts,
+          networks: networkList,
+          isSpamRegistry: true
+        }
+      : skipToken
+  )
+
   const nonFungibleTokens = React.useMemo(
     () =>
       accountsTokensList
@@ -236,10 +343,16 @@ export const Account = () => {
 
   const fungibleTokens = React.useMemo(
     () =>
-      accountsTokensList.filter(
-        ({ isErc721, isErc1155, isNft }) => !(isErc721 || isErc1155 || isNft)
-      ),
-    [accountsTokensList]
+      accountsTokensList
+        .filter(
+          ({ isErc721, isErc1155, isNft }) => !(isErc721 || isErc1155 || isNft)
+        )
+        .filter((token) =>
+          new Amount(
+            getBalance(selectedAccount?.accountId, token, tokenBalancesRegistry)
+          ).gt(0)
+        ),
+    [accountsTokensList, selectedAccount, tokenBalancesRegistry]
   )
 
   const tokenPriceIds = React.useMemo(
@@ -338,11 +451,36 @@ export const Account = () => {
         onRemoveAccount()
         return
       }
+      if (
+        option === 'explorer' &&
+        // Only show the Block Explorer modal if there is
+        // more than 1 network to show and if CoinType is
+        // ETH or SOL.
+        networksFilteredByAccountsCoinType.length > 1 &&
+        (selectedAccount?.accountId.coin === BraveWallet.CoinType.ETH ||
+          selectedAccount?.accountId.coin === BraveWallet.CoinType.SOL)
+      ) {
+        setShowViewOnBlockExplorerModal(true)
+        return
+      }
+      if (option === 'explorer' && selectedAccount?.accountId.address) {
+        onClickViewOnBlockExplorer(
+          'address',
+          selectedAccount.accountId.address
+        )()
+        return
+      }
       dispatch(AccountsTabActions.setShowAccountModal(true))
       dispatch(AccountsTabActions.setAccountModalType(option))
       dispatch(AccountsTabActions.setSelectedAccount(selectedAccount))
     },
-    [onRemoveAccount, selectedAccount]
+    [
+      dispatch,
+      onRemoveAccount,
+      networksFilteredByAccountsCoinType,
+      selectedAccount,
+      onClickViewOnBlockExplorer
+    ]
   )
 
   const checkIsTransactionFocused = React.useCallback(
@@ -366,38 +504,36 @@ export const Account = () => {
 
   const onSelectAsset = React.useCallback(
     (asset: BraveWallet.BlockchainToken) => {
-      if (asset.contractAddress === '') {
-        history.push(
-          `${
-            WalletRoutes.PortfolioAssets //
-          }/${
-            asset.chainId //
-          }/${asset.symbol}`
-        )
-        return
-      }
-      if (asset.isErc721 || asset.isNft || asset.isErc1155) {
-        history.push(
-          `${
-            WalletRoutes.PortfolioNFTs //
-          }/${
-            asset.chainId //
-          }/${
-            asset.contractAddress //
-          }/${asset.tokenId}`
-        )
-        return
-      }
       history.push(
-        `${
-          WalletRoutes.PortfolioAssets //
-        }/${
-          asset.chainId //
-        }/${asset.contractAddress}`
+        makePortfolioAssetRoute(
+          asset.isErc721 || asset.isNft || asset.isErc1155,
+          getAssetIdKey(asset)
+        )
       )
     },
-    []
+    [history]
   )
+
+  const onStartShieldSync = React.useCallback(async () => {
+    if (isPanel && selectedAccount) {
+      openTab(
+        'brave://wallet' +
+          makeAccountRoute(selectedAccount, AccountPageTabs.AccountAssetsSub)
+      )
+      return
+    }
+    if (selectedAccount) {
+      await startShieldSync(selectedAccount.accountId)
+      setShowSyncAccountModal(true)
+    }
+  }, [startShieldSync, selectedAccount, isPanel])
+
+  const onStopAndCloseShieldSync = React.useCallback(async () => {
+    if (selectedAccount) {
+      await stopShieldSync(selectedAccount.accountId)
+      setShowSyncAccountModal(false)
+    }
+  }, [stopShieldSync, selectedAccount])
 
   const showAssetDiscoverySkeleton =
     selectedAccount &&
@@ -421,8 +557,8 @@ export const Account = () => {
   return (
     <WalletPageWrapper
       wrapContentInBox
-      hideDivider={true}
       noCardPadding={true}
+      useCardInPanel={true}
       cardHeader={
         <AccountDetailsHeader
           account={selectedAccount}
@@ -431,48 +567,105 @@ export const Account = () => {
         />
       }
     >
+      {showSyncWarning && (
+        <SyncAlertWrapper
+          margin='0px 0px 32px 0px'
+          padding='0px 32px'
+        >
+          <SyncAlert
+            type={
+              blocksBehind > 7000
+                ? 'error'
+                : blocksBehind > 3000
+                ? 'warning'
+                : 'info'
+            }
+          >
+            <div slot='title'>
+              {!chainTipStatus
+                ? getLocale('braveWalletOutOfSyncTitle')
+                : getLocale('braveWalletOutOfSyncBlocksBehindTitle').replace(
+                    '$1',
+                    blocksBehind.toLocaleString()
+                  )}
+            </div>
+            {getLocale('braveWalletOutOfSyncDescription')}
+            <Row
+              slot='actions'
+              width='unset'
+              gap='8px'
+            >
+              <Button
+                size='small'
+                onClick={onStartShieldSync}
+              >
+                <Icon
+                  name='refresh'
+                  slot='icon-before'
+                />
+                {getLocale('braveWalletSyncAccountButton')}
+              </Button>
+              <Button
+                size='small'
+                kind='plain-faint'
+                onClick={() => setSyncWarningDismissed(true)}
+              >
+                {getLocale('braveWalletDismissButton')}
+              </Button>
+            </Row>
+          </SyncAlert>
+        </SyncAlertWrapper>
+      )}
       <ControlsWrapper fullWidth={true}>
         <SegmentedControl navOptions={routeOptions} />
       </ControlsWrapper>
 
       {selectedTab === AccountPageTabs.AccountAssetsSub && (
-        <AssetsWrapper fullWidth={true}>
-          {fungibleTokensSortedByValue.map((asset) => (
-            <PortfolioAssetItem
-              key={getAssetIdKey(asset)}
-              action={() => onSelectAsset(asset)}
-              account={selectedAccount}
-              assetBalance={
-                isLoadingBalances
-                  ? ''
-                  : getBalance(
-                      selectedAccount.accountId,
-                      asset,
-                      tokenBalancesRegistry
-                    )
-              }
-              token={asset}
-              spotPrice={
-                spotPriceRegistry && !isLoadingSpotPrices
-                  ? getTokenPriceAmountFromRegistry(
-                      spotPriceRegistry,
-                      asset
-                    ).format()
-                  : !spotPriceRegistry &&
-                    !isLoadingSpotPrices &&
-                    !isLoadingBalances
-                  ? '0'
-                  : ''
-              }
-            />
-          ))}
-          {showAssetDiscoverySkeleton && <PortfolioAssetItemLoadingSkeleton />}
-        </AssetsWrapper>
+        <>
+          <AssetsWrapper fullWidth={true}>
+            {fungibleTokensSortedByValue.map((asset) => (
+              <PortfolioAssetItem
+                key={getAssetIdKey(asset)}
+                action={() => onSelectAsset(asset)}
+                account={selectedAccount}
+                assetBalance={
+                  isLoadingBalances
+                    ? ''
+                    : getBalance(
+                        selectedAccount.accountId,
+                        asset,
+                        tokenBalancesRegistry
+                      )
+                }
+                token={asset}
+                spotPrice={
+                  spotPriceRegistry && !isLoadingSpotPrices
+                    ? getTokenPriceAmountFromRegistry(
+                        spotPriceRegistry,
+                        asset
+                      ).format()
+                    : ''
+                }
+                isAccountDetails={true}
+              />
+            ))}
+            {showAssetDiscoverySkeleton && (
+              <PortfolioAssetItemLoadingSkeleton />
+            )}
+          </AssetsWrapper>
+          {fungibleTokensSortedByValue.length === 0 &&
+            !isLoadingBalances &&
+            !isLoadingSpotPrices && (
+              <EmptyStateWrapper>
+                <EmptyTokenListState />
+              </EmptyStateWrapper>
+            )}
+        </>
       )}
 
-      {selectedTab === AccountPageTabs.AccountNFTsSub && (
-        <NFTsWrapper fullWidth={true}>
-          {nonFungibleTokens?.length !== 0 ? (
+      {selectedTab === AccountPageTabs.AccountNFTsSub &&
+        (nonFungibleTokens?.length !== 0 ? (
+          <NFTsWrapper fullWidth={true}>
             <NftGrid>
               {nonFungibleTokens?.map((nft: BraveWallet.BlockchainToken) => (
                 <NFTGridViewItem
@@ -481,19 +674,29 @@ export const Account = () => {
                   onSelectAsset={() => onSelectAsset(nft)}
                   isTokenHidden={false}
                   isTokenSpam={false}
+                  isWatchOnly={isTokenWatchOnly(
+                    nft,
+                    accounts,
+                    tokenBalancesRegistry,
+                    spamTokenBalancesRegistry
+                  )}
                 />
               ))}
             </NftGrid>
-          ) : (
+          </NFTsWrapper>
+        ) : (
+          <EmptyStateWrapper>
             <NftsEmptyState onImportNft={() => setShowAddNftModal(true)} />
-          )}
-        </NFTsWrapper>
-      )}
+          </EmptyStateWrapper>
+        ))}
 
       {selectedTab === AccountPageTabs.AccountTransactionsSub && (
         <>
           {transactionList.length !== 0 ? (
-            <TransactionsWrapper fullWidth={true}>
+            <TransactionsWrapper
+              fullWidth={true}
+              gap='16px'
+            >
               {transactionList.map((transaction) => (
                 <PortfolioTransactionItem
                   key={transaction?.id}
@@ -530,10 +733,24 @@ export const Account = () => {
         </>
       )}
 
+      {showViewOnBlockExplorerModal && (
+        <ViewOnBlockExplorerModal
+          account={selectedAccount}
+          onClose={() => setShowViewOnBlockExplorerModal(false)}
+        />
+      )}
+
       {showAddNftModal && (
         <AddOrEditNftModal
           onClose={() => setShowAddNftModal(false)}
           onHideForm={() => setShowAddNftModal(false)}
+        />
+      )}
+
+      {showSyncAccountModal && (
+        <ZCashSyncModal
+          account={selectedAccount}
+          onClose={onStopAndCloseShieldSync}
         />
       )}
     </WalletPageWrapper>

@@ -16,18 +16,23 @@
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/time/time.h"
+#include "brave/components/p3a/metric_config.h"
 #include "brave/components/p3a/metric_log_type.h"
 #include "brave/components/p3a/p3a_config.h"
 #include "brave/components/p3a/p3a_message.h"
 #include "brave/components/p3a/star_randomness_test_util.h"
 #include "brave/components/p3a/uploader.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/googletest/src/googletest/include/gtest/gtest.h"
+
+#if !BUILDFLAG(IS_IOS)
+#include "brave/components/brave_referrals/common/pref_names.h"
+#endif  // !BUILDFLAG(IS_IOS)
 
 namespace p3a {
 
@@ -40,6 +45,7 @@ constexpr char kTestSlowNextEpochTime[] = "2086-06-22T18:00:00Z";
 constexpr char kTestTypicalNextEpochTime[] = "2086-06-24T18:00:00Z";
 constexpr char kTestExpressNextEpochTime[] = "2086-07-01T18:00:00Z";
 constexpr char kTestHistogramName[] = "Brave.Test.Histogram";
+constexpr char kTestNebulaHistogramName[] = "Brave.Core.WeeklyUsage.Nebula";
 constexpr char kTestHost[] = "https://localhost:8443";
 
 }  // namespace
@@ -59,6 +65,10 @@ class P3AConstellationHelperTest : public testing::Test {
 
     ConstellationHelper::RegisterPrefs(local_state_.registry());
 
+#if !BUILDFLAG(IS_IOS)
+    local_state_.registry()->RegisterStringPref(kReferralPromoCode, {});
+#endif  // !BUILDFLAG(IS_IOS)
+
     url_loader_factory_.SetInterceptor(base::BindLambdaForTesting(
         [&](const network::ResourceRequest& request) {
           url_loader_factory_.ClearResponses();
@@ -67,12 +77,12 @@ class P3AConstellationHelperTest : public testing::Test {
               ValidateURLAndGetMetricLogType(request.url, kTestHost);
 
           std::string response;
-          if (base::EndsWith(request.url.spec(), "/info")) {
+          if (request.url.spec().ends_with("/info")) {
             response =
                 HandleInfoRequest(request, log_type, GetTestEpoch(log_type),
                                   GetTestNextEpochTime(log_type));
             info_request_made_[log_type] = true;
-          } else if (base::EndsWith(request.url.spec(), "/randomness")) {
+          } else if (request.url.spec().ends_with("/randomness")) {
             response = HandleRandomnessRequest(request, GetTestEpoch(log_type));
             points_request_made_[log_type] = true;
           }
@@ -92,11 +102,12 @@ class P3AConstellationHelperTest : public testing::Test {
         &local_state_, shared_url_loader_factory_,
         base::BindLambdaForTesting(
             [this](std::string histogram_name, MetricLogType log_type,
-                   uint8_t epoch,
+                   uint8_t epoch, bool is_success,
                    std::unique_ptr<std::string> serialized_message) {
               histogram_name_from_callback_ = histogram_name;
               epoch_from_callback_ = epoch;
               serialized_message_from_callback_ = std::move(serialized_message);
+              is_success_from_callback_ = is_success;
             }),
         base::BindLambdaForTesting(
             [this](MetricLogType log_type, RandomnessServerInfo* server_info) {
@@ -160,6 +171,7 @@ class P3AConstellationHelperTest : public testing::Test {
 
   raw_ptr<RandomnessServerInfo> server_info_from_callback_ = nullptr;
   std::unique_ptr<std::string> serialized_message_from_callback_;
+  bool is_success_from_callback_ = false;
 
   std::string histogram_name_from_callback_;
   uint8_t epoch_from_callback_;
@@ -244,7 +256,9 @@ TEST_F(P3AConstellationHelperTest, GenerateBasicMessage) {
     helper_->StartMessagePreparation(
         kTestHistogramName, log_type,
         GenerateP3AConstellationMessage(kTestHistogramName, test_epoch,
-                                        meta_info, kP3AUploadType));
+                                        meta_info, kP3AUploadType,
+                                        std::nullopt),
+        false);
     task_environment_.RunUntilIdle();
 
     CheckPointsRequestMade(log_type);
@@ -256,6 +270,154 @@ TEST_F(P3AConstellationHelperTest, GenerateBasicMessage) {
     EXPECT_EQ(epoch_from_callback_, test_epoch);
     points_request_made_[log_type] = false;
   }
+}
+
+TEST_F(P3AConstellationHelperTest, IncludeRefcode) {
+  MessageMetainfo meta_info;
+  meta_info.Init(&local_state_, "release", "2022-01-01");
+
+  std::string message_with_no_refcode = GenerateP3AConstellationMessage(
+      kTestHistogramName, 0, meta_info, kP3AUploadType, std::nullopt);
+  std::vector<std::string> no_refcode_layers = base::SplitString(
+      message_with_no_refcode, kP3AMessageConstellationLayerSeparator,
+      base::WhitespaceHandling::TRIM_WHITESPACE,
+      base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  EXPECT_EQ(no_refcode_layers.size(), 8U);
+  EXPECT_FALSE(no_refcode_layers.at(7).starts_with("ref"));
+
+  std::string message_with_refcode = GenerateP3AConstellationMessage(
+      kTestHistogramName, 0, meta_info, kP3AUploadType,
+      MetricConfig{.append_attributes = {MetricAttribute::kRef}});
+  std::vector<std::string> refcode_layers = base::SplitString(
+      message_with_refcode, kP3AMessageConstellationLayerSeparator,
+      base::WhitespaceHandling::TRIM_WHITESPACE,
+      base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  EXPECT_EQ(refcode_layers.size(), 9U);
+  EXPECT_EQ(refcode_layers.at(8), "ref|none");
+
+#if !BUILDFLAG(IS_IOS)
+  local_state_.SetString(kReferralPromoCode, "BRV003");
+  meta_info.Init(&local_state_, "release", "2022-01-01");
+
+  message_with_refcode = GenerateP3AConstellationMessage(
+      kTestHistogramName, 0, meta_info, kP3AUploadType,
+      MetricConfig{.append_attributes = {MetricAttribute::kRef}});
+  refcode_layers = base::SplitString(message_with_refcode,
+                                     kP3AMessageConstellationLayerSeparator,
+                                     base::WhitespaceHandling::TRIM_WHITESPACE,
+                                     base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  EXPECT_EQ(refcode_layers.size(), 9U);
+  EXPECT_EQ(refcode_layers.at(8), "ref|BRV003");
+
+  local_state_.SetString(kReferralPromoCode, "ZRK009");
+  meta_info.Init(&local_state_, "release", "2022-01-01");
+
+  message_with_refcode = GenerateP3AConstellationMessage(
+      kTestHistogramName, 0, meta_info, kP3AUploadType,
+      MetricConfig{.append_attributes = {MetricAttribute::kRef}});
+  refcode_layers = base::SplitString(message_with_refcode,
+                                     kP3AMessageConstellationLayerSeparator,
+                                     base::WhitespaceHandling::TRIM_WHITESPACE,
+                                     base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  EXPECT_EQ(refcode_layers.size(), 9U);
+  EXPECT_EQ(refcode_layers.at(8), "ref|other");
+#endif  // !BUILDFLAG(IS_IOS)
+}
+
+TEST_F(P3AConstellationHelperTest, CustomAttributes) {
+  MessageMetainfo meta_info;
+  meta_info.Init(&local_state_, "release", "2022-01-01");
+
+  // Test with custom attributes list
+  MetricConfig config{.attributes = MetricAttributes{
+                          MetricAttribute::kAnswerIndex,
+                          MetricAttribute::kVersion,
+                          MetricAttribute::kPlatform,
+                          MetricAttribute::kGeneralPlatform,
+                          MetricAttribute::kChannel,
+                          MetricAttribute::kRegion,
+                          MetricAttribute::kSubregion,
+                      }};
+
+  std::string message = GenerateP3AConstellationMessage(
+      kTestHistogramName, 7, meta_info, kP3AUploadType, config);
+
+  std::vector<std::string> layers =
+      base::SplitString(message, kP3AMessageConstellationLayerSeparator,
+                        base::WhitespaceHandling::TRIM_WHITESPACE,
+                        base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  // Verify number of layers matches number of non-null attributes
+  EXPECT_EQ(layers.size(), 8U);
+
+  // Verify each layer's content
+  EXPECT_EQ(layers[0], base::StrCat({"metric_name|", kTestHistogramName}));
+  EXPECT_EQ(layers[1], "metric_value|7");
+  EXPECT_EQ(layers[2], "version|" + meta_info.version());
+  EXPECT_EQ(layers[3], "platform|" + meta_info.platform());
+  EXPECT_EQ(layers[4], "general_platform|" + meta_info.general_platform());
+  EXPECT_EQ(layers[5], "channel|release");
+  EXPECT_EQ(layers[6],
+            base::StrCat({"region|", meta_info.region_identifiers().region}));
+  EXPECT_EQ(
+      layers[7],
+      base::StrCat({"subregion|", meta_info.region_identifiers().sub_region}));
+}
+
+TEST_F(P3AConstellationHelperTest, NebulaMessage) {
+  MessageMetainfo meta_info;
+  meta_info.Init(&local_state_, "release", "2022-01-01");
+
+  std::string message = GenerateP3AConstellationMessage(
+      kTestHistogramName, 3, meta_info, kP3AUploadType,
+      MetricConfig{.nebula = true});
+  std::vector<std::string> no_refcode_layers =
+      base::SplitString(message, kP3AMessageConstellationLayerSeparator,
+                        base::WhitespaceHandling::TRIM_WHITESPACE,
+                        base::SplitResult::SPLIT_WANT_NONEMPTY);
+
+  EXPECT_EQ(no_refcode_layers.size(), 7U);
+  EXPECT_EQ(no_refcode_layers[0],
+            base::StrCat({"metric_name_and_value|", kTestHistogramName, "=3"}));
+}
+
+TEST_F(P3AConstellationHelperTest, NebulaSample) {
+  size_t points_request_count = 0;
+  for (int i = 0; i < 100; i++) {
+    SetUpHelper();
+
+    helper_->UpdateRandomnessServerInfo(MetricLogType::kTypical);
+    task_environment_.RunUntilIdle();
+
+    MessageMetainfo meta_info;
+    meta_info.Init(&local_state_, "release", "2022-01-01");
+
+    helper_->StartMessagePreparation(
+        kTestNebulaHistogramName, MetricLogType::kTypical,
+        GenerateP3AConstellationMessage(kTestNebulaHistogramName,
+                                        kTestTypicalEpoch, meta_info,
+                                        kP3AUploadType, std::nullopt),
+        true);
+    task_environment_.RunUntilIdle();
+
+    if (points_request_made_[MetricLogType::kTypical]) {
+      points_request_made_[MetricLogType::kTypical] = false;
+      points_request_count++;
+      EXPECT_NE(serialized_message_from_callback_, nullptr);
+      EXPECT_NE(serialized_message_from_callback_->size(), 0U);
+    } else {
+      EXPECT_EQ(serialized_message_from_callback_, nullptr);
+    }
+    EXPECT_TRUE(is_success_from_callback_);
+    EXPECT_EQ(epoch_from_callback_, kTestTypicalEpoch);
+    EXPECT_EQ(histogram_name_from_callback_, kTestNebulaHistogramName);
+  }
+  EXPECT_GE(points_request_count, 1u);
+  EXPECT_LE(points_request_count, 25u);
 }
 
 }  // namespace p3a

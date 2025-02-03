@@ -6,6 +6,7 @@
 const path = require('path')
 const webpack = require('webpack')
 const GenerateDepfilePlugin = require('./webpack-plugin-depfile')
+const XHRCompileAsyncWasmPlugin = require('./xhr-compile-async-wasm-plugin.js')
 const { fallback, provideNodeGlobals } = require('./polyfill')
 const pathMap = require('./path-map')(process.env.ROOT_GEN_DIR)
 
@@ -34,7 +35,7 @@ module.exports = async function (env, argv) {
       "Entry point(s) must be provided via env.brave_entries param."
     )
   }
-  const entryInput = env.brave_entries.split(',')
+  const entryInput = env.brave_entries.split(',').sort()
   for (const entryInputItem of entryInput) {
     const entryInputItemParts = entryInputItem.split('=')
     if (entryInputItemParts.length !== 2) {
@@ -49,6 +50,7 @@ module.exports = async function (env, argv) {
   // Webpack config object
   const resolve = {
     extensions: ['.js', '.tsx', '.ts', '.json'],
+    symlinks: false, // If symlinks are used, don't use different IDs for them
     alias: pathMap,
     modules: ['node_modules'],
     fallback
@@ -69,10 +71,25 @@ module.exports = async function (env, argv) {
   const output = {
     path: process.env.TARGET_GEN_DIR,
     filename: '[name].bundle.js',
-    chunkFilename: '[id].chunk.js'
+    chunkFilename: '[name].chunk.js',
+    publicPath: '/'
+  }
+  if (env.output_module) {
+    output.library = { type: 'module' }
   }
   if (env.output_public_path) {
     output.publicPath = env.output_public_path
+  }
+
+  const experiments = {
+    outputModule: Boolean(env.output_module)
+  }
+  if (env.sync_wasm) {
+    experiments.syncWebAssembly = true
+  } else {
+    experiments.asyncWebAssembly = true
+    output.enabledWasmLoadingTypes = [ 'xhr' ]
+    output.wasmLoading = 'xhr'
   }
 
   return {
@@ -81,21 +98,54 @@ module.exports = async function (env, argv) {
     output,
     resolve,
     optimization: {
+      // We are providing chunk and module IDs via a plugin instead of a default
+      chunkIds: false,
+      moduleIds: false,
       // Define NO_CONCATENATE for analyzing module size.
       concatenateModules: !process.env.NO_CONCATENATE
     },
-    experiments: {
-      syncWebAssembly: true
-    },
+    experiments,
+    externals: [
+      function ({ context, request }, callback) {
+        if (env.output_module) {
+          if (/^chrome(\-untrusted)?:\/\//.test(request)) {
+            return callback(null, 'module ' + request);
+          }
+        }
+        callback();
+      },
+    ],
     plugins: [
       process.env.DEPFILE_SOURCE_NAME && new GenerateDepfilePlugin({
         depfilePath: process.env.DEPFILE_PATH,
         depfileSourceName: process.env.DEPFILE_SOURCE_NAME
       }),
+      // Generate module IDs relative to the gen dir since we want identical
+      // output per-platform for mac Universal builds. If they remain relative
+      // to the src/brave working directory then the paths could include the
+      // platform architecture and therefore be different,
+      // e.g. ../out/Release_arm64/gen
+      // We can't use DeterministicModuleIdsPlugin because the
+      // concatenated modules still use a relative path from the source module
+      // it will be concatenated with, which will result in file content
+      // differing with different build configurations. Webpack's
+      // ConcatenatedModule class doesn't use this context configuration for
+      // it's identifier construction.
+      new webpack.ids.NamedModuleIdsPlugin({
+        context: process.env.ROOT_GEN_DIR,
+      }),
+      // NamedChunkIdsPlugin doesn't seem to care if we don't give a common
+      // context - it might if the chunk is directly loaded from the an output
+      // path, so it's being provided anyway. Otherwise, it relies on the IDs of
+      // the chunk's included modules.
+      new webpack.ids.NamedChunkIdsPlugin({
+        context: process.env.ROOT_GEN_DIR,
+      }),
       provideNodeGlobals,
       ...Object.keys(pathMap)
         .filter(p => p.startsWith('chrome://'))
         .map(p => prefixReplacer(p, pathMap[p])),
+      !env.sync_wasm && new XHRCompileAsyncWasmPlugin(),
     ],
     module: {
       rules: [
@@ -146,15 +196,6 @@ module.exports = async function (env, argv) {
             configFile: tsConfigPath
           }
         },
-        // Loads font files for Font Awesome
-        {
-          test: /\.woff(2)?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-          loader: 'url-loader',
-          options: {
-            limit: 13000,
-            mimetype: 'application/font-woff'
-          }
-        },
         {
           test: /\.(ttf|eot|ico|svg|png|jpg|jpeg|gif|webp)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
           loader: 'file-loader'
@@ -167,7 +208,11 @@ module.exports = async function (env, argv) {
           resolve: {
               fullySpecified: false,
           },
-        }
+        },
+        {
+          test: /\.html/,
+          type: 'asset/source',
+        },
       ]
     }
   }

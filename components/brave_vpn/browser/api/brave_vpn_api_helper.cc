@@ -12,7 +12,6 @@
 #include "base/base64.h"
 #include "base/json/values_util.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -99,12 +98,11 @@ base::Value::Dict GetValueWithTicketInfos(
   base::TrimWhitespaceASCII(subject, base::TRIM_ALL, &subject_trimmed);
   base::TrimWhitespaceASCII(body_with_credential, base::TRIM_ALL,
                             &body_trimmed);
-  base::Base64Encode(body_trimmed, &body_encoded);
 
   // required fields
   dict.Set(kSupportTicketEmailKey, email_trimmed);
   dict.Set(kSupportTicketSubjectKey, subject_trimmed);
-  dict.Set(kSupportTicketSupportTicketKey, body_encoded);
+  dict.Set(kSupportTicketSupportTicketKey, base::Base64Encode(body_trimmed));
   dict.Set(kSupportTicketPartnerClientIdKey, "com.brave.browser");
   dict.Set(kSupportTicketTimezoneKey, timezone);
 

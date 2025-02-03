@@ -7,11 +7,11 @@
 #define BRAVE_IOS_BROWSER_API_BRAVE_REWARDS_REWARDS_CLIENT_IOS_H_
 
 #import <Foundation/Foundation.h>
+
 #include <string>
 #include <vector>
 
-#include "brave/components/brave_rewards/common/mojom/rewards_engine.mojom.h"
-
+#include "brave/components/brave_rewards/core/mojom/rewards_engine.mojom.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 
@@ -36,6 +36,10 @@ class RewardsClientIOS : public brave_rewards::mojom::RewardsEngineClient {
   void LoadPublisherState(LoadPublisherStateCallback callback) override;
   void LoadURL(brave_rewards::mojom::UrlRequestPtr request,
                LoadURLCallback callback) override;
+  void GetSPLTokenAccountBalance(
+      const std::string& solana_address,
+      const std::string& token_mint_address,
+      GetSPLTokenAccountBalanceCallback callback) override;
   void Log(const std::string& file,
            int32_t line,
            int32_t verbose_level,
@@ -98,10 +102,7 @@ class RewardsClientIOS : public brave_rewards::mojom::RewardsEngineClient {
                         const std::vector<std::string>& args,
                         ShowNotificationCallback callback) override;
   void GetClientCountryCode(GetClientCountryCodeCallback callback) override;
-  void IsAutoContributeSupportedForClient(
-      IsAutoContributeSupportedForClientCallback callback) override;
   void GetClientInfo(GetClientInfoCallback callback) override;
-  void UnblindedTokensReady() override;
   void ReconcileStampReset() override;
   void RunDBTransaction(brave_rewards::mojom::DBTransactionPtr transaction,
                         RunDBTransactionCallback callback) override;

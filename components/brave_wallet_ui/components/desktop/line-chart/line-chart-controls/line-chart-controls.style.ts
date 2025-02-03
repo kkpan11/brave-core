@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@brave/leo/tokens/css'
+import * as leo from '@brave/leo/tokens/css/variables'
 import Icon from '@brave/leo/react/icon'
 
 // Shared Styles
@@ -25,7 +25,7 @@ export const SelectTimelinButton = styled(WalletButton)`
   cursor: pointer;
   outline: none;
   background: none;
-  border-radius: 48px;
+  border-radius: 8px;
   padding: 6px 10px 6px 18px;
   border: 1px solid var(--button-border);
   font-family: Poppins;

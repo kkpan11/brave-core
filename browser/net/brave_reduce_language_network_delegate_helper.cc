@@ -13,8 +13,9 @@
 #include "base/containers/fixed_flat_set.h"
 #include "base/strings/string_split.h"
 #include "brave/browser/brave_browser_process.h"
-#include "brave/components/brave_shields/browser/brave_farbling_service.h"
-#include "brave/components/brave_shields/browser/brave_shields_util.h"
+#include "brave/browser/brave_shields/brave_farbling_service_factory.h"
+#include "brave/components/brave_shields/content/browser/brave_farbling_service.h"
+#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -33,15 +34,17 @@ constexpr char kAcceptLanguageMax[] = "en-US,en;q=0.9";
 const std::array<std::string, 5> kFakeQValues = {";q=0.5", ";q=0.6", ";q=0.7",
                                                  ";q=0.8", ";q=0.9"};
 static constexpr auto kFarbleAcceptLanguageExceptions =
-    base::MakeFixedFlatSetSorted<std::string_view>({
-        // https://github.com/brave/brave-browser/issues/26325
-        "aeroplan.rewardops.com",
-        // https://github.com/brave/brave-browser/issues/31196
-        "login.live.com",
-        // https://github.com/brave/brave-browser/issues/25309
-        "ulta.com",
-        "www.ulta.com",
-    });
+    base::MakeFixedFlatSet<std::string_view>(
+        base::sorted_unique,
+        {
+            // https://github.com/brave/brave-browser/issues/26325
+            "aeroplan.rewardops.com",
+            // https://github.com/brave/brave-browser/issues/31196
+            "login.live.com",
+            // https://github.com/brave/brave-browser/issues/25309
+            "ulta.com",
+            "www.ulta.com",
+        });
 }  // namespace
 
 std::string FarbleAcceptLanguageHeader(
@@ -61,11 +64,15 @@ std::string FarbleAcceptLanguageHeader(
   }
   // Add a fake q value after the language code.
   brave::FarblingPRNG prng;
-  if (g_brave_browser_process->brave_farbling_service()
-          ->MakePseudoRandomGeneratorForURL(
-              origin_url, profile && profile->IsOffTheRecord(), &prng)) {
+
+  auto* brave_farbling_service =
+      BraveFarblingServiceFactory::GetForProfile(profile);
+  if (brave_farbling_service &&
+      brave_farbling_service->MakePseudoRandomGeneratorForURL(origin_url,
+                                                              &prng)) {
     accept_language_string += kFakeQValues[prng() % kFakeQValues.size()];
   }
+
   return accept_language_string;
 }
 

@@ -5,11 +5,14 @@
 
 #include "brave/browser/ui/webui/settings/default_brave_shields_handler.h"
 
-#include <string>
+#include <utility>
 
 #include "base/functional/bind.h"
 #include "base/values.h"
-#include "brave/components/brave_shields/browser/brave_shields_util.h"
+#include "brave/browser/webcompat_reporter/webcompat_reporter_service_factory.h"
+#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
+#include "brave/components/brave_shields/core/common/features.h"
+#include "brave/components/webcompat_reporter/browser/webcompat_reporter_service.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
@@ -98,9 +101,24 @@ void DefaultBraveShieldsHandler::RegisterMessages() {
       base::BindRepeating(
           &DefaultBraveShieldsHandler::SetForgetFirstPartyStorageEnabled,
           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "setContactInfoSaveFlag",
+      base::BindRepeating(&DefaultBraveShieldsHandler::SetContactInfoSaveFlag,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "getContactInfo",
+      base::BindRepeating(&DefaultBraveShieldsHandler::GetContactInfo,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "getHideBlockAllCookieTogle",
+      base::BindRepeating(
+          &DefaultBraveShieldsHandler::GetHideBlockAllCookieFlag,
+          base::Unretained(this)));
 
   content_settings_observation_.Observe(
       HostContentSettingsMapFactory::GetForProfile(profile_));
+  cookie_settings_observation_.Observe(
+      CookieSettingsFactory::GetForProfile(profile_).get());
 }
 
 void DefaultBraveShieldsHandler::OnContentSettingChanged(
@@ -127,6 +145,14 @@ void DefaultBraveShieldsHandler::OnContentSettingChanged(
     return;
   }
 
+  if (!IsJavascriptAllowed()) {
+    return;
+  }
+  FireWebUIListener("brave-shields-settings-changed");
+}
+
+void DefaultBraveShieldsHandler::OnThirdPartyCookieBlockingChanged(
+    bool block_third_party_cookies) {
   if (!IsJavascriptAllowed()) {
     return;
   }
@@ -194,6 +220,23 @@ void DefaultBraveShieldsHandler::GetCookieControlType(
   AllowJavascript();
   ResolveJavascriptCallback(args[0].Clone(),
                             base::Value(ControlTypeToString(setting)));
+}
+
+void DefaultBraveShieldsHandler::GetHideBlockAllCookieFlag(
+    const base::Value::List& args) {
+  CHECK_EQ(args.size(), 1U);
+  CHECK(profile_);
+  const ControlType setting = brave_shields::GetCookieControlType(
+      HostContentSettingsMapFactory::GetForProfile(profile_),
+      CookieSettingsFactory::GetForProfile(profile_).get(), GURL());
+
+  const bool block_all_cookies_feature_enabled = base::FeatureList::IsEnabled(
+      brave_shields::features::kBlockAllCookiesToggle);
+
+  AllowJavascript();
+  ResolveJavascriptCallback(args[0].Clone(),
+                            base::Value(setting != ControlType::BLOCK &&
+                                        !block_all_cookies_feature_enabled));
 }
 
 void DefaultBraveShieldsHandler::SetCookieControlType(
@@ -293,10 +336,58 @@ void DefaultBraveShieldsHandler::SetNoScriptControlType(
       g_browser_process->local_state());
 }
 
+void DefaultBraveShieldsHandler::SetContactInfoSaveFlag(
+    const base::Value::List& args) {
+  CHECK_EQ(args.size(), 1U);
+  CHECK(profile_);
+  if (!args[0].is_bool()) {
+    return;
+  }
+  bool value = args[0].GetBool();
+
+  auto* webcompat_reporter_service =
+      webcompat_reporter::WebcompatReporterServiceFactory::GetServiceForContext(
+          profile_);
+  if (webcompat_reporter_service) {
+    webcompat_reporter_service->SetContactInfoSaveFlag(value);
+  }
+}
+
+void DefaultBraveShieldsHandler::GetContactInfo(const base::Value::List& args) {
+  CHECK_EQ(args.size(), 1U);
+  CHECK(profile_);
+  AllowJavascript();
+
+  auto* webcompat_reporter_service =
+      webcompat_reporter::WebcompatReporterServiceFactory::GetServiceForContext(
+          profile_);
+  if (!webcompat_reporter_service) {
+    base::Value::Dict params_dict;
+    params_dict.Set("contactInfo", "");
+    params_dict.Set("contactInfoSaveFlag", false);
+    ResolveJavascriptCallback(args[0].Clone(), std::move(params_dict));
+    return;
+  }
+
+  webcompat_reporter_service->GetContactInfo(
+      base::BindOnce(&DefaultBraveShieldsHandler::OnGetContactInfo,
+                     weak_ptr_factory_.GetWeakPtr(), args[0].Clone()));
+}
+void DefaultBraveShieldsHandler::OnGetContactInfo(
+    base::Value javascript_callback,
+    const std::optional<std::string>& contact_info,
+    const bool contact_info_save_flag) {
+  base::Value::Dict params_dict;
+  params_dict.Set("contactInfo", contact_info.value_or(""));
+  params_dict.Set("contactInfoSaveFlag", contact_info_save_flag);
+  ResolveJavascriptCallback(javascript_callback, std::move(params_dict));
+}
+
 void DefaultBraveShieldsHandler::SetForgetFirstPartyStorageEnabled(
     const base::Value::List& args) {
   CHECK_EQ(args.size(), 1U);
   CHECK(profile_);
+
   bool value = args[0].GetBool();
 
   brave_shields::SetForgetFirstPartyStorageEnabled(

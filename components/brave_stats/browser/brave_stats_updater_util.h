@@ -22,13 +22,17 @@ enum class ProcessArch {
 
 std::string GetDateAsYMD(const base::Time& time);
 
+// Returns platform with architecture information i.e. winx64-bc, osxarm64-bc
 std::string GetPlatformIdentifier();
+
+// Returns platform without architecture information i.e. windows, macos
+std::string GetGeneralPlatformIdentifier();
 
 int GetIsoWeekNumber(const base::Time& time);
 
 base::Time GetLastMondayTime(const base::Time& time);
 
-base::Time GetYMDAsDate(const std::string_view ymd);
+base::Time GetYMDAsDate(std::string_view ymd);
 
 std::string GetAPIKey();
 

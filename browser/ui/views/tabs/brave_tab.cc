@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "brave/browser/ui/tabs/brave_tab_layout_constants.h"
 #include "brave/browser/ui/tabs/brave_tab_prefs.h"
@@ -15,31 +16,15 @@
 #include "brave/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "brave/browser/ui/views/frame/vertical_tab_strip_widget_delegate_view.h"
 #include "brave/browser/ui/views/tabs/vertical_tab_utils.h"
-#include "brave/browser/ui/views/view_shadow.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/tabs/alert_indicator_button.h"
 #include "chrome/browser/ui/views/tabs/tab_close_button.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_controller.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/paint_recorder.h"
 #include "ui/gfx/favicon_size.h"
-#include "ui/gfx/skia_paint_util.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/view_class_properties.h"
-
-namespace {
-
-constexpr ViewShadow::ShadowParameters kShadow{
-    .offset_x = 0,
-    .offset_y = 1,
-    .blur_radius = 4,
-    .shadow_color = SkColorSetA(SK_ColorBLACK, 0.07 * 255)};
-
-}  // namespace
-
-BraveTab::BraveTab(TabSlotController* controller) : Tab(controller) {}
 
 BraveTab::~BraveTab() = default;
 
@@ -50,7 +35,7 @@ std::u16string BraveTab::GetTooltipText(const gfx::Point& p) const {
     return Tab::GetTooltipText(data_.title,
                                GetAlertStateToShow(data_.alert_state));
   }
-  return Tab::GetTooltipText(p);
+  return Tab::GetCachedTooltipText();
 }
 
 int BraveTab::GetWidthOfLargestSelectableRegion() const {
@@ -76,8 +61,6 @@ void BraveTab::ActiveStateChanged() {
   // see comment on UpdateEnabledForMuteToggle();
   // https://github.com/brave/brave-browser/issues/23476/
   alert_indicator_button_->UpdateEnabledForMuteToggle();
-
-  UpdateShadowForActiveTab();
 }
 
 std::optional<SkColor> BraveTab::GetGroupColor() const {
@@ -117,8 +100,8 @@ void BraveTab::UpdateIconVisibility() {
   }
 }
 
-void BraveTab::Layout() {
-  Tab::Layout();
+void BraveTab::Layout(PassKey) {
+  LayoutSuperclass<Tab>(this);
   if (IsAtMinWidthForVerticalTabStrip()) {
     if (showing_close_button_) {
       close_button_->SetX(GetLocalBounds().CenterPoint().x() -
@@ -133,21 +116,12 @@ void BraveTab::Layout() {
 }
 
 gfx::Insets BraveTab::GetInsets() const {
-  // Supplement extra left side padding.
-  // Upstream gives extra padding to balance with right side padding space but
-  // it's gone when tab doesn't have sufficient available width. In our case,
-  // As we have more narrow left & right padding than upstream, icon seems stick
-  // to left side when extra padding is not used.
-  // We only need to do that when |extra_padding_before_content_| is false.
-  int extra_left_padding = 0;
-
-  // Add extra padding if upstream tab doesn't have it.
-  if (!extra_padding_before_content_) {
-    extra_left_padding = kExtraLeftPadding;
-  }
-
+  // As close button has more padding, it seems favicon is too close to the left
+  // edge of the tab left border comppared with close button. Give additional
+  // left padding to make both visible with same space from tab border.
+  // See https://www.github.com/brave/brave-browser/issues/30469.
   auto insets = Tab::GetInsets();
-  insets.set_left(insets.left() + extra_left_padding);
+  insets.set_left(insets.left() + kExtraLeftPadding);
   return insets;
 }
 
@@ -177,28 +151,19 @@ bool BraveTab::IsAtMinWidthForVerticalTabStrip() const {
          width() <= tabs::kVerticalTabMinWidth;
 }
 
-void BraveTab::UpdateShadowForActiveTab() {
-  bool can_render_shadows =
-      tabs::features::HorizontalTabsUpdateEnabled() ||
-      tabs::utils::ShouldShowVerticalTabs(controller()->GetBrowser());
+void BraveTab::SetData(TabRendererData data) {
+  const bool data_changed = data != data_;
+  Tab::SetData(std::move(data));
 
-  if (IsActive() && can_render_shadows) {
-    if (!view_shadow_) {
-      view_shadow_ = std::make_unique<ViewShadow>(
-          this, tabs::GetTabCornerRadius(*this), kShadow);
-      layer()->SetFillsBoundsOpaquely(false);
-    }
-
-    gfx::Insets shadow_insets;
-    if (!tabs::utils::ShouldShowVerticalTabs(controller()->GetBrowser())) {
-      // For horizontal tabs, inset the shadow layer to match the visual rounded
-      // rectangle of the tab, which is inset from the tab view.
-      shadow_insets = gfx::Insets::VH(brave_tabs::kHorizontalTabVerticalSpacing,
-                                      brave_tabs::kHorizontalTabInset);
-    }
-    view_shadow_->SetInsets(shadow_insets);
-  } else if (view_shadow_) {
-    view_shadow_.reset();
-    DestroyLayer();
+  // Our vertical tab uses CompoundTabContainer.
+  // When tab is moved from the group by pinning, it's moved to
+  // pinned TabContainerImpl before its tab group id is cleared.
+  // And it causes runtime crash as using this tab from pinned TabContainerImpl
+  // has assumption that it's not included in any group.
+  // So, clear in-advance when tab enters to pinned TabContainerImpl.
+  if (data_changed &&
+      tabs::utils::ShouldShowVerticalTabs(controller()->GetBrowser()) &&
+      data_.pinned) {
+    SetGroup(std::nullopt);
   }
 }

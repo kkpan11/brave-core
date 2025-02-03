@@ -18,8 +18,8 @@
 #include "brave/components/brave_ads/core/public/ad_units/new_tab_page_ad/new_tab_page_ad_info.h"
 #include "brave/components/brave_referrals/browser/brave_referrals_service.h"
 #include "brave/components/brave_referrals/common/pref_names.h"
-#include "brave/components/brave_rewards/common/pref_names.h"
-#include "brave/components/brave_rewards/common/pref_registry.h"
+#include "brave/components/brave_rewards/core/pref_names.h"
+#include "brave/components/brave_rewards/core/pref_registry.h"
 #include "brave/components/constants/pref_names.h"
 #include "brave/components/ntp_background_images/browser/features.h"
 #include "brave/components/ntp_background_images/browser/ntp_background_images_data.h"
@@ -31,7 +31,6 @@
 #include "brave/components/ntp_background_images/buildflags/buildflags.h"
 #include "brave/components/ntp_background_images/common/pref_names.h"
 #include "build/build_config.h"
-#include "chrome/test/base/testing_profile.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -55,12 +54,9 @@ constexpr char kFirstCreativeInstanceId[] =
 constexpr char kAltText[] = "Technikke: For music lovers.";
 constexpr char kCompanyName[] = "Technikke";
 constexpr char kLogoImageFile[] = "logo_image.png";
-constexpr char kLogoImageUrl[] = "https://static.bave.com/logos/logo_image.png";
 constexpr char kDestinationUrl[] = "https://brave.com";
 constexpr char kCreativeInstanceId[] = "c0d61af3-3b85-4af4-a3cc-cf1b3dd40e70";
 constexpr char kSponsoredImageFile[] = "wallpaper2.jpg";
-constexpr char kSponsoredImageUrl[] =
-    "https://static.bave.com/image/wallpaper2.jpg";
 constexpr int kSponsoredImageFocalPointX = 5233;
 constexpr int kSponsoredImageFocalPointY = 3464;
 
@@ -221,18 +217,12 @@ class NTPBackgroundImagesViewCounterTest : public testing::Test {
     ad_info.creative_instance_id = kCreativeInstanceId;
     ad_info.company_name = kCompanyName;
     ad_info.alt = kAltText;
-    ad_info.image_url = GURL(kLogoImageUrl);
     ad_info.target_url = GURL(kDestinationUrl);
-    brave_ads::NewTabPageAdWallpaperInfo wallpaper_info;
-    wallpaper_info.image_url = GURL(kSponsoredImageUrl);
-    wallpaper_info.focal_point.x = kSponsoredImageFocalPointX;
-    wallpaper_info.focal_point.y = kSponsoredImageFocalPointY;
-    ad_info.wallpapers.push_back(wallpaper_info);
     return ad_info;
   }
 
   int GetInitialCountToBrandedWallpaper() const {
-    return features::kInitialCountToBrandedWallpaper.Get();
+    return features::kInitialCountToBrandedWallpaper.Get() - 1;
   }
 
   std::optional<base::Value::Dict> TryGetFirstSponsoredImageWallpaper() {
@@ -266,7 +256,7 @@ class NTPBackgroundImagesViewCounterTest : public testing::Test {
 #endif
 
   std::unique_ptr<ViewCounterService> view_counter_;
-  brave_ads::AdsServiceMock ads_service_mock_;
+  brave_ads::AdsServiceMock ads_service_mock_{nullptr};
 };
 
 TEST_F(NTPBackgroundImagesViewCounterTest, SINotActiveInitially) {
@@ -360,7 +350,7 @@ TEST_F(NTPBackgroundImagesViewCounterTest, IsActiveOptedIn) {
 TEST_F(NTPBackgroundImagesViewCounterTest, PrefsWithModelTest) {
   auto& model = view_counter_->model_;
 
-  EXPECT_EQ(features::kInitialCountToBrandedWallpaper.Get(),
+  EXPECT_EQ(features::kInitialCountToBrandedWallpaper.Get() - 1,
             model.show_branded_wallpaper_);
   EXPECT_TRUE(model.show_wallpaper_);
   EXPECT_TRUE(model.show_branded_wallpaper_);
@@ -417,27 +407,27 @@ TEST_F(NTPBackgroundImagesViewCounterTest, GetCurrentWallpaperTest) {
   service_->bi_images_data_ = GetDemoBackgroundWallpaper();
   EXPECT_TRUE(view_counter_->IsBackgroundWallpaperActive());
   auto background = view_counter_->GetCurrentWallpaper();
-  std::string* bg_url = background->FindString(kWallpaperImageURLKey);
+  std::string* bg_url = background->FindString(kWallpaperURLKey);
   EXPECT_EQ("chrome://background-wallpaper/wallpaper1.jpg", *bg_url);
 
 #if BUILDFLAG(ENABLE_CUSTOM_BACKGROUND)
   // Enable custom image background.
   delegate_->image_enabled_ = true;
   background = view_counter_->GetCurrentWallpaper();
-  bg_url = background->FindString(kWallpaperImageURLKey);
-  EXPECT_TRUE(base::StartsWith(*bg_url, kCustomWallpaperURL))
+  bg_url = background->FindString(kWallpaperURLKey);
+  EXPECT_TRUE(bg_url->starts_with(kCustomWallpaperURL))
       << "actual url " << *bg_url;
 
   // Disable custom image background.
   delegate_->image_enabled_ = false;
   background = view_counter_->GetCurrentWallpaper();
-  bg_url = background->FindString(kWallpaperImageURLKey);
+  bg_url = background->FindString(kWallpaperURLKey);
   EXPECT_EQ("chrome://background-wallpaper/wallpaper1.jpg", *bg_url);
 
   // Enable color background
   delegate_->color_enabled_ = true;
   background = view_counter_->GetCurrentWallpaper();
-  EXPECT_FALSE(background->FindString(kWallpaperImageURLKey));
+  EXPECT_FALSE(background->FindString(kWallpaperURLKey));
   EXPECT_EQ(delegate_->GetColor(), *background->FindString(kWallpaperColorKey));
 #endif
 }
@@ -448,7 +438,7 @@ TEST_F(NTPBackgroundImagesViewCounterTest,
 
   prefs()->SetBoolean(brave_rewards::prefs::kEnabled, false);
 
-  EXPECT_CALL(ads_service_mock_, GetPrefetchedNewTabPageAdForDisplay())
+  EXPECT_CALL(ads_service_mock_, MaybeGetPrefetchedNewTabPageAdForDisplay())
       .Times(0);
   EXPECT_CALL(ads_service_mock_, PrefetchNewTabPageAd()).Times(0);
 
@@ -469,7 +459,7 @@ TEST_F(NTPBackgroundImagesViewCounterTest, SponsoredImageAdFrequencyCapped) {
 
   prefs()->SetBoolean(brave_rewards::prefs::kEnabled, true);
 
-  EXPECT_CALL(ads_service_mock_, GetPrefetchedNewTabPageAdForDisplay())
+  EXPECT_CALL(ads_service_mock_, MaybeGetPrefetchedNewTabPageAdForDisplay())
       .WillOnce(Return(std::nullopt));
   EXPECT_CALL(ads_service_mock_, PrefetchNewTabPageAd())
       .Times(GetInitialCountToBrandedWallpaper());
@@ -493,7 +483,7 @@ TEST_F(NTPBackgroundImagesViewCounterTest, SponsoredImageAdServed) {
 
   prefs()->SetBoolean(brave_rewards::prefs::kEnabled, true);
 
-  EXPECT_CALL(ads_service_mock_, GetPrefetchedNewTabPageAdForDisplay())
+  EXPECT_CALL(ads_service_mock_, MaybeGetPrefetchedNewTabPageAdForDisplay())
       .WillOnce(Return(ad_info));
   EXPECT_CALL(ads_service_mock_, PrefetchNewTabPageAd())
       .Times(GetInitialCountToBrandedWallpaper());
@@ -522,7 +512,7 @@ TEST_F(NTPBackgroundImagesViewCounterTest, WrongSponsoredImageAdServed) {
 
   prefs()->SetBoolean(brave_rewards::prefs::kEnabled, true);
 
-  EXPECT_CALL(ads_service_mock_, GetPrefetchedNewTabPageAdForDisplay())
+  EXPECT_CALL(ads_service_mock_, MaybeGetPrefetchedNewTabPageAdForDisplay())
       .WillOnce(Return(ad_info));
   EXPECT_CALL(ads_service_mock_, PrefetchNewTabPageAd())
       .Times(GetInitialCountToBrandedWallpaper());

@@ -7,9 +7,11 @@
 #define BRAVE_IOS_BROWSER_API_BRAVE_REWARDS_REWARDS_CLIENT_BRIDGE_H_
 
 #import <Foundation/Foundation.h>
+
 #include <string>
 #include <vector>
-#include "brave/components/brave_rewards/common/mojom/rewards_engine.mojom.h"
+
+#include "brave/components/brave_rewards/core/mojom/rewards_engine.mojom.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -124,9 +126,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)getClientCountryCode:
     (brave_rewards::mojom::RewardsEngineClient::GetClientCountryCodeCallback)
         callback;
-- (void)isAutoContributeSupportedForClient:
-    (brave_rewards::mojom::RewardsEngineClient::
-         IsAutoContributeSupportedForClientCallback)callback;
 - (void)legacyWallet:
     (brave_rewards::mojom::RewardsEngineClient::GetLegacyWalletCallback)
         callback;
@@ -136,7 +135,6 @@ NS_ASSUME_NONNULL_BEGIN
                               ShowNotificationCallback)callback;
 - (void)clientInfo:
     (brave_rewards::mojom::RewardsEngineClient::GetClientInfoCallback)callback;
-- (void)unblindedTokensReady;
 - (void)reconcileStampReset;
 - (void)runDbTransaction:(brave_rewards::mojom::DBTransactionPtr)transaction
                 callback:(brave_rewards::mojom::RewardsEngineClient::

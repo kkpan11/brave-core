@@ -19,7 +19,6 @@ import {
 } from './entities/network.entity'
 
 // api
-import { apiProxyFetcher } from '../async/base-query-cache'
 import { createWalletApiBase } from './api-base.slice'
 import { transactionSimulationEndpoints } from './endpoints/tx-simulation.endpoints'
 import { braveRewardsApiEndpoints } from './endpoints/rewards.endpoints'
@@ -46,6 +45,12 @@ import { tokenBalancesEndpoints } from './endpoints/token_balances.endpoints'
 import { fiatCurrencyEndpoints } from './endpoints/fiat_currency.endpoints'
 import { sitePermissionEndpoints } from './endpoints/site_permissions.endpoints'
 import { transactionEndpoints } from './endpoints/transaction.endpoints'
+import { swapEndpoints } from './endpoints/swap.endpoints'
+import { encryptionEndpoints } from './endpoints/encryption.endpoints'
+import { signingEndpoints } from './endpoints/signing.endpoints'
+import { dappRadarEndpoints } from './endpoints/dapp_radar.endpoints'
+import { meldIntegrationEndpoints } from './endpoints/meld_integration.endpoints'
+import { zcashEndpoints } from './endpoints/zcash.endpoints'
 
 export function createWalletApi() {
   // base to add endpoints to
@@ -92,14 +97,14 @@ export function createWalletApi() {
         endpoints: ({ mutation, query }) => ({
           openPanelUI: mutation<boolean, void>({
             queryFn(arg, api, extraOptions, baseQuery) {
-              const { panelHandler } = apiProxyFetcher()
+              const { panelHandler } = baseQuery(undefined).data
               panelHandler?.showUI()
               return { data: true }
             }
           }),
           closePanelUI: mutation<boolean, void>({
             queryFn(arg, api, extraOptions, baseQuery) {
-              const { panelHandler } = apiProxyFetcher()
+              const { panelHandler } = baseQuery(undefined).data
               panelHandler?.closeUI()
               return { data: true }
             }
@@ -146,6 +151,18 @@ export function createWalletApi() {
       .injectEndpoints({ endpoints: fiatCurrencyEndpoints })
       // Site permission (connected accounts) endpoints
       .injectEndpoints({ endpoints: sitePermissionEndpoints })
+      // Brave Swap endpoints
+      .injectEndpoints({ endpoints: swapEndpoints })
+      // Encryption endpoints
+      .injectEndpoints({ endpoints: encryptionEndpoints })
+      // Message Signing endpoints
+      .injectEndpoints({ endpoints: signingEndpoints })
+      // dApp Radar Endpoints
+      .injectEndpoints({ endpoints: dappRadarEndpoints })
+      // meld integration endpoints
+      .injectEndpoints({ endpoints: meldIntegrationEndpoints })
+      // zcash endpoints
+      .injectEndpoints({ endpoints: zcashEndpoints })
   )
 }
 
@@ -157,6 +174,8 @@ export const {
   reducer: walletApiReducer,
   reducerPath: walletApiReducerPath,
   // hooks
+  useAcknowledgePendingAddChainRequestMutation,
+  useAcknowledgeSwitchChainRequestMutation,
   useAddAccountMutation,
   useAddUserTokenMutation,
   useApproveERC20AllowanceMutation,
@@ -170,92 +189,106 @@ export const {
   useCompleteWalletBackupMutation,
   useConnectToSiteMutation,
   useCreateWalletMutation,
+  useDiscoverAssetsMutation,
   useEnableEnsOffchainLookupMutation,
   useGenerateReceiveAddressMutation,
+  useGenerateSwapQuoteMutation,
+  useGenerateSwapTransactionMutation,
   useGetAccountInfosRegistryQuery,
   useGetAccountTokenCurrentBalanceQuery,
   useGetActiveOriginConnectedAccountIdsQuery,
+  useGetActiveOriginQuery,
   useGetAddressByteCodeQuery,
   useGetAddressFromNameServiceUrlQuery,
   useGetAllKnownNetworksQuery,
-  useGetAutopinEnabledQuery,
+  useGetBitcoinBalancesQuery,
   useGetBuyUrlQuery,
+  useGetChainTipStatusQuery,
   useGetCoingeckoIdQuery,
   useGetCoinMarketQuery,
   useGetDefaultEthereumWalletQuery,
   useGetDefaultFiatCurrencyQuery,
   useGetDefaultSolanaWalletQuery,
   useGetERC20AllowanceQuery,
-  useGetERC721MetadataQuery,
   useGetEthAddressChecksumQuery,
   useGetEVMTransactionSimulationQuery,
-  useGetExternalRewardsWalletQuery,
   useGetFVMAddressQuery,
   useGetGasEstimation1559Query,
   useGetHardwareAccountDiscoveryBalanceQuery,
+  useGetHasTransactionSimulationSupportQuery,
   useGetIpfsGatewayTranslatedNftUrlQuery,
-  useGetIPFSUrlFromGatewayLikeUrlQuery,
   useGetIsBase58EncodedSolPubkeyQuery,
   useGetIsMetaMaskInstalledQuery,
+  useGetIsPrivateWindowQuery,
+  useGetIsShieldingAvailableQuery,
+  useGetIsTokenOwnedByUserQuery,
   useGetIsTxSimulationOptInStatusQuery,
   useGetIsWalletBackedUpQuery,
-  useGetLocalIpfsNodeStatusQuery,
   useGetNetworksRegistryQuery,
+  useGetNftAssetIdsByCollectionRegistryQuery,
   useGetNftDiscoveryEnabledStatusQuery,
   useGetNftMetadataQuery,
-  useGetNftPinningStatusQuery,
-  useGetNftsPinningStatusQuery,
+  useGetNftOwnerQuery,
   useGetOffRampAssetsQuery,
   useGetOnRampAssetsQuery,
   useGetOnRampFiatCurrenciesQuery,
+  useGetPendingAddChainRequestQuery,
+  useGetPendingDecryptRequestQuery,
+  useGetPendingGetEncryptionPublicKeyRequestQuery,
+  useGetPendingSignSolTransactionsRequestsQuery,
+  useGetPendingSignMessageErrorsQuery,
+  useGetPendingSignMessageRequestsQuery,
+  useGetPendingSwitchChainRequestQuery,
   useGetPendingTokenSuggestionRequestsQuery,
   useGetPriceHistoryQuery,
   useGetPricesHistoryQuery,
   useGetQrCodeImageQuery,
-  useGetRewardsBalanceQuery,
-  useGetRewardsEnabledQuery,
+  useGetRewardsInfoQuery,
   useGetSelectedAccountIdQuery,
   useGetSelectedChainQuery,
   useGetSimpleHashSpamNftsQuery,
   useGetSolanaEstimatedFeeQuery,
   useGetSolanaTransactionSimulationQuery,
+  useGetSolanaSignTransactionsRequestSimulationQuery,
   useGetSwapSupportedNetworksQuery,
   useGetTokenBalancesForChainIdQuery,
   useGetTokenBalancesRegistryQuery,
   useGetTokenInfoQuery,
   useGetTokenSpotPricesQuery,
   useGetTokensRegistryQuery,
+  useGetTopDappsQuery,
+  useGetTransactionQuery,
   useGetTransactionsQuery,
   useGetUserTokensRegistryQuery,
   useGetWalletsToImportQuery,
+  useGetZCashAccountInfoQuery,
   useHideNetworksMutation,
   useImportAccountFromJsonMutation,
   useImportAccountMutation,
+  useImportBtcAccountMutation,
+  useImportFilAccountMutation,
   useImportFromCryptoWalletsMutation,
   useImportFromMetaMaskMutation,
+  useImportHardwareAccountsMutation,
   useInvalidateAccountInfosMutation,
   useInvalidateSelectedAccountMutation,
   useInvalidateTransactionsCacheMutation,
-  useIsEip1559ChangedMutation,
   useLazyGetAccountInfosRegistryQuery,
   useLazyGetAccountTokenCurrentBalanceQuery,
   useLazyGetAddressByteCodeQuery,
   useLazyGetAllKnownNetworksQuery,
+  useLazyGetBitcoinBalancesQuery,
   useLazyGetBuyUrlQuery,
+  useLazyGetChainTipStatusQuery,
   useLazyGetDefaultFiatCurrencyQuery,
   useLazyGetERC20AllowanceQuery,
-  useLazyGetERC721MetadataQuery,
   useLazyGetEVMTransactionSimulationQuery,
-  useLazyGetExternalRewardsWalletQuery,
   useLazyGetGasEstimation1559Query,
-  useLazyGetIpfsGatewayTranslatedNftUrlQuery,
-  useLazyGetIPFSUrlFromGatewayLikeUrlQuery,
   useLazyGetIsTxSimulationOptInStatusQuery,
+  useLazyGetIsShieldingAvailableQuery,
   useLazyGetNetworksRegistryQuery,
   useLazyGetNftDiscoveryEnabledStatusQuery,
   useLazyGetPendingTokenSuggestionRequestsQuery,
-  useLazyGetRewardsBalanceQuery,
-  useLazyGetRewardsEnabledQuery,
   useLazyGetSelectedAccountIdQuery,
   useLazyGetSelectedChainQuery,
   useLazyGetSellAssetUrlQuery,
@@ -268,16 +301,23 @@ export const {
   useLazyGetTokensRegistryQuery,
   useLazyGetTransactionsQuery,
   useLazyGetUserTokensRegistryQuery,
+  useLazyGetZCashAccountInfoQuery,
   useLockWalletMutation,
+  useMakeAccountShieldedMutation,
   useNewUnapprovedTxAddedMutation,
   useOpenPanelUIMutation,
   usePrefetch,
+  useProcessPendingDecryptRequestMutation,
+  useProcessPendingGetEncryptionPublicKeyRequestMutation,
+  useProcessSignSolTransactionsRequestHardwareMutation,
+  useProcessSignSolTransactionsRequestMutation,
+  useProcessSignMessageErrorMutation,
+  useProcessSignMessageRequestMutation,
   useRefreshNetworkInfoMutation,
   useRejectTransactionsMutation,
   useRemoveAccountMutation,
   useRemoveSitePermissionMutation,
   useRemoveUserTokenMutation,
-  useReportActiveWalletsToP3AMutation,
   useReportOnboardingActionMutation,
   useRequestSitePermissionMutation,
   useRestoreNetworksMutation,
@@ -289,28 +329,39 @@ export const {
   useSendETHFilForwarderTransferMutation,
   useSendEvmTransactionMutation,
   useSendFilTransactionMutation,
+  useSendSolanaSerializedTransactionMutation,
   useSendSolTransactionMutation,
   useSendSPLTransferMutation,
   useSendZecTransactionMutation,
-  useSetAutopinEnabledMutation,
+  useSetAutoLockMinutesMutation,
   useSetDefaultFiatCurrencyMutation,
   useSetIsTxSimulationOptInStatusMutation,
   useSetNetworkMutation,
   useSetNftDiscoveryEnabledMutation,
   useSetSelectedAccountMutation,
   useShowRecoveryPhraseMutation,
+  useSignMessageHardwareMutation,
   useSpeedupTransactionMutation,
+  useStartShieldSyncMutation,
+  useStopShieldSyncMutation,
   useTransactionStatusChangedMutation,
   useUnapprovedTxUpdatedMutation,
   useUnlockWalletMutation,
   useUpdateAccountNameMutation,
   useUpdateNftSpamStatusMutation,
-  useUpdateNftsPinningStatusMutation,
   useUpdateUnapprovedTransactionGasFieldsMutation,
   useUpdateUnapprovedTransactionNonceMutation,
   useUpdateUnapprovedTransactionSpendAllowanceMutation,
   useUpdateUserAssetVisibleMutation,
-  useUpdateUserTokenMutation
+  useUpdateUserTokenMutation,
+  useValidateUnifiedAddressQuery,
+  useGetMeldFiatCurrenciesQuery,
+  useGetMeldCryptoCurrenciesQuery,
+  useGetMeldCountriesQuery,
+  useGetMeldServiceProvidersQuery,
+  useGetMeldPaymentMethodsQuery,
+  useGenerateMeldCryptoQuotesMutation,
+  useCreateMeldBuyWidgetMutation
 } = walletApi
 
 // Derived Data Queries
@@ -368,7 +419,7 @@ export const useGetOnRampNetworksQuery = (opts?: { skip?: boolean }) => {
 }
 
 export const useGetVisibleNetworksQuery = (
-  arg?: undefined,
+  arg?: undefined | typeof skipToken,
   opts?: { skip?: boolean }
 ) => {
   const queryResults = useGetNetworksRegistryQuery(arg, {

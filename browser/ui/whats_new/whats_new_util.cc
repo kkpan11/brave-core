@@ -5,11 +5,11 @@
 
 #include "brave/browser/ui/whats_new/whats_new_util.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 
 #include "base/metrics/field_trial_params.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/version.h"
@@ -39,12 +39,10 @@ double g_testing_major_version = 0;
 std::optional<double> GetBraveMajorVersionAsDouble(
     const base::Version& version) {
   double brave_major_version;
-  if (!base::StringToDouble(base::StringPrintf("%d.%d", version.components()[1],
-                                               version.components()[2]),
-                            &brave_major_version)) {
-    return std::nullopt;
-  }
-
+  CHECK(
+      base::StringToDouble(base::StringPrintf("%d.%d", version.components()[1],
+                                              version.components()[2]),
+                           &brave_major_version));
   return brave_major_version;
 }
 
@@ -55,8 +53,8 @@ std::optional<double> GetCurrentBrowserVersion() {
   }
 
   const auto& version = version_info::GetVersion();
-  DCHECK(version.IsValid());
-  DCHECK_EQ(version.components().size(), 4ul);
+  CHECK(version.IsValid());
+  CHECK_EQ(version.components().size(), 4ul);
 
   return GetBraveMajorVersionAsDouble(version);
 }
@@ -127,7 +125,7 @@ std::string GetTargetMajorVersionParamName() {
     case Channel::UNKNOWN:
       return "target_major_version_unknown";
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED() << "All channels are handled above";
 }
 
 void SetCurrentVersionForTesting(double major_version) {
@@ -147,7 +145,7 @@ bool ShouldShowBraveWhatsNewForState(PrefService* local_state) {
       "en", "zh", "fr", "de", "ja", "ko", "pt", "es"};
   const std::string default_lang_code =
       brave_l10n::GetDefaultISOLanguageCodeString();
-  if (base::ranges::find(kSupportedLanguages, default_lang_code) ==
+  if (std::ranges::find(kSupportedLanguages, default_lang_code) ==
       std::end(kSupportedLanguages)) {
     VLOG(2) << __func__ << " Not supported language - " << default_lang_code;
     return false;
@@ -161,10 +159,7 @@ bool ShouldShowBraveWhatsNewForState(PrefService* local_state) {
   }
 
   const auto current_version = GetCurrentBrowserVersion();
-  if (!current_version) {
-    NOTREACHED() << __func__ << " Should get current version.";
-    return false;
-  }
+  CHECK(current_version);
 
   if (*current_version != *target_major_version) {
     VLOG(2) << __func__ << " Current version is different with target version";

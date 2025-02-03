@@ -4,6 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { mapLimit } from 'async'
+import { EntityId } from '@reduxjs/toolkit'
 
 // types
 import type { BaseQueryCache } from '../../async/base-query-cache'
@@ -23,6 +24,7 @@ import { getLocale } from '../../../../common/locale'
 import { keyringIdForNewAccount } from '../../../utils/account-utils'
 import { suggestNewAccountName } from '../../../utils/address-utils'
 import { getEntitiesListFromEntityState } from '../../../utils/entities.utils'
+import { networkEntityAdapter } from '../entities/network.entity'
 
 type ImportWalletResults = {
   errorMessage?: string
@@ -117,6 +119,27 @@ export const walletEndpoints = ({
       providesTags: ['IsMetaMaskInstalled']
     }),
 
+    getActiveOrigin: query<BraveWallet.OriginInfo, void>({
+      queryFn: async (arg, { endpoint }, extraOptions, baseQuery) => {
+        try {
+          const { data: api } = baseQuery(undefined)
+          const { braveWalletService } = api
+
+          const { originInfo } = await braveWalletService.getActiveOrigin()
+          return {
+            data: originInfo
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            'unable to get active origin',
+            error
+          )
+        }
+      },
+      providesTags: ['ActiveOrigin']
+    }),
+
     createWallet: mutation<true, { password: string }>({
       queryFn: async (
         arg,
@@ -129,15 +152,20 @@ export const walletEndpoints = ({
           const { keyringService } = api
 
           const result = await keyringService.createWallet(arg.password)
+          if (!result.mnemonic) {
+            throw new Error('Unable to create wallet')
+          }
 
           dispatch(
             WalletPageActions.walletCreated({ mnemonic: result.mnemonic })
           )
 
+          const { allowedNewWalletAccountTypeNetworkIds } = (
+            getState() as { wallet: WalletState }
+          ).wallet
+
           await createDefaultAccounts({
-            allowNewWalletFilecoinAccount: (
-              getState() as { wallet: WalletState }
-            ).wallet.allowNewWalletFilecoinAccount,
+            allowedNewWalletAccountTypeNetworkIds,
             keyringService,
             cache
           })
@@ -194,10 +222,12 @@ export const walletEndpoints = ({
             )
           }
 
+          const { allowedNewWalletAccountTypeNetworkIds } = (
+            getState() as { wallet: WalletState }
+          ).wallet
+
           await createDefaultAccounts({
-            allowNewWalletFilecoinAccount: (
-              getState() as { wallet: WalletState }
-            ).wallet.allowNewWalletFilecoinAccount,
+            allowedNewWalletAccountTypeNetworkIds,
             keyringService,
             cache
           })
@@ -216,7 +246,13 @@ export const walletEndpoints = ({
           )
         }
       },
-      invalidatesTags: ['AccountInfos', 'IsWalletBackedUp']
+      invalidatesTags: [
+        'AccountInfos',
+        'IsWalletBackedUp',
+        'TokenBalances',
+        'TokenBalancesForChainId',
+        'AccountTokenCurrentBalance'
+      ]
     }),
 
     showRecoveryPhrase: mutation<boolean, ShowRecoveryPhrasePayload>({
@@ -227,9 +263,14 @@ export const walletEndpoints = ({
           const { password } = arg
 
           if (password) {
-            const { mnemonic } =
-              await keyringService.getMnemonicForDefaultKeyring(password)
-            dispatch(WalletPageActions.recoveryWordsAvailable({ mnemonic }))
+            const { mnemonic } = await keyringService.getWalletMnemonic(
+              password
+            )
+            dispatch(
+              WalletPageActions.recoveryWordsAvailable({
+                mnemonic: mnemonic ?? ''
+              })
+            )
             return {
               data: true
             }
@@ -352,10 +393,12 @@ export const walletEndpoints = ({
             }
           }
 
+          const { allowedNewWalletAccountTypeNetworkIds } = (
+            getState() as { wallet: WalletState }
+          ).wallet
+
           await createDefaultAccounts({
-            allowNewWalletFilecoinAccount: (
-              getState() as { wallet: WalletState }
-            ).wallet.allowNewWalletFilecoinAccount,
+            allowedNewWalletAccountTypeNetworkIds,
             keyringService,
             cache
           })
@@ -375,7 +418,13 @@ export const walletEndpoints = ({
           )
         }
       },
-      invalidatesTags: ['AccountInfos', 'IsWalletBackedUp']
+      invalidatesTags: [
+        'AccountInfos',
+        'IsWalletBackedUp',
+        'TokenBalances',
+        'TokenBalancesForChainId',
+        'AccountTokenCurrentBalance'
+      ]
     }),
 
     importFromMetaMask: mutation<
@@ -407,10 +456,12 @@ export const walletEndpoints = ({
             }
           }
 
+          const { allowedNewWalletAccountTypeNetworkIds } = (
+            getState() as { wallet: WalletState }
+          ).wallet
+
           await createDefaultAccounts({
-            allowNewWalletFilecoinAccount: (
-              getState() as { wallet: WalletState }
-            ).wallet.allowNewWalletFilecoinAccount,
+            allowedNewWalletAccountTypeNetworkIds,
             keyringService,
             cache
           })
@@ -428,7 +479,13 @@ export const walletEndpoints = ({
           )
         }
       },
-      invalidatesTags: ['AccountInfos', 'IsWalletBackedUp']
+      invalidatesTags: [
+        'AccountInfos',
+        'IsWalletBackedUp',
+        'TokenBalances',
+        'TokenBalancesForChainId',
+        'AccountTokenCurrentBalance'
+      ]
     }),
 
     completeWalletBackup: mutation<boolean, void>({
@@ -504,6 +561,24 @@ export const walletEndpoints = ({
           )
         }
       }
+    }),
+
+    setAutoLockMinutes: mutation<boolean, number>({
+      queryFn: async (minutes, { endpoint }, _extraOptions, baseQuery) => {
+        try {
+          const { data: api } = baseQuery(undefined)
+          const result = await api.keyringService.setAutoLockMinutes(minutes)
+          return {
+            data: result.success
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            'An error occurred while attempting to set the auto lock minutes',
+            error
+          )
+        }
+      }
     })
   }
 }
@@ -541,13 +616,13 @@ async function importFromExternalWallet(
 }
 
 async function createDefaultAccounts({
-  allowNewWalletFilecoinAccount,
+  allowedNewWalletAccountTypeNetworkIds,
   keyringService,
   cache
 }: {
   cache: BaseQueryCache
   keyringService: BraveWallet.KeyringServiceRemote
-  allowNewWalletFilecoinAccount: boolean
+  allowedNewWalletAccountTypeNetworkIds: EntityId[]
 }) {
   const networksRegistry = await cache.getNetworksRegistry()
   const accountsRegistry = await cache.getAccountsRegistry()
@@ -575,16 +650,31 @@ async function createDefaultAccounts({
     networksWithUniqueKeyrings,
     3,
     async function (net: BraveWallet.NetworkInfo) {
+      // TODO: remove these checks when we can hide "default" networks
       if (
-        // TODO: remove this check when we can hide "default" networks
-        net.coin === BraveWallet.CoinType.FIL &&
-        allowNewWalletFilecoinAccount
-      ) {
-        await keyringService.addAccount(
-          net.coin,
-          keyringIdForNewAccount(net.coin, net.chainId),
-          suggestNewAccountName(accounts, net)
+        !allowedNewWalletAccountTypeNetworkIds.includes(
+          networkEntityAdapter.selectId(net)
         )
+      ) {
+        return
+      }
+
+      switch (net.coin) {
+        case BraveWallet.CoinType.BTC: {
+          await keyringService.addAccount(
+            net.coin,
+            keyringIdForNewAccount(net.coin, net.chainId),
+            suggestNewAccountName(accounts, net)
+          )
+          return
+        }
+        case BraveWallet.CoinType.FIL: {
+          await keyringService.addAccount(
+            net.coin,
+            keyringIdForNewAccount(net.coin, net.chainId),
+            suggestNewAccountName(accounts, net)
+          )
+        }
       }
     }
   )

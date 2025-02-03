@@ -9,14 +9,13 @@
 #include <optional>
 #include <utility>
 
-#include "brave/browser/profiles/profile_util.h"
 #include "brave/browser/themes/brave_dark_mode_utils.h"
 #include "brave/browser/ui/color/brave_color_id.h"
-#include "brave/browser/ui/tabs/brave_tab_layout_constants.h"
 #include "brave/browser/ui/tabs/brave_tab_prefs.h"
 #include "brave/browser/ui/tabs/features.h"
 #include "brave/browser/ui/tabs/shared_pinned_tab_service.h"
 #include "brave/browser/ui/tabs/shared_pinned_tab_service_factory.h"
+#include "brave/browser/ui/tabs/split_view_browser_data.h"
 #include "brave/browser/ui/views/frame/brave_browser_view.h"
 #include "brave/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "brave/browser/ui/views/frame/vertical_tab_strip_widget_delegate_view.h"
@@ -29,14 +28,17 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_group.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_container.h"
+#include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_observer.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_scroll_container.h"
+#include "components/tab_groups/tab_group_id.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
@@ -66,7 +68,11 @@ bool BraveTabStrip::IsVerticalTabsFloating() const {
   auto* vertical_region_view =
       browser_view->vertical_tab_strip_widget_delegate_view()
           ->vertical_tab_strip_region_view();
-  DCHECK(vertical_region_view);
+
+  if (!vertical_region_view) {
+    // Could be null while closing a window.
+    return false;
+  }
 
   return vertical_region_view->state() ==
              VerticalTabStripRegionView::State::kFloating ||
@@ -84,6 +90,9 @@ bool BraveTabStrip::ShouldDrawStrokes() const {
     return false;
   }
 
+  // TODO(simonhong): We can return false always here as horizontal tab design
+  // doesn't need additional stroke.
+  // Delete all below code when horizontal tab feature flag is removed.
   if (tabs::features::HorizontalTabsUpdateEnabled()) {
     // We never automatically draw strokes around tabs. For pinned tabs, we draw
     // the stroke when generating the tab drawing path.
@@ -158,13 +167,28 @@ void BraveTabStrip::MaybeStartDrag(
     }
   }
 
-  TabStrip::MaybeStartDrag(source, event, original_selection);
+  auto new_selection = original_selection;
+  if (source->GetTabSlotViewType() == TabSlotView::ViewType::kTab) {
+    auto* tab = static_cast<Tab*>(source);
+    if (auto tile = GetTileForTab(tab)) {
+      // Make a pair of tabs in a tile selected together so that they move
+      // together during drag and drop.
+      auto* tab_strip_model = controller_->GetBrowser()->tab_strip_model();
+      // Make sure both tiled tabs are in selection.
+      new_selection.AddIndexToSelection(
+          tab_strip_model->GetIndexOfTab(tile->first.Get()));
+      new_selection.AddIndexToSelection(
+          tab_strip_model->GetIndexOfTab(tile->second.Get()));
+      new_selection.set_active(tab_strip_model->active_index());
+      tab_strip_model->SetSelectionFromModel(new_selection);
+    }
+  }
+
+  TabStrip::MaybeStartDrag(source, event, new_selection);
 }
 
 void BraveTabStrip::AddedToWidget() {
   TabStrip::AddedToWidget();
-
-  UpdateTabStripMargins();
 
   if (BrowserView::GetBrowserViewForBrowser(GetBrowser())) {
     UpdateTabContainer();
@@ -173,35 +197,8 @@ void BraveTabStrip::AddedToWidget() {
     // be being created and it could be unbound to Browser.
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&BraveTabStrip::UpdateTabContainer,
-                                  base::Unretained(this)));
+                                  weak_factory_.GetWeakPtr()));
   }
-}
-
-SkColor BraveTabStrip::GetTabSeparatorColor() const {
-  if (ShouldShowVerticalTabs()) {
-    return SK_ColorTRANSPARENT;
-  }
-
-  Profile* profile = controller()->GetProfile();
-  if (!brave::IsRegularProfile(profile)) {
-    if (profile->IsTor()) {
-      return SkColorSetRGB(0x5A, 0x53, 0x66);
-    }
-
-    // For incognito/guest window.
-    return SkColorSetRGB(0x3F, 0x32, 0x56);
-  }
-
-  // If custom theme is used, follow upstream separator color.
-  auto* theme_service = ThemeServiceFactory::GetForProfile(profile);
-  if (theme_service->GetThemeSupplier()) {
-    return TabStrip::GetTabSeparatorColor();
-  }
-
-  bool dark_mode = dark_mode::GetActiveBraveDarkModeType() ==
-                   dark_mode::BraveDarkModeType::BRAVE_DARK_MODE_TYPE_DARK;
-  return dark_mode ? SkColorSetRGB(0x39, 0x38, 0x38)
-                   : SkColorSetRGB(0xBE, 0xBF, 0xBF);
 }
 
 std::optional<int> BraveTabStrip::GetCustomBackgroundId(
@@ -225,11 +222,63 @@ std::optional<int> BraveTabStrip::GetCustomBackgroundId(
   return TabStrip::GetCustomBackgroundId(active_state);
 }
 
+bool BraveTabStrip::IsTabTiled(const Tab* tab) const {
+  return GetTileForTab(tab).has_value();
+}
+
+bool BraveTabStrip::IsFirstTabInTile(const Tab* tab) const {
+  auto* browser = GetBrowser();
+  if (browser->IsBrowserClosing()) {
+    return false;
+  }
+
+  auto index = tab_container_->GetModelIndexOf(tab);
+  if (!index) {
+    return false;
+  }
+
+  auto tile = GetTileForTab(tab);
+  DCHECK(tile) << "This must be called only when IsTabTiled() returned true";
+  return browser->tab_strip_model()->GetIndexOfTab(tile->first.Get()) == *index;
+}
+
+TabTiledState BraveTabStrip::GetTiledStateForTab(int index) const {
+  auto* tab = tab_at(index);
+  if (!IsTabTiled(tab)) {
+    return TabTiledState::kNone;
+  }
+
+  return IsFirstTabInTile(tab) ? TabTiledState::kFirst : TabTiledState::kSecond;
+}
+
+std::optional<TabTile> BraveTabStrip::GetTileForTab(const Tab* tab) const {
+  auto* browser = GetBrowser();
+  auto* data = SplitViewBrowserData::FromBrowser(browser);
+  if (!data) {
+    return std::nullopt;
+  }
+
+  if (browser->IsBrowserClosing()) {
+    return std::nullopt;
+  }
+  auto index = tab_container_->GetModelIndexOf(tab);
+  if (!index) {
+    return std::nullopt;
+  }
+
+  if (!browser->tab_strip_model()->ContainsIndex(*index)) {
+    // Happens on start-up
+    return std::nullopt;
+  }
+
+  return data->GetTile(
+      browser->tab_strip_model()->GetTabAtIndex(*index)->GetHandle());
+}
+
 void BraveTabStrip::UpdateTabContainer() {
   const bool using_vertical_tabs = ShouldShowVerticalTabs();
   const bool should_use_compound_tab_container =
-      using_vertical_tabs ||
-      base::FeatureList::IsEnabled(features::kSplitTabStrip);
+      using_vertical_tabs || base::FeatureList::IsEnabled(tabs::kSplitTabStrip);
   const bool is_using_compound_tab_container =
       views::IsViewClass<BraveCompoundTabContainer>(
           base::to_address(tab_container_));
@@ -242,7 +291,7 @@ void BraveTabStrip::UpdateTabContainer() {
 
     // Resets TabContainer to use.
     auto original_container = RemoveChildViewT(
-        static_cast<TabContainer*>(std::to_address(tab_container_)));
+        static_cast<TabContainer*>(base::to_address(tab_container_)));
 
     if (should_use_compound_tab_container) {
       // Container should be attached before TabDragContext so that dragged
@@ -281,6 +330,9 @@ void BraveTabStrip::UpdateTabContainer() {
     auto* model = GetBrowser()->tab_strip_model();
     for (int i = 0; i < model->count(); i++) {
       auto* tab = original_container->GetTabAtModelIndex(i);
+      // At this point, we don't have group views in the container. So before
+      // restoring groups, clears group for tabs.
+      tab->SetGroup(std::nullopt);
       tab_container_->AddTab(
           tab->parent()->RemoveChildViewT(tab), i,
           tab->data().pinned ? TabPinned::kPinned : TabPinned::kUnpinned);
@@ -320,9 +372,9 @@ void BraveTabStrip::UpdateTabContainer() {
       tab_container_->OnGroupVisualsChanged(group_id, visual_data, visual_data);
     }
 
-    for (int i = 0; i < model->count(); i++) {
-      for (auto& observer : observers_) {
-        observer.OnTabAdded(i);
+    if (observer_) {
+      for (int i = 0; i < model->count(); i++) {
+        observer_->OnTabAdded(i);
       }
     }
 
@@ -350,7 +402,7 @@ void BraveTabStrip::UpdateTabContainer() {
           base::Unretained(vertical_region_view)));
     }
   } else {
-    if (base::FeatureList::IsEnabled(features::kScrollableTabStrip)) {
+    if (base::FeatureList::IsEnabled(tabs::kScrollableTabStrip)) {
       auto* browser_view = static_cast<BraveBrowserView*>(
           BrowserView::GetBrowserViewForBrowser(browser));
       DCHECK(browser_view);
@@ -378,58 +430,31 @@ void BraveTabStrip::UpdateTabContainer() {
   }
 }
 
-void BraveTabStrip::UpdateTabStripMargins() {
-  if (!tabs::features::HorizontalTabsUpdateEnabled()) {
-    return;
-  }
-
-  gfx::Insets margins;
-
-  if (!ShouldShowVerticalTabs()) {
-    // There should be a medium size gap between the left edge of the tabstrip
-    // and the visual left edge of the first tab. Set a left margin that takes
-    // into account the visual tab inset.
-    margins.set_left(brave_tabs::kHorizontalTabStripLeftMargin -
-                     brave_tabs::kHorizontalTabInset);
-    DCHECK_GE(margins.left(), 0);
-  }
-
-  SetProperty(views::kMarginsKey, margins);
-}
-
 bool BraveTabStrip::ShouldShowVerticalTabs() const {
   return tabs::utils::ShouldShowVerticalTabs(GetBrowser());
 }
 
-void BraveTabStrip::Layout() {
+TabContainer* BraveTabStrip::GetTabContainerForTesting() {
+  return &tab_container_.get();  // IN-TEST
+}
+
+void BraveTabStrip::Layout(PassKey) {
   if (ShouldShowVerticalTabs()) {
     // Chromium implementation limits the height of tab strip, which we don't
     // want.
     auto bounds = GetLocalBounds();
-    for (auto* view : children()) {
+    for (views::View* view : children()) {
       if (view->bounds() != bounds) {
         view->SetBoundsRect(GetLocalBounds());
       } else if (view == &tab_container_.get()) {
-        view->Layout();
+        view->DeprecatedLayoutImmediately();
       }
     }
     return;
   }
 
-  TabStrip::Layout();
+  LayoutSuperclass<TabStrip>(this);
 }
 
-void BraveTabStrip::OnPaintBackground(gfx::Canvas* canvas) {
-  // Unlike upstream, we are painting this view to an opaque layer in order to
-  // support layer-based shadows under the active tab. Paint a background so
-  // that all pixels are painted appropriately.
-  ui::ColorId color_id = ShouldShowVerticalTabs() ? kColorToolbar
-                         : GetWidget()->ShouldPaintAsActive()
-                             ? kColorTabBackgroundInactiveFrameActive
-                             : kColorTabBackgroundInactiveFrameInactive;
-
-  canvas->DrawColor(GetColorProvider()->GetColor(color_id));
-}
-
-BEGIN_METADATA(BraveTabStrip, TabStrip)
+BEGIN_METADATA(BraveTabStrip)
 END_METADATA

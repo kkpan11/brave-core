@@ -8,7 +8,7 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { loadTimeData } from '../../common/loadTimeData'
-import { BraveWallet } from '../constants/types'
+import { BraveWallet, MeldCryptoCurrency } from '../constants/types'
 import { isComponentInStorybook } from '../utils/string-utils'
 
 const marketUiOrigin = loadTimeData.getString('braveWalletMarketUiBridgeUrl')
@@ -54,12 +54,8 @@ export type SelectDepositMessage = MarketCommandMessage & {
   payload: BraveWallet.CoinMarket
 }
 
-export type UpdateTradableAssetsMessage = MarketCommandMessage & {
-  payload: BraveWallet.BlockchainToken[]
-}
-
 export type UpdateBuyableAssetsMessage = MarketCommandMessage & {
-  payload: BraveWallet.BlockchainToken[]
+  payload: MeldCryptoCurrency[] | undefined
 }
 
 export type UpdateDepositableAssetsMessage = MarketCommandMessage & {

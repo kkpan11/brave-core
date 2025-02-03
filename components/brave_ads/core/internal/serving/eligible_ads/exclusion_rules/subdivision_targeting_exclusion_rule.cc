@@ -5,10 +5,8 @@
 
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/subdivision_targeting_exclusion_rule.h"
 
-#include <vector>
+#include <algorithm>
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "brave/components/brave_ads/core/internal/common/subdivision/subdivision_util.h"
 #include "brave/components/brave_ads/core/internal/creatives/creative_ad_info.h"
@@ -19,7 +17,7 @@ namespace brave_ads {
 namespace {
 
 bool DoesCreativeAdTargetSubdivision(const CreativeAdInfo& creative_ad) {
-  const auto iter = base::ranges::find_if(
+  const auto iter = std::ranges::find_if(
       creative_ad.geo_targets, [](const std::string& geo_target) {
         return std::count(geo_target.cbegin(), geo_target.cend(), '-') == 1;
       });
@@ -29,9 +27,9 @@ bool DoesCreativeAdTargetSubdivision(const CreativeAdInfo& creative_ad) {
 
 bool DoesCreativeAdTargetSubdivision(const CreativeAdInfo& creative_ad,
                                      const std::string& subdivision) {
-  return base::Contains(creative_ad.geo_targets, subdivision) ||
-         base::Contains(creative_ad.geo_targets,
-                        GetSubdivisionCountryCode(subdivision));
+  return creative_ad.geo_targets.contains(subdivision) ||
+         creative_ad.geo_targets.contains(
+             GetSubdivisionCountryCode(subdivision));
 }
 
 }  // namespace

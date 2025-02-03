@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "brave/components/brave_ads/core/internal/serving/prediction/model_based/creative_new_tab_page_ad_model_based_predictor_feature.h"  // IWYU pragma: keep
+#include "brave/components/brave_ads/core/internal/serving/prediction/model_based/creative_new_tab_page_ad_model_based_predictor_feature.h"
 
 #include "base/test/scoped_feature_list.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -213,6 +213,35 @@ TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
 }
 
 TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
+     UntargetedSegmentAdPredictorWeight) {
+  // Arrange
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      kCreativeNewTabPageAdModelBasedPredictorFeature,
+      {{"untargeted_segment_predictor_weight", "0.5"}});
+
+  // Act & Assert
+  EXPECT_DOUBLE_EQ(0.5, kNewTabPageAdUntargetedSegmentPredictorWeight.Get());
+}
+
+TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
+     DefaultUntargetedSegmentAdPredictorWeight) {
+  // Act & Assert
+  EXPECT_DOUBLE_EQ(0.0001, kNewTabPageAdUntargetedSegmentPredictorWeight.Get());
+}
+
+TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
+     DefaultUntargetedSegmentAdPredictorWeightWhenDisabled) {
+  // Arrange
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(
+      kCreativeNewTabPageAdModelBasedPredictorFeature);
+
+  // Act & Assert
+  EXPECT_DOUBLE_EQ(0.0001, kNewTabPageAdUntargetedSegmentPredictorWeight.Get());
+}
+
+TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
      LastSeenAdAdPredictorWeight) {
   // Arrange
   base::test::ScopedFeatureList scoped_feature_list;
@@ -227,7 +256,7 @@ TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
 TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
      DefaultLastSeenAdPredictorWeight) {
   // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdLastSeenPredictorWeight.Get());
+  EXPECT_DOUBLE_EQ(0.0, kNewTabPageAdLastSeenPredictorWeight.Get());
 }
 
 TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
@@ -238,65 +267,7 @@ TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
       kCreativeNewTabPageAdModelBasedPredictorFeature);
 
   // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdLastSeenPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     LastSeenAdvertiserAdPredictorWeight) {
-  // Arrange
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeatureWithParameters(
-      kCreativeNewTabPageAdModelBasedPredictorFeature,
-      {{"last_seen_advertiser_predictor_weight", "0.5"}});
-
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(0.5, kNewTabPageAdLastSeenAdvertiserPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     DefaultLastSeenAdvertiserAdPredictorWeight) {
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdLastSeenAdvertiserPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     DefaultLastSeenAdvertiserAdPredictorWeightWhenDisabled) {
-  // Arrange
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kCreativeNewTabPageAdModelBasedPredictorFeature);
-
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdLastSeenAdvertiserPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     PriorityAdPredictorWeight) {
-  // Arrange
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeatureWithParameters(
-      kCreativeNewTabPageAdModelBasedPredictorFeature,
-      {{"priority_predictor_weight", "0.5"}});
-
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(0.5, kNewTabPageAdPriorityPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     DefaultPriorityAdPredictorWeight) {
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdPriorityPredictorWeight.Get());
-}
-
-TEST(BraveAdsCreativeNewTabPageAdModelBasedPredictorFeatureTest,
-     DefaultPriorityAdPredictorWeightWhenDisabled) {
-  // Arrange
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kCreativeNewTabPageAdModelBasedPredictorFeature);
-
-  // Act & Assert
-  EXPECT_DOUBLE_EQ(1.0, kNewTabPageAdPriorityPredictorWeight.Get());
+  EXPECT_DOUBLE_EQ(0.0, kNewTabPageAdLastSeenPredictorWeight.Get());
 }
 
 }  // namespace brave_ads

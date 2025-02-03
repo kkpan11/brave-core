@@ -5,10 +5,11 @@
 
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/resource/purchase_intent_value_util.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <string>
 #include <utility>
 
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/keyphrase/purchase_intent_keyphrase_parser.h"
 #include "url/gurl.h"
@@ -71,7 +72,7 @@ std::optional<SegmentList> ParseSegments(const base::Value::Dict& dict) {
   segments.reserve(segment_list->size());
 
   for (const auto& segment_value : *segment_list) {
-    const std::string* segment = segment_value.GetIfString();
+    const std::string* const segment = segment_value.GetIfString();
     if (!segment || segment->empty()) {
       return std::nullopt;
     }
@@ -102,7 +103,7 @@ std::optional<PurchaseIntentSegmentKeyphraseList> ParseSegmentKeyphrases(
     PurchaseIntentSegmentKeyphraseInfo segment_keyphrase;
     segment_keyphrase.segments.reserve(indexes_value.GetList().size());
     segment_keyphrase.keywords = ParseKeyphrase(keyphrase);
-    base::ranges::sort(segment_keyphrase.keywords);
+    std::ranges::sort(segment_keyphrase.keywords);
 
     const size_t segments_size = segments.size();
 
@@ -140,7 +141,7 @@ std::optional<PurchaseIntentFunnelKeyphraseList> ParseFunnelKeyphrases(
     PurchaseIntentFunnelKeyphraseInfo funnel_keyphrase;
 
     funnel_keyphrase.keywords = ParseKeyphrase(keyphrase);
-    base::ranges::sort(funnel_keyphrase.keywords);
+    std::ranges::sort(funnel_keyphrase.keywords);
     funnel_keyphrase.weight = weight.GetInt();
 
     funnel_keyphrases.push_back(std::move(funnel_keyphrase));
@@ -160,7 +161,7 @@ std::optional<PurchaseIntentFunnelSiteMap> ParseFunnelSites(
   PurchaseIntentFunnelSiteMap funnel_sites;
 
   for (const auto& funnel_value : *funnel_list) {
-    const base::Value::Dict* funnel_dict = funnel_value.GetIfDict();
+    const auto* const funnel_dict = funnel_value.GetIfDict();
     if (!funnel_dict) {
       return std::nullopt;
     }
@@ -177,7 +178,7 @@ std::optional<PurchaseIntentFunnelSiteMap> ParseFunnelSites(
     }
 
     for (const auto& funnel_site_value : *funnel_site_list) {
-      const std::string* funnel_site = funnel_site_value.GetIfString();
+      const std::string* const funnel_site = funnel_site_value.GetIfString();
       if (!funnel_site) {
         return std::nullopt;
       }

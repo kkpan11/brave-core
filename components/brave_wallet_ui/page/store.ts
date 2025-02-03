@@ -6,7 +6,6 @@
 import { configureStore } from '@reduxjs/toolkit'
 
 // async handlers
-import walletPageAsyncHandler from './async/wallet_page_async_handler'
 import walletAsyncHandler from '../common/async/handlers'
 
 // api
@@ -20,10 +19,7 @@ import pageReducer from './reducers/page_reducer'
 import uiReducer from '../common/slices/ui.slice'
 
 // utils
-import { setApiProxyFetcher } from '../common/async/base-query-cache'
 import {
-  makeBraveWalletAutoPinServiceObserver,
-  makeBraveWalletPinServiceObserver,
   makeBraveWalletServiceObserver,
   makeBraveWalletServiceTokenObserver,
   makeJsonRpcServiceObserver,
@@ -42,7 +38,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false
-    }).concat(walletAsyncHandler, walletPageAsyncHandler, walletApi.middleware)
+    }).concat(walletAsyncHandler, walletApi.middleware)
 })
 
 export type WalletPageRootStore = typeof store
@@ -56,12 +52,6 @@ proxy.addBraveWalletServiceObserver(makeBraveWalletServiceObserver(store))
 proxy.addBraveWalletServiceTokenObserver(
   makeBraveWalletServiceTokenObserver(store)
 )
-proxy.addBraveWalletPinServiceObserver(makeBraveWalletPinServiceObserver(store))
-proxy.addBraveWalletAutoPinServiceObserver(
-  makeBraveWalletAutoPinServiceObserver(store)
-)
-
-setApiProxyFetcher(getWalletPageApiProxy)
 
 export const walletPageApiProxy = proxy
 

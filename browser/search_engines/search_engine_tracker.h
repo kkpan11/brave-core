@@ -6,9 +6,12 @@
 #ifndef BRAVE_BROWSER_SEARCH_ENGINES_SEARCH_ENGINE_TRACKER_H_
 #define BRAVE_BROWSER_SEARCH_ENGINES_SEARCH_ENGINE_TRACKER_H_
 
+#include <memory>
+
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "brave/components/time_period_storage/weekly_event_storage.h"
+#include "brave/components/web_discovery/buildflags/buildflags.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -83,7 +86,7 @@ class SearchEngineTrackerFactory : public BrowserContextKeyedServiceFactory {
       delete;
 
   // BrowserContextKeyedServiceFactory overrides:
-  KeyedService* BuildServiceInstanceFor(
+  std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* context) const override;
   bool ServiceIsCreatedWithBrowserContext() const override;
 
@@ -110,7 +113,7 @@ class SearchEngineTracker : public KeyedService,
   // TemplateURLServiceObserver overrides:
   void OnTemplateURLServiceChanged() override;
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS) || BUILDFLAG(ENABLE_WEB_DISCOVERY_NATIVE)
   void RecordWebDiscoveryEnabledP3A();
 #endif
 
@@ -130,7 +133,7 @@ class SearchEngineTracker : public KeyedService,
 
   raw_ptr<TemplateURLService> template_url_service_ = nullptr;
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS) || BUILDFLAG(ENABLE_WEB_DISCOVERY_NATIVE)
   PrefChangeRegistrar pref_change_registrar_;
 #endif
 };

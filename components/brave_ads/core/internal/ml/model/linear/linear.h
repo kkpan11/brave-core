@@ -6,9 +6,10 @@
 #ifndef BRAVE_COMPONENTS_BRAVE_ADS_CORE_INTERNAL_ML_MODEL_LINEAR_LINEAR_H_
 #define BRAVE_COMPONENTS_BRAVE_ADS_CORE_INTERNAL_ML_MODEL_LINEAR_LINEAR_H_
 
+#include <cstddef>
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "brave/components/brave_ads/core/internal/ml/data/vector_data.h"
 #include "brave/components/brave_ads/core/internal/ml/ml_alias.h"
 
@@ -22,9 +23,7 @@ namespace ml {
 
 class LinearModel final {
  public:
-  LinearModel();
-
-  explicit LinearModel(const linear_text_classification::flat::Model* model);
+  explicit LinearModel(const linear_text_classification::flat::Model& model);
 
   LinearModel(const LinearModel&) = delete;
   LinearModel& operator=(const LinearModel&) = delete;
@@ -46,10 +45,11 @@ class LinearModel final {
       const VectorData& data,
       std::optional<size_t> top_count) const;
 
-  raw_ptr<const linear_text_classification::flat::Model> model_;
+  raw_ref<const linear_text_classification::flat::Model> model_;
 };
 
 }  // namespace ml
+
 }  // namespace brave_ads
 
 #endif  // BRAVE_COMPONENTS_BRAVE_ADS_CORE_INTERNAL_ML_MODEL_LINEAR_LINEAR_H_

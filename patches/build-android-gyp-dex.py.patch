@@ -1,5 +1,5 @@
 diff --git a/build/android/gyp/dex.py b/build/android/gyp/dex.py
-index ae87291066f3f9782ab087993ab130d70105ffa2..5a629f85f05a6fe2e4268b9a7c54c5b2782a5b74 100755
+index a9cde18492fcbe09a1a4efc8b46b6313e0554849..1309c1dfc4fd6037e88980abfe9609bc9ea28d84 100755
 --- a/build/android/gyp/dex.py
 +++ b/build/android/gyp/dex.py
 @@ -30,6 +30,7 @@ DEFAULT_IGNORE_WARNINGS = (
@@ -8,5 +8,5 @@ index ae87291066f3f9782ab087993ab130d70105ffa2..5a629f85f05a6fe2e4268b9a7c54c5b2
      r'Running R8 version main', )
 +DEFAULT_IGNORE_WARNINGS += ( r'.Brave', )
  
- INTERFACE_DESUGARING_WARNINGS = (r'default or static interface methods', )
- 
+ _MERGE_SERVICE_ENTRIES = (
+     # Uses ServiceLoader to find all implementing classes, so multiple are

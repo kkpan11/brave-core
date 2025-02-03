@@ -11,10 +11,13 @@
 #include <utility>
 #include <vector>
 
+#include "base/functional/bind.h"
+#include "base/strings/string_split.h"
 #include "brave/app/vector_icons/vector_icons.h"
 #include "brave/browser/ui/brave_browser.h"
 #include "brave/browser/ui/color/brave_color_id.h"
 #include "brave/browser/ui/tabs/brave_tab_prefs.h"
+#include "brave/browser/ui/views/frame/brave_contents_view_util.h"
 #include "brave/browser/ui/views/tabs/brave_new_tab_button.h"
 #include "brave/browser/ui/views/tabs/brave_tab_search_button.h"
 #include "brave/browser/ui/views/tabs/brave_tab_strip_layout_helper.h"
@@ -24,9 +27,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/frame/window_frame_util.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
@@ -57,6 +62,10 @@
 #include "ui/views/layout/layout_types.h"
 #include "ui/views/view_utils.h"
 
+#if BUILDFLAG(IS_WIN)
+#include "ui/views/win/hwnd_util.h"
+#endif
+
 #if !BUILDFLAG(IS_MAC)
 #include "chrome/app/chrome_command_ids.h"
 #endif
@@ -64,12 +73,12 @@
 namespace {
 
 constexpr int kHeaderInset = tabs::kMarginForVerticalTabContainers;
+constexpr int kSeparatorHeight = 1;
 
 // Use toolbar button's ink drop effect.
 class ToggleButton : public ToolbarButton {
+  METADATA_HEADER(ToggleButton, ToolbarButton)
  public:
-  METADATA_HEADER(ToggleButton);
-
   ToggleButton(PressedCallback callback,
                VerticalTabStripRegionView* region_view)
       : ToolbarButton(std::move(callback)), region_view_(*region_view) {
@@ -107,61 +116,43 @@ class ToggleButton : public ToolbarButton {
     return l10n_util::GetStringUTF16(IDS_VERTICAL_TABS_EXPAND);
   }
 
-#if DCHECK_IS_ON()
-  void OnBoundsChanged(const gfx::Rect& previous_bounds) override {
-    CHECK_EQ(width(), GetIconWidth());
-    CHECK_EQ(height(), GetIconWidth());
-  }
-#endif
-
   constexpr static int GetIconWidth() { return tabs::kVerticalTabHeight; }
 
  private:
   raw_ref<VerticalTabStripRegionView> region_view_;
 };
 
-BEGIN_METADATA(ToggleButton, ToolbarButton)
-END_METADATA
-
-// A custom scroll view to avoid crash on Mac
-// TODO(sko) Remove this once the "sticky pinned tabs" is enabled by default.
-// https://github.com/brave/brave-browser/issues/29935
-class CustomScrollView : public views::ScrollView {
- public:
-  METADATA_HEADER(CustomScrollView);
-
-#if BUILDFLAG(IS_MAC)
-  CustomScrollView()
-      : views::ScrollView(views::ScrollView::ScrollWithLayers::kDisabled) {}
-#else
-  CustomScrollView() : views::ScrollView() {}
-#endif
-  ~CustomScrollView() override = default;
-
-  // views::ScrollView:
-  void OnScrollEvent(ui::ScrollEvent* event) override {
-#if !BUILDFLAG(IS_MAC)
-    views::ScrollView::OnScrollEvent(event);
-#endif
-  }
-};
-
-BEGIN_METADATA(CustomScrollView, views::ScrollView)
+BEGIN_METADATA(ToggleButton)
 END_METADATA
 
 class VerticalTabSearchButton : public BraveTabSearchButton {
+  METADATA_HEADER(VerticalTabSearchButton, BraveTabSearchButton)
  public:
-  METADATA_HEADER(VerticalTabSearchButton);
-
-  explicit VerticalTabSearchButton(TabStripController* tab_strip_controller,
-                                   Edge flat_edge)
-      : BraveTabSearchButton(tab_strip_controller, flat_edge) {
+  VerticalTabSearchButton(VerticalTabStripRegionView* region_view,
+                          TabStripController* tab_strip_controller,
+                          BrowserWindowInterface* browser_window_interface,
+                          Edge fixed_flat_edge,
+                          Edge animated_flat_edge,
+                          views::View* anchor_view,
+                          TabStrip* tab_strip)
+      : BraveTabSearchButton(tab_strip_controller,
+                             browser_window_interface,
+                             fixed_flat_edge,
+                             animated_flat_edge,
+                             anchor_view,
+                             tab_strip) {
     SetPreferredSize(
         gfx::Size{ToggleButton::GetIconWidth(), ToggleButton::GetIconWidth()});
     SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_TAB_SEARCH));
     SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_TAB_SEARCH));
-    SetBubbleArrow(views::BubbleBorder::LEFT_TOP);
     SetBorder(nullptr);
+
+    vertical_tab_on_right_.Init(
+        brave_tabs::kVerticalTabsOnRight,
+        region_view->browser()->profile()->GetPrefs(),
+        base::BindRepeating(&VerticalTabSearchButton::UpdateBubbleArrow,
+                            base::Unretained(this)));
+    UpdateBubbleArrow();
   }
 
   ~VerticalTabSearchButton() override = default;
@@ -171,12 +162,12 @@ class VerticalTabSearchButton : public BraveTabSearchButton {
     BraveTabSearchButton::UpdateColors();
 
     // Override images set from UpdateIcon().
-    SetImageModel(
-        views::Button::STATE_NORMAL,
-        ui::ImageModel::FromVectorIcon(kLeoSearchIcon, GetForegroundColor(),
-                                       /* icon_size= */ 16));
-    SetImageModel(views::Button::STATE_HOVERED, ui::ImageModel());
-    SetImageModel(views::Button::STATE_PRESSED, ui::ImageModel());
+    constexpr int kIconSize = 16;
+    const ui::ImageModel icon_image_model = ui::ImageModel::FromVectorIcon(
+        kLeoSearchIcon, GetForegroundColor(), kIconSize);
+    SetImageModel(views::Button::STATE_NORMAL, icon_image_model);
+    SetImageModel(views::Button::STATE_HOVERED, icon_image_model);
+    SetImageModel(views::Button::STATE_PRESSED, icon_image_model);
     SetBackground(nullptr);
   }
 
@@ -207,38 +198,92 @@ class VerticalTabSearchButton : public BraveTabSearchButton {
     BraveTabSearchButton::StateChanged(old_state);
     UpdateColors();
   }
+
+ private:
+  void UpdateBubbleArrow() {
+    if (*vertical_tab_on_right_) {
+      SetBubbleArrow(views::BubbleBorder::RIGHT_TOP);
+    } else {
+      SetBubbleArrow(views::BubbleBorder::LEFT_TOP);
+    }
+  }
+
+  BooleanPrefMember vertical_tab_on_right_;
 };
 
-BEGIN_METADATA(VerticalTabSearchButton, BraveTabSearchButton)
+BEGIN_METADATA(VerticalTabSearchButton)
+END_METADATA
+
+class ShortcutBox : public views::View {
+  METADATA_HEADER(ShortcutBox, views::View)
+ public:
+  explicit ShortcutBox(const std::u16string& shortcut_text) {
+    constexpr int kChildSpacing = 4;
+    SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
+        kChildSpacing));
+
+    std::vector<std::u16string> tokens = base::SplitString(
+        shortcut_text, u"+", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
+    for (const auto& token : tokens) {
+      AddShortcutPart(token);
+    }
+  }
+
+ private:
+  void AddShortcutPart(const std::u16string& text) {
+    constexpr int kFontSize = 12;
+    auto* shortcut_part = AddChildView(std::make_unique<views::Label>(text));
+    shortcut_part->SetHorizontalAlignment(
+        gfx::HorizontalAlignment::ALIGN_CENTER);
+    shortcut_part->SetVerticalAlignment(gfx::VerticalAlignment::ALIGN_MIDDLE);
+    const auto shortcut_font = shortcut_part->font_list();
+    shortcut_part->SetFontList(shortcut_font.DeriveWithSizeDelta(
+        kFontSize - shortcut_font.GetFontSize()));
+    shortcut_part->SetEnabledColorId(
+        kColorBraveVerticalTabNTBShortcutTextColor);
+    shortcut_part->SetBorder(views::CreateThemedRoundedRectBorder(
+        /*thickness*/ 1, /*radius*/ 4, kColorBraveVerticalTabSeparator));
+
+    // Give padding and set minimum to width.
+    auto preferred_size = shortcut_part->GetPreferredSize();
+    preferred_size.Enlarge(4, 0);
+    constexpr int kMinWidth = 18;
+    preferred_size.set_width(std::max(kMinWidth, preferred_size.width()));
+    shortcut_part->SetPreferredSize(preferred_size);
+  }
+};
+
+BEGIN_METADATA(ShortcutBox)
 END_METADATA
 
 class VerticalTabNewTabButton : public BraveNewTabButton {
+  METADATA_HEADER(VerticalTabNewTabButton, BraveNewTabButton)
  public:
-  METADATA_HEADER(VerticalTabNewTabButton);
-
-  static constexpr int kHeight = 50;
-
   VerticalTabNewTabButton(TabStrip* tab_strip,
                           PressedCallback callback,
-                          const std::u16string& shortcut_text,
-                          VerticalTabStripRegionView* region_view)
-      : BraveNewTabButton(tab_strip, std::move(callback)),
-        region_view_(region_view) {
+                          const std::u16string& shortcut_text)
+      : BraveNewTabButton(tab_strip, std::move(callback)) {
+    // Turn off inkdrop to have same bg color with tab's.
+    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::OFF);
+
     // We're going to use flex layout for children of this class. Other children
     // from base classes should be handled out of flex layout.
-    for (auto* child : children()) {
+    for (views::View* child : children()) {
       child->SetProperty(views::kViewIgnoredByLayoutKey, true);
     }
 
     SetNotifyEnterExitOnChild(true);
 
+    constexpr int kNewTabVerticalPadding = 8;
+    constexpr int kNewTabHorizontalPadding = 7;
     SetLayoutManager(std::make_unique<views::FlexLayout>())
         ->SetOrientation(views::LayoutOrientation::kHorizontal)
-        .SetCrossAxisAlignment(views::LayoutAlignment::kStretch);
+        .SetCrossAxisAlignment(views::LayoutAlignment::kStretch)
+        .SetInteriorMargin(
+            gfx::Insets::VH(kNewTabHorizontalPadding, kNewTabVerticalPadding));
 
     plus_icon_ = AddChildView(std::make_unique<views::ImageView>());
-    plus_icon_->SetPreferredSize(
-        gfx::Size(tabs::kVerticalTabMinWidth, kHeight));
     plus_icon_->SetHorizontalAlignment(views::ImageView::Alignment::kCenter);
     plus_icon_->SetVerticalAlignment(views::ImageView::Alignment::kCenter);
     plus_icon_->SetImage(ui::ImageModel::FromVectorIcon(
@@ -254,150 +299,102 @@ class VerticalTabNewTabButton : public BraveNewTabButton {
         l10n_util::GetStringUTF16(IDS_ACCNAME_NEWTAB)));
     text_->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
     text_->SetVerticalAlignment(gfx::VerticalAlignment::ALIGN_MIDDLE);
+    constexpr int kGapBetweenIconAndText = 16;
+    text_->SetProperty(views::kMarginsKey,
+                       gfx::Insets::TLBR(0, kGapBetweenIconAndText, 0, 0));
     text_->SetProperty(views::kFlexBehaviorKey,
                        views::FlexSpecification(
                            views::MinimumFlexSizeRule::kPreferredSnapToZero,
-                           views::MaximumFlexSizeRule::kUnbounded)
-                           .WithOrder(3)
-                           .WithWeight(0));
+                           views::MaximumFlexSizeRule::kPreferred)
+                           .WithOrder(3));
 
     constexpr int kFontSize = 12;
     const auto text_font = text_->font_list();
     text_->SetFontList(
         text_font.DeriveWithSizeDelta(kFontSize - text_font.GetFontSize()));
+    text_->SetEnabledColorId(kColorBraveVerticalTabNTBTextColor);
 
-    shortcut_text_ = AddChildView(std::make_unique<views::Label>());
-    shortcut_text_->SetHorizontalAlignment(
-        gfx::HorizontalAlignment::ALIGN_RIGHT);
-    shortcut_text_->SetVerticalAlignment(gfx::VerticalAlignment::ALIGN_MIDDLE);
-    const auto shortcut_font = shortcut_text_->font_list();
-    shortcut_text_->SetFontList(shortcut_font.DeriveWithSizeDelta(
-        kFontSize - shortcut_font.GetFontSize()));
-    shortcut_text_->SetProperty(
-        views::kMarginsKey,
-        gfx::Insets::VH(0, tabs::kMarginForVerticalTabContainers));
-    shortcut_text_->SetProperty(
+    auto* spacer = AddChildView(std::make_unique<views::View>());
+    spacer->SetProperty(
         views::kFlexBehaviorKey,
-        views::FlexSpecification(
-            views::MinimumFlexSizeRule::kPreferredSnapToZero,
-            views::MaximumFlexSizeRule::kPreferred)
+        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+                                 views::MaximumFlexSizeRule::kUnbounded)
+            .WithOrder(4));
+
+    auto* shortcut_box =
+        AddChildView(std::make_unique<ShortcutBox>(shortcut_text));
+    shortcut_box->SetProperty(
+        views::kMarginsKey, gfx::Insets::TLBR(0, kGapBetweenIconAndText, 0, 0));
+    shortcut_box->SetProperty(
+        views::kFlexBehaviorKey,
+        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+                                 views::MaximumFlexSizeRule::kPreferred)
             .WithOrder(2));
 
     SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_NEW_TAB));
     SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_NEWTAB));
-    SetShortcutText(shortcut_text);
   }
 
   ~VerticalTabNewTabButton() override = default;
 
   // BraveNewTabButton:
   SkPath GetBorderPath(const gfx::Point& origin,
-                       float scale,
                        bool extend_to_top) const override {
     auto contents_bounds = GetContentsBounds();
-    const float radius = GetCornerRadius() * scale;
     SkPath path;
-    const gfx::Rect path_rect(origin.x(), origin.y(),
-                              contents_bounds.width() * scale,
-                              contents_bounds.height() * scale);
-    path.addRoundRect(RectToSkRect(path_rect), radius, radius);
-    path.close();
+    const auto* widget = GetWidget();
+    if (widget) {
+      const float radius = GetCornerRadius();
+      const gfx::Rect path_rect(origin.x(), origin.y(), contents_bounds.width(),
+                                contents_bounds.height());
+      path.addRoundRect(RectToSkRect(path_rect), radius, radius);
+      path.close();
+    }
     return path;
   }
 
   void PaintIcon(gfx::Canvas* canvas) override {
-    // Revert back the offset set by NewTabButton::PaintButtonContents(), which
-    // is the caller of this method.
-    gfx::ScopedCanvas scoped_canvas(canvas);
-    canvas->Translate(-GetContentsBounds().OffsetFromOrigin());
-
     // Bypass '+' painting as we have a |plus_icon_| for that.
-    ImageButton::PaintButtonContents(canvas);
+    return;
   }
 
   gfx::Insets GetInsets() const override {
-    return gfx::Insets(tabs::kMarginForVerticalTabContainers);
+    // This button doesn't need any insets. Invalidate parent's one.
+    return gfx::Insets();
   }
 
   void OnPaintFill(gfx::Canvas* canvas) const override {
-    auto* cp = GetColorProvider();
-    CHECK(cp);
-
-    // Override fill color
-    {
-      gfx::ScopedCanvas scoped_canvas_for_scaling(canvas);
-      canvas->UndoDeviceScaleFactor();
-      cc::PaintFlags flags;
-      flags.setAntiAlias(true);
-      flags.setColor(cp->GetColor(kColorToolbar));
-      canvas->DrawPath(
-          GetBorderPath(gfx::Point(), canvas->image_scale(), false), flags);
-    }
-
-    // Draw split line on the top.
-    // Revert back the offset set by NewTabButton::PaintButtonContents(), which
-    // is the caller of this method.
-    gfx::ScopedCanvas scoped_canvas_for_translating(canvas);
-    canvas->Translate(-GetContentsBounds().OffsetFromOrigin());
-
-    gfx::Rect separator_bounds = GetLocalBounds();
-    separator_bounds.set_height(1);
-    cc::PaintFlags flags;
-    flags.setStyle(cc::PaintFlags::kFill_Style);
-    flags.setColor(cp->GetColor(kColorBraveVerticalTabSeparator));
-    canvas->DrawRect(gfx::RectF(separator_bounds), flags);
+    // Invalidate upstream's paint operation.
+    // We fill background whenever state changed to have same bg color with
+    // tab's. See StateChanged().
+    // It's difficult to have same bg color with ink drop.
   }
 
-  void OnThemeChanged() override {
-    BraveNewTabButton::OnThemeChanged();
+  void StateChanged(ButtonState old_state) override {
+    BraveNewTabButton::StateChanged(old_state);
 
-    CHECK(text_ && shortcut_text_);
-
-    auto* cp = GetColorProvider();
-    CHECK(cp);
-
-    plus_icon_->SchedulePaint();
-    text_->SetEnabledColor(cp->GetColor(kColorBraveVerticalTabNTBTextColor));
-    shortcut_text_->SetEnabledColor(
-        cp->GetColor(kColorBraveVerticalTabNTBShortcutTextColor));
-  }
-
-  void Layout() override {
-    BraveNewTabButton::Layout();
-
-    // FlexLayout could set the ink drop container invisible.
-    if (!ink_drop_container()->GetVisible()) {
-      ink_drop_container()->SetVisible(true);
+    int bg_color_id = kColorToolbar;
+    if (GetState() == views::Button::STATE_PRESSED) {
+      bg_color_id = kColorBraveVerticalTabActiveBackground;
+    } else if (GetState() == views::Button::STATE_HOVERED) {
+      bg_color_id = kColorBraveVerticalTabHoveredBackground;
     }
-  }
 
-  gfx::Size CalculatePreferredSize() const override {
-    auto size = BraveNewTabButton::CalculatePreferredSize();
-    if (tabs::utils::ShouldShowVerticalTabs(tab_strip()->GetBrowser())) {
-      size.set_height(kHeight);
-    }
-    return size;
+    SetBackground(views::CreateThemedRoundedRectBackground(bg_color_id,
+                                                           GetCornerRadius()));
   }
 
  private:
-  void SetShortcutText(const std::u16string& text) {
-    CHECK(shortcut_text_);
-    shortcut_text_->SetText(text);
-  }
-
-  raw_ptr<VerticalTabStripRegionView> region_view_ = nullptr;
   raw_ptr<views::ImageView> plus_icon_ = nullptr;
   raw_ptr<views::Label> text_ = nullptr;
-  raw_ptr<views::Label> shortcut_text_ = nullptr;
 };
 
-BEGIN_METADATA(VerticalTabNewTabButton, BraveNewTabButton)
+BEGIN_METADATA(VerticalTabNewTabButton)
 END_METADATA
 
 class ResettableResizeArea : public views::ResizeArea {
+  METADATA_HEADER(ResettableResizeArea, views::ResizeArea)
  public:
-  METADATA_HEADER(ResettableResizeArea);
-
   explicit ResettableResizeArea(VerticalTabStripRegionView* region_view)
       : ResizeArea(region_view), region_view_(region_view) {}
   ~ResettableResizeArea() override = default;
@@ -415,15 +412,14 @@ class ResettableResizeArea : public views::ResizeArea {
   raw_ptr<VerticalTabStripRegionView> region_view_;
 };
 
-BEGIN_METADATA(ResettableResizeArea, ResizeArea)
+BEGIN_METADATA(ResettableResizeArea)
 END_METADATA
 
 }  // namespace
 
 class VerticalTabStripScrollContentsView : public views::View {
+  METADATA_HEADER(VerticalTabStripScrollContentsView, views::View)
  public:
-  METADATA_HEADER(VerticalTabStripScrollContentsView);
-
   VerticalTabStripScrollContentsView(VerticalTabStripRegionView* container,
                                      TabStrip* tab_strip)
       : container_(container), tab_strip_(tab_strip) {
@@ -433,7 +429,7 @@ class VerticalTabStripScrollContentsView : public views::View {
 
   // views::View:
   void ChildPreferredSizeChanged(views::View* child) override {
-    if (base::FeatureList::IsEnabled(features::kScrollableTabStrip)) {
+    if (base::FeatureList::IsEnabled(tabs::kScrollableTabStrip)) {
       return;
     }
 
@@ -445,7 +441,7 @@ class VerticalTabStripScrollContentsView : public views::View {
     base::AutoReset<bool> in_preferred_size_change(&in_preferred_size_changed_,
                                                    true);
     container_->set_layout_dirty({});
-    container_->Layout();
+    container_->DeprecatedLayoutImmediately();
   }
 
   void OnPaintBackground(gfx::Canvas* canvas) override {
@@ -459,15 +455,15 @@ class VerticalTabStripScrollContentsView : public views::View {
   bool in_preferred_size_changed_ = false;
 };
 
-BEGIN_METADATA(VerticalTabStripScrollContentsView, views::View)
+BEGIN_METADATA(VerticalTabStripScrollContentsView)
 END_METADATA
 
 class VerticalTabStripRegionView::HeaderView : public views::View {
+  METADATA_HEADER(HeaderView, views::View)
  public:
-  METADATA_HEADER(HeaderView);
-
   HeaderView(views::Button::PressedCallback toggle_callback,
-             VerticalTabStripRegionView* region_view)
+             VerticalTabStripRegionView* region_view,
+             BrowserWindowInterface* browser_window_interface)
       : region_view_(region_view), tab_strip_(region_view->tab_strip()) {
     SetBorder(views::CreateEmptyBorder(gfx::Insets(kHeaderInset)));
 
@@ -479,15 +475,22 @@ class VerticalTabStripRegionView::HeaderView : public views::View {
     toggle_button_ = AddChildView(std::make_unique<ToggleButton>(
         std::move(toggle_callback), region_view));
 
-    auto* spacer = AddChildView(std::make_unique<views::View>());
-    layout_->SetFlexForView(spacer,
-                            1 /* resize |spacer| to fill the rest of space */);
+    spacer_ = AddChildView(std::make_unique<views::View>());
 
     // We layout the search button at the end, because there's no
     // way to change its bubble arrow from TOP_RIGHT at the moment.
     tab_search_button_ = AddChildView(std::make_unique<VerticalTabSearchButton>(
-        region_view->tab_strip()->controller(), Edge::kNone));
+        region_view, region_view->tab_strip()->controller(),
+        browser_window_interface, Edge::kNone, Edge::kNone, this,
+        region_view->tab_strip()));
     UpdateTabSearchButtonVisibility();
+
+    vertical_tab_on_right_.Init(
+        brave_tabs::kVerticalTabsOnRight,
+        region_view_->browser()->profile()->GetPrefs(),
+        base::BindRepeating(&HeaderView::OnVerticalTabPositionChanged,
+                            base::Unretained(this)));
+    OnVerticalTabPositionChanged();
   }
   ~HeaderView() override = default;
 
@@ -495,11 +498,9 @@ class VerticalTabStripRegionView::HeaderView : public views::View {
 
   void UpdateTabSearchButtonVisibility() {
     tab_search_button_->SetVisible(
-        !WindowFrameUtil::IsWindowsTabSearchCaptionButtonEnabled(
-            region_view_->browser()) &&
         tab_search_button_->GetPreferredSize().width() +
-                toggle_button_->GetPreferredSize().width() <=
-            width());
+            toggle_button_->GetPreferredSize().width() <=
+        width());
     if (!tab_search_button_->GetVisible()) {
       // When it's not visible, move tab search button. Otherwise,
       // TabSearchBubble will be anchored to wrong position as LayoutManager
@@ -524,14 +525,43 @@ class VerticalTabStripRegionView::HeaderView : public views::View {
   }
 
  private:
+  void OnVerticalTabPositionChanged() {
+    std::vector<views::View*> new_children = {
+        toggle_button_.get(), spacer_.get(), tab_search_button_.get()};
+    if (tabs::utils::IsVerticalTabOnRight(region_view_->browser())) {
+      std::reverse(new_children.begin(), new_children.end());
+    }
+
+    CHECK_EQ(children().size(), new_children.size());
+    if (children().front() == new_children.front()) {
+      // In order to make sure that |spacer_| has flex behavior on start up.
+      layout_->SetFlexForView(
+          spacer_, 1 /* resize |spacer| to fill the rest of space */);
+      return;
+    }
+
+    // View::ReorderChildView() didn't work for us. So remove child views and
+    // add them again.
+    while (!children().empty()) {
+      RemoveChildView(children().front());
+    }
+
+    base::ranges::for_each(new_children, [&](auto* v) { AddChildView(v); });
+    layout_->SetFlexForView(spacer_,
+                            1 /* resize |spacer| to fill the rest of space */);
+  }
+
   raw_ptr<views::BoxLayout> layout_ = nullptr;
   raw_ptr<VerticalTabStripRegionView> region_view_ = nullptr;
   raw_ptr<const TabStrip> tab_strip_ = nullptr;
   raw_ptr<ToggleButton> toggle_button_ = nullptr;
+  raw_ptr<views::View> spacer_ = nullptr;
   raw_ptr<BraveTabSearchButton> tab_search_button_ = nullptr;
+  BooleanPrefMember vertical_tab_on_right_;
 };
 
-BEGIN_METADATA(VerticalTabStripRegionView, HeaderView, views::View)
+using HeaderView = VerticalTabStripRegionView::HeaderView;
+BEGIN_METADATA(HeaderView)
 END_METADATA
 
 // Double checks mouse hovered state. When there's border around the region view
@@ -544,19 +574,19 @@ class VerticalTabStripRegionView::MouseWatcher : public ui::EventObserver {
         event_monitor_(views::EventMonitor::CreateWindowMonitor(
             this,
             region_view_->GetWidget()->GetNativeWindow(),
-            {ui::ET_MOUSE_PRESSED, ui::ET_MOUSE_ENTERED,
-             ui::ET_MOUSE_EXITED})) {}
+            {ui::EventType::kMousePressed, ui::EventType::kMouseEntered,
+             ui::EventType::kMouseExited})) {}
 
   // ui::EventObserver:
   void OnEvent(const ui::Event& event) override {
     switch (event.type()) {
-      case ui::ET_MOUSE_ENTERED:
+      case ui::EventType::kMouseEntered:
         region_view_->OnMouseEntered();
         break;
-      case ui::ET_MOUSE_PRESSED:
+      case ui::EventType::kMousePressed:
         region_view_->OnMousePressedInTree();
         break;
-      case ui::ET_MOUSE_EXITED:
+      case ui::EventType::kMouseExited:
         region_view_->OnMouseExited();
         break;
       default:
@@ -573,6 +603,7 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
     BrowserView* browser_view,
     TabStripRegionView* region_view)
     : views::AnimationDelegateViews(this),
+      browser_view_(browser_view),
       browser_(browser_view->browser()),
       original_region_view_(region_view),
       tab_style_(TabStyle::Get()) {
@@ -595,26 +626,35 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
             }
           },
           this),
-      this));
+      this, browser_));
   contents_view_ =
       AddChildView(std::make_unique<VerticalTabStripScrollContentsView>(
           this, original_region_view_->tab_strip_));
   header_view_->toggle_button()->SetHighlighted(state_ == State::kExpanded);
-
+  separator_ = AddChildView(std::make_unique<views::View>());
+  separator_->SetBackground(
+      views::CreateThemedSolidBackground(kColorBraveVerticalTabSeparator));
   new_tab_button_ = AddChildView(std::make_unique<VerticalTabNewTabButton>(
       original_region_view_->tab_strip_,
       base::BindRepeating(&TabStrip::NewTabButtonPressed,
                           base::Unretained(original_region_view_->tab_strip_)),
-      GetShortcutTextForNewTabButton(browser_view), this));
+      GetShortcutTextForNewTabButton(browser_view)));
 
   resize_area_ = AddChildView(std::make_unique<ResettableResizeArea>(this));
 
   auto* prefs = browser_->profile()->GetPrefs();
 
-  expanded_width_.Init(
-      brave_tabs::kVerticalTabsExpandedWidth, prefs,
-      base::BindRepeating(&VerticalTabStripRegionView::PreferredSizeChanged,
+  sidebar_side_.Init(
+      prefs::kSidePanelHorizontalAlignment, prefs,
+      base::BindRepeating(&VerticalTabStripRegionView::OnBrowserPanelsMoved,
                           base::Unretained(this)));
+
+  expanded_width_pref_.Init(
+      brave_tabs::kVerticalTabsExpandedWidth, prefs,
+      base::BindRepeating(
+          &VerticalTabStripRegionView::OnExpandedWidthPrefChanged,
+          base::Unretained(this)));
+  OnExpandedWidthPrefChanged();
 
   show_vertical_tabs_.Init(
       brave_tabs::kVerticalTabsEnabled, prefs,
@@ -629,12 +669,17 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
                           base::Unretained(this)));
   OnCollapsedPrefChanged();
 
+  expanded_state_per_window_pref_.Init(
+      brave_tabs::kVerticalTabsExpandedStatePerWindow, prefs,
+      base::BindRepeating(
+          &VerticalTabStripRegionView::OnExpandedStatePerWindowPrefChanged,
+          base::Unretained(this)));
+
   floating_mode_pref_.Init(
       brave_tabs::kVerticalTabsFloatingEnabled, prefs,
       base::BindRepeating(
           &VerticalTabStripRegionView::OnFloatingModePrefChanged,
           base::Unretained(this)));
-  OnFloatingModePrefChanged();
 
 #if BUILDFLAG(IS_MAC)
   show_toolbar_on_fullscreen_pref_.Init(
@@ -642,6 +687,11 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
       base::BindRepeating(&VerticalTabStripRegionView::OnFullscreenStateChanged,
                           base::Unretained(this)));
 #endif
+
+  vertical_tab_on_right_.Init(
+      brave_tabs::kVerticalTabsOnRight, browser()->profile()->GetPrefs(),
+      base::BindRepeating(&VerticalTabStripRegionView::OnBrowserPanelsMoved,
+                          base::Unretained(this)));
 
   widget_observation_.Observe(browser_view->GetWidget());
 
@@ -652,6 +702,11 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
          BrowserList::GetInstance()->end())
       << "Browser shouldn't be added at this point.";
   BrowserList::AddObserver(this);
+
+  // Note: This should happen after all the PrefMembers have been initialized.
+  OnFloatingModePrefChanged();
+
+  set_context_menu_controller(this);
 }
 
 VerticalTabStripRegionView::~VerticalTabStripRegionView() {
@@ -783,6 +838,20 @@ void VerticalTabStripRegionView::SetState(State state) {
   UpdateBorder();
 }
 
+void VerticalTabStripRegionView::SetExpandedWidth(int dest_width) {
+  if (expanded_width_ == dest_width) {
+    return;
+  }
+
+  expanded_width_ = dest_width;
+
+  if (expanded_width_ != *expanded_width_pref_) {
+    expanded_width_pref_.SetValue(expanded_width_);
+  }
+
+  PreferredSizeChanged();
+}
+
 void VerticalTabStripRegionView::UpdateStateAfterDragAndDropFinished(
     State original_state) {
   DCHECK_NE(original_state, State::kExpanded)
@@ -825,7 +894,8 @@ int VerticalTabStripRegionView::GetAvailableWidthForTabContainer() {
                                    /*ignore_animation=*/false);
 }
 
-gfx::Size VerticalTabStripRegionView::CalculatePreferredSize() const {
+gfx::Size VerticalTabStripRegionView::CalculatePreferredSize(
+    const views::SizeBounds& available_size) const {
   return GetPreferredSizeForState(state_, /*include_border=*/true,
                                   /*ignore_animation=*/false);
 }
@@ -846,7 +916,7 @@ gfx::Size VerticalTabStripRegionView::GetMinimumSize() const {
                                   /*ignore_animation=*/true);
 }
 
-void VerticalTabStripRegionView::Layout() {
+void VerticalTabStripRegionView::Layout(PassKey) {
   if (!layout_dirty_ && last_size_ == size()) {
     return;
   }
@@ -856,32 +926,47 @@ void VerticalTabStripRegionView::Layout() {
 
   // As we have to update ScrollView's viewport size and its contents size,
   // laying out children manually will be more handy.
-
-  // 1. New tab should be fixed at the bottom of container.
   const auto contents_bounds = GetContentsBounds();
-  new_tab_button_->SetSize(
-      {contents_bounds.width(), new_tab_button_->GetPreferredSize().height()});
-  new_tab_button_->SetPosition(
-      {contents_bounds.x(),
-       contents_bounds.bottom() - new_tab_button_->height()});
 
   const gfx::Size header_size{contents_bounds.width(),
                               tabs::kVerticalTabHeight + kHeaderInset * 2};
-  header_view_->SetPosition(contents_bounds.origin());
-  header_view_->SetSize(header_size);
+  header_view_->SetBoundsRect(gfx::Rect(contents_bounds.origin(), header_size));
 
-  contents_view_->SetSize(
-      {contents_bounds.width(), contents_bounds.height() -
-                                    new_tab_button_->height() -
-                                    header_view_->height()});
-  contents_view_->SetPosition({contents_bounds.origin().x(),
-                               header_view_->y() + header_view_->height()});
+  constexpr int kNewTabButtonHeight = tabs::kVerticalTabHeight;
+  const int contents_view_max_height =
+      contents_bounds.height() - kNewTabButtonHeight - header_view_->height();
+  const int contents_view_preferred_height =
+      tab_strip()->GetPreferredSize().height();
+  contents_view_->SetBoundsRect(gfx::Rect(
+      header_view_->bounds().bottom_left(),
+      gfx::Size(
+          contents_bounds.width(),
+          std::min(contents_view_max_height, contents_view_preferred_height))));
+
+  gfx::Rect separator_bounds(
+      contents_view_->bounds().bottom_left(),
+      gfx::Size(contents_bounds.width(), kSeparatorHeight));
+  separator_bounds.Inset(
+      gfx::Insets::VH(0, tabs::kMarginForVerticalTabContainers));
+  separator_->SetBoundsRect(separator_bounds);
+  gfx::Rect new_tab_button_bounds(
+      separator_->bounds().bottom_left(),
+      gfx::Size(separator_bounds.width(), kNewTabButtonHeight));
+  new_tab_button_bounds.Offset(0, tabs::kMarginForVerticalTabContainers);
+  new_tab_button_->SetBoundsRect(new_tab_button_bounds);
+
   UpdateOriginalTabSearchButtonVisibility();
 
-  // Put resize area on the right side, overlapped with contents.
+  // Put resize area, overlapped with contents.
+  if (vertical_tab_on_right_.GetPrefName().empty()) {
+    // Not initialized yet.
+    return;
+  }
+
   constexpr int kResizeAreaWidth = 4;
-  resize_area_->SetBounds(width() - kResizeAreaWidth, contents_bounds.y(),
-                          kResizeAreaWidth, contents_bounds.height());
+  resize_area_->SetBounds(
+      *vertical_tab_on_right_ ? 0 : width() - kResizeAreaWidth,
+      contents_bounds.y(), kResizeAreaWidth, contents_bounds.height());
 }
 
 void VerticalTabStripRegionView::OnShowVerticalTabsPrefChanged() {
@@ -896,6 +981,11 @@ void VerticalTabStripRegionView::OnShowVerticalTabsPrefChanged() {
   UpdateBorder();
 }
 
+void VerticalTabStripRegionView::OnBrowserPanelsMoved() {
+  UpdateBorder();
+  PreferredSizeChanged();
+}
+
 void VerticalTabStripRegionView::UpdateLayout(bool in_destruction) {
   layout_dirty_ = true;
   if (tabs::utils::ShouldShowVerticalTabs(browser_) && !in_destruction) {
@@ -905,9 +995,9 @@ void VerticalTabStripRegionView::UpdateLayout(bool in_destruction) {
       contents_view_->AddChildView(original_region_view_.get());
     }
 
-    original_region_view_->layout_manager_->SetOrientation(
-        views::LayoutOrientation::kVertical);
-    if (base::FeatureList::IsEnabled(features::kScrollableTabStrip)) {
+    static_cast<views::FlexLayout*>(original_region_view_->GetLayoutManager())
+        ->SetOrientation(views::LayoutOrientation::kVertical);
+    if (base::FeatureList::IsEnabled(tabs::kScrollableTabStrip)) {
       auto* scroll_container = GetTabStripScrollContainer();
       scroll_container->SetLayoutManager(std::make_unique<views::FillLayout>());
       scroll_container->scroll_view_->SetTreatAllScrollEventsAsHorizontal(
@@ -928,9 +1018,9 @@ void VerticalTabStripRegionView::UpdateLayout(bool in_destruction) {
           original_region_view_.get(), 0);
     }
 
-    original_region_view_->layout_manager_->SetOrientation(
-        views::LayoutOrientation::kHorizontal);
-    if (base::FeatureList::IsEnabled(features::kScrollableTabStrip)) {
+    static_cast<views::FlexLayout*>(original_region_view_->GetLayoutManager())
+        ->SetOrientation(views::LayoutOrientation::kHorizontal);
+    if (base::FeatureList::IsEnabled(tabs::kScrollableTabStrip)) {
       auto* scroll_container = GetTabStripScrollContainer();
       scroll_container->SetLayoutManager(std::make_unique<views::FillLayout>())
           ->SetMinimumSizeEnabled(true);
@@ -945,7 +1035,7 @@ void VerticalTabStripRegionView::UpdateLayout(bool in_destruction) {
   UpdateNewTabButtonVisibility();
 
   PreferredSizeChanged();
-  Layout();
+  DeprecatedLayoutImmediately();
 }
 
 void VerticalTabStripRegionView::OnThemeChanged() {
@@ -1035,10 +1125,13 @@ void VerticalTabStripRegionView::OnBoundsChanged(
   }
 
 #if DCHECK_IS_ON()
+  DCHECK(GetWidget());
   if (auto width = GetContentsBounds().width();
-      width && !IsBrowserFullscren()) {
-    CHECK_GE(width, tabs::kVerticalTabMinWidth +
-                        tabs::kMarginForVerticalTabContainers * 2);
+      width && !IsBrowserFullscren() && GetWidget()->IsVisible()) {
+    CHECK_GE(
+        width,
+        tabs::kVerticalTabMinWidth + tabs::kMarginForVerticalTabContainers * 2 -
+            BraveContentsViewUtil::GetRoundedCornersWebViewMargin(browser_));
   }
 #endif
 }
@@ -1063,19 +1156,23 @@ void VerticalTabStripRegionView::OnResize(int resize_amount,
   auto cursor_position =
       display::Screen::GetScreen()->GetCursorScreenPoint().x();
   if (!resize_offset_.has_value()) {
-    resize_offset_ = cursor_position - bounds_in_screen.right();
+    resize_offset_ =
+        (*vertical_tab_on_right_ ? bounds_in_screen.x() - cursor_position
+                                 : cursor_position - bounds_in_screen.right());
   }
   // Note that we're not using |resize_amount|. The variable is offset from
   // the initial point, it grows bigger and bigger.
-  auto dest_width = cursor_position - bounds_in_screen.x() - *resize_offset_ -
-                    GetInsets().width();
+  auto dest_width =
+      (*vertical_tab_on_right_ ? bounds_in_screen.right() - cursor_position
+                               : cursor_position - bounds_in_screen.x()) -
+      *resize_offset_ - GetInsets().width();
   dest_width = std::clamp(dest_width, tab_style_->GetPinnedWidth() * 3,
                           tab_style_->GetStandardWidth() * 2);
   if (done_resizing) {
     resize_offset_ = std::nullopt;
   }
 
-  if (*expanded_width_ == dest_width) {
+  if (expanded_width_ == dest_width) {
     return;
   }
 
@@ -1088,8 +1185,7 @@ void VerticalTabStripRegionView::OnResize(int resize_amount,
     width_animation_.Reset(state_ == State::kCollapsed ? 0 : 1);
   }
 
-  expanded_width_.SetValue(dest_width);
-  PreferredSizeChanged();
+  SetExpandedWidth(dest_width);
 }
 
 void VerticalTabStripRegionView::AnimationProgressed(
@@ -1104,19 +1200,21 @@ void VerticalTabStripRegionView::AnimationEnded(
 
 void VerticalTabStripRegionView::UpdateNewTabButtonVisibility() {
   const bool is_vertical_tabs = tabs::utils::ShouldShowVerticalTabs(browser_);
-  auto* original_ntb = original_region_view_->new_tab_button();
+  auto* original_ntb = original_region_view_->GetNewTabButton();
   original_ntb->SetVisible(!is_vertical_tabs);
   new_tab_button_->SetVisible(is_vertical_tabs);
+  separator_->SetVisible(is_vertical_tabs);
 }
 
 TabSearchBubbleHost* VerticalTabStripRegionView::GetTabSearchBubbleHost() {
   return header_view_->tab_search_button()->tab_search_bubble_host();
 }
 
-int VerticalTabStripRegionView::GetTabStripViewportHeight() const {
+int VerticalTabStripRegionView::GetTabStripViewportMaxHeight() const {
   // Don't depend on |contents_view_|'s current height. It could be bigger than
   // the actual viewport height.
   return GetContentsBounds().height() - header_view_->height() -
+         (separator_->height() + tabs::kMarginForVerticalTabContainers) -
          new_tab_button_->height();
 }
 
@@ -1132,7 +1230,7 @@ void VerticalTabStripRegionView::UpdateOriginalTabSearchButtonVisibility() {
   const bool use_search_button =
       browser_->profile()->GetPrefs()->GetBoolean(kTabsSearchShow);
   if (auto* tab_search_container =
-          original_region_view_->tab_search_container()) {
+          original_region_view_->GetTabSearchContainer()) {
     if (auto* tab_search_button = tab_search_container->tab_search_button()) {
       tab_search_button->SetVisible(!is_vertical_tabs && use_search_button);
     }
@@ -1156,7 +1254,24 @@ void VerticalTabStripRegionView::UpdateBorder() {
            state_ == State::kFloating;
   };
 
-  gfx::Insets border_insets = gfx::Insets::TLBR(0, 0, 0, 1);
+  // At this point |sidebar_side_| needs to be initialized.
+  CHECK(!sidebar_side_.GetPrefName().empty());
+
+  // If the sidebar is on the same side as the vertical tab strip, we shouldn't
+  // take away the margin on the vertical tabs, because the sidebar will be
+  // between it and the web_contents.
+  bool is_on_right =
+      !vertical_tab_on_right_.GetPrefName().empty() && *vertical_tab_on_right_;
+  bool sidebar_on_same_side = sidebar_side_.GetValue() == is_on_right;
+  int inset =
+      1 -
+      (sidebar_on_same_side
+           ? 0
+           : BraveContentsViewUtil::GetRoundedCornersWebViewMargin(browser_));
+  gfx::Insets border_insets =
+      (is_on_right)
+          ? gfx::Insets::TLBR(0, inset, tabs::kVerticalTabsSpacing, 0)
+          : gfx::Insets::TLBR(0, 0, tabs::kVerticalTabsSpacing, inset);
 
   if (show_visible_border()) {
     SetBorder(views::CreateSolidSidedBorder(
@@ -1168,6 +1283,14 @@ void VerticalTabStripRegionView::UpdateBorder() {
 }
 
 void VerticalTabStripRegionView::OnCollapsedPrefChanged() {
+  if (!expanded_state_per_window_pref_.GetPrefName().empty() &&
+      *expanded_state_per_window_pref_) {
+    // On creation(when expanded_state_per_window_pref_ is empty), we set the
+    // default state based on the `collapsed_pref_` even if the
+    // `expanded_state_per_window_pref_` is set.
+    return;
+  }
+
   SetState(collapsed_pref_.GetValue() ? State::kCollapsed : State::kExpanded);
 }
 
@@ -1182,6 +1305,23 @@ void VerticalTabStripRegionView::OnFloatingModePrefChanged() {
   if (IsMouseHovered()) {
     ScheduleFloatingModeTimer();
   }
+}
+
+void VerticalTabStripRegionView::OnExpandedStatePerWindowPrefChanged() {
+  OnCollapsedPrefChanged();
+  OnExpandedWidthPrefChanged();
+}
+
+void VerticalTabStripRegionView::OnExpandedWidthPrefChanged() {
+  if (!expanded_state_per_window_pref_.GetPrefName().empty() &&
+      *expanded_state_per_window_pref_) {
+    // On creation(when expanded_state_per_window_pref_ is empty), we set the
+    // default state based on the `expanded_width_pref_` even if the
+    // `expanded_state_per_window_pref_` is set.
+    return;
+  }
+
+  SetExpandedWidth(*expanded_width_pref_);
 }
 
 gfx::Size VerticalTabStripRegionView::GetPreferredSizeForState(
@@ -1199,11 +1339,11 @@ gfx::Size VerticalTabStripRegionView::GetPreferredSizeForState(
   if (IsFloatingEnabledForBrowserFullscreen() && state_ == State::kCollapsed) {
     // In this case, vertical tab strip should be invisible but show up when
     // mouse hovers.
-    return {2, View::CalculatePreferredSize().height()};
+    return {2, View::CalculatePreferredSize({}).height()};
   }
 
   return {GetPreferredWidthForState(state, include_border, ignore_animation),
-          View::CalculatePreferredSize().height()};
+          View::CalculatePreferredSize({}).height()};
 }
 
 int VerticalTabStripRegionView::GetPreferredWidthForState(
@@ -1211,7 +1351,7 @@ int VerticalTabStripRegionView::GetPreferredWidthForState(
     bool include_border,
     bool ignore_animation) const {
   auto calculate_expanded_width = [&]() {
-    return *expanded_width_ + (include_border ? GetInsets().width() : 0);
+    return *expanded_width_pref_ + (include_border ? GetInsets().width() : 0);
   };
 
   auto calculate_collapsed_width = [&]() {
@@ -1237,7 +1377,7 @@ int VerticalTabStripRegionView::GetPreferredWidthForState(
 
 TabStripScrollContainer*
 VerticalTabStripRegionView::GetTabStripScrollContainer() {
-  CHECK(base::FeatureList::IsEnabled(features::kScrollableTabStrip));
+  CHECK(base::FeatureList::IsEnabled(tabs::kScrollableTabStrip));
   auto* scroll_container = views::AsViewClass<TabStripScrollContainer>(
       original_region_view_->tab_strip_container_);
   CHECK(scroll_container)
@@ -1287,10 +1427,46 @@ std::u16string VerticalTabStripRegionView::GetShortcutTextForNewTabButton(
     return new_tab_accelerator.GetShortcutText();
   }
 
-  NOTREACHED() << "Couldn't find the accelerator for new tab.";
   return {};
 }
 #endif
 
-BEGIN_METADATA(VerticalTabStripRegionView, views::View)
+views::LabelButton& VerticalTabStripRegionView::GetToggleButtonForTesting() {
+  return *header_view_->toggle_button();
+}
+
+bool VerticalTabStripRegionView::IsMenuShowing() const {
+  return menu_runner_ && menu_runner_->IsRunning();
+}
+
+// Show context menu in unobscured area.
+void VerticalTabStripRegionView::ShowContextMenuForViewImpl(
+    views::View* source,
+    const gfx::Point& p,
+    ui::mojom::MenuSourceType source_type) {
+#if BUILDFLAG(IS_WIN)
+  // Use same context menu of horizontal tab's titlebar.
+  views::ShowSystemMenuAtScreenPixelLocation(views::HWNDForView(browser_view_),
+                                             p);
+#else
+  if (IsMenuShowing()) {
+    return;
+  }
+
+  menu_runner_ = std::make_unique<views::MenuRunner>(
+      browser_view_->frame()->GetSystemMenuModel(),
+      views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU,
+      base::BindRepeating(&VerticalTabStripRegionView::OnMenuClosed,
+                          base::Unretained(this)));
+  menu_runner_->RunMenuAt(source->GetWidget(), nullptr,
+                          gfx::Rect(p, gfx::Size(0, 0)),
+                          views::MenuAnchorPosition::kTopLeft, source_type);
+#endif
+}
+
+void VerticalTabStripRegionView::OnMenuClosed() {
+  menu_runner_.reset();
+}
+
+BEGIN_METADATA(VerticalTabStripRegionView)
 END_METADATA

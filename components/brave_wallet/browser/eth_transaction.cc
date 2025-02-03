@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/containers/to_vector.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
@@ -171,8 +172,8 @@ std::optional<EthTransaction> EthTransaction::FromValue(
   return tx;
 }
 
-std::vector<uint8_t> EthTransaction::GetMessageToSign(uint256_t chain_id,
-                                                      bool hash) const {
+std::vector<uint8_t> EthTransaction::GetMessageToSign(
+    uint256_t chain_id) const {
   DCHECK(nonce_);
   base::Value::List list;
   list.Append(RLPUint256ToBlob(nonce_.value()));
@@ -187,9 +188,12 @@ std::vector<uint8_t> EthTransaction::GetMessageToSign(uint256_t chain_id,
     list.Append(RLPUint256ToBlob(0));
   }
 
-  const std::string message = RLPEncode(base::Value(std::move(list)));
-  auto result = std::vector<uint8_t>(message.begin(), message.end());
-  return hash ? KeccakHash(result) : result;
+  return RLPEncode(list);
+}
+
+KeccakHashArray EthTransaction::GetHashedMessageToSign(
+    uint256_t chain_id) const {
+  return KeccakHash(GetMessageToSign(chain_id));
 }
 
 std::string EthTransaction::GetSignedTransaction() const {
@@ -202,41 +206,28 @@ std::string EthTransaction::GetTransactionHash() const {
   DCHECK(IsSigned());
   DCHECK(nonce_);
 
-  return KeccakHash(RLPEncode(Serialize()));
+  return ToHex(KeccakHash(base::as_byte_span(RLPEncode(Serialize()))));
 }
 
-bool EthTransaction::ProcessVRS(const std::string& v,
-                                const std::string& r,
-                                const std::string& s) {
-  if (!base::StartsWith(v, "0x") || !base::StartsWith(r, "0x") ||
-      !base::StartsWith(s, "0x")) {
+bool EthTransaction::ProcessVRS(const std::vector<uint8_t>& v,
+                                const std::vector<uint8_t>& r,
+                                const std::vector<uint8_t>& s) {
+  if (r.empty() || s.empty() || v.empty()) {
     return false;
   }
-  uint256_t v_decoded;
-  if (!HexValueToUint256(v, &v_decoded)) {
+
+  if (!HexValueToUint256(ToHex(v), &v_)) {
     LOG(ERROR) << "Unable to decode v param";
     return false;
   }
 
-  std::vector<uint8_t> r_decoded;
-  if (!PrefixedHexStringToBytes(r, &r_decoded)) {
-    LOG(ERROR) << "Unable to decode r param";
-    return false;
-  }
-  std::vector<uint8_t> s_decoded;
-  if (!PrefixedHexStringToBytes(s, &s_decoded)) {
-    LOG(ERROR) << "Unable to decode s param";
-    return false;
-  }
-
-  r_ = r_decoded;
-  s_ = s_decoded;
-  v_ = v_decoded;
+  r_ = r;
+  s_ = s;
   return true;
 }
 
 // signature and recid will be used to produce v, r, s
-void EthTransaction::ProcessSignature(const std::vector<uint8_t> signature,
+void EthTransaction::ProcessSignature(base::span<const uint8_t> signature,
                                       int recid,
                                       uint256_t chain_id) {
   if (signature.size() != 64) {
@@ -292,10 +283,6 @@ uint256_t EthTransaction::GetDataFee() const {
     cost += byte == 0 ? kTxDataZeroCostPerByte : kTxDataCostPerByte;
   }
   return cost;
-}
-
-uint256_t EthTransaction::GetUpfrontCost(uint256_t block_base_fee) const {
-  return gas_limit_ * gas_price_ + value_;
 }
 
 base::Value EthTransaction::Serialize() const {

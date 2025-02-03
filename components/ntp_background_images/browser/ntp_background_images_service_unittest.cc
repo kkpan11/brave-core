@@ -121,6 +121,34 @@ constexpr char kTestSponsoredImagesWithMultipleCampaigns[] = R"(
         ]
     })";
 
+constexpr char kTestSponsoredImagesWithMissingImageUrl[] = R"(
+    {
+        "schemaVersion": 1,
+        "campaignId": "fb7ee174-5430-4fb9-8e97-29bf14e8d828",
+        "logo": {
+          "imageUrl":  "logo.png",
+          "alt": "Technikke: For music lovers",
+          "destinationUrl": "https://www.brave.com/",
+          "companyName": "Technikke"
+        },
+        "wallpapers": [
+            {
+              "missing_imageUrl": "background-1.jpg",
+              "focalPoint": { "x": 696, "y": 691 }
+            },
+            {
+              "missing_imageUrl": "background-2.jpg",
+              "creativeInstanceId": "c0d61af3-3b85-4af4-a3cc-cf1b3dd40e70",
+              "logo": {
+                "imageUrl": "logo-2.png",
+                "alt": "logo2",
+                "companyName": "BAT",
+                "destinationUrl": "https://www.bat.com/"
+              }
+            }
+        ]
+    })";
+
 constexpr char kTestBackgroundImages[] = R"(
     {
       "schemaVersion": 1,
@@ -164,7 +192,7 @@ class TestObserver : public NTPBackgroundImagesService::Observer {
 
   raw_ptr<NTPBackgroundImagesData> bi_data_ = nullptr;
   bool on_bi_updated_ = false;
-  raw_ptr<NTPSponsoredImagesData> si_data_ = nullptr;
+  raw_ptr<NTPSponsoredImagesData, DanglingUntriaged> si_data_ = nullptr;
   bool on_si_updated_ = false;
   bool on_super_referral_ended_ = false;
 };
@@ -305,14 +333,14 @@ TEST_F(NTPBackgroundImagesServiceTest, InternalDataTest) {
   EXPECT_EQ(image_count, campaign.backgrounds.size());
   EXPECT_EQ(696, campaign.backgrounds[0].focal_point.x());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-1.jpg"),
-            campaign.backgrounds[0].image_file.BaseName());
+            campaign.backgrounds[0].file_path.BaseName());
   // Check default value is set if "focalPoint" is missed.
   EXPECT_EQ(0, campaign.backgrounds[1].focal_point.x());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-2.jpg"),
-            campaign.backgrounds[1].image_file.BaseName());
+            campaign.backgrounds[1].file_path.BaseName());
   EXPECT_EQ(0, campaign.backgrounds[2].focal_point.x());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-3.jpg"),
-            campaign.backgrounds[2].image_file.BaseName());
+            campaign.backgrounds[2].file_path.BaseName());
   EXPECT_TRUE(campaign.backgrounds[0].creative_instance_id.empty());
   EXPECT_FALSE(campaign.backgrounds[1].creative_instance_id.empty());
   EXPECT_TRUE(campaign.backgrounds[2].creative_instance_id.empty());
@@ -347,13 +375,13 @@ TEST_F(NTPBackgroundImagesServiceTest, InternalDataTest) {
   EXPECT_TRUE(observer.on_bi_updated_);
   EXPECT_TRUE(*bi_data->GetBackgroundAt(0).FindBool(kIsBackgroundKey));
   EXPECT_EQ("chrome://background-wallpaper/background-image-source.webp",
-            *bi_data->GetBackgroundAt(0).FindString(kWallpaperImageURLKey));
+            *bi_data->GetBackgroundAt(0).FindString(kWallpaperURLKey));
   EXPECT_EQ("background-image-source.webp",
-            *bi_data->GetBackgroundAt(0).FindString(kWallpaperImagePathKey));
+            *bi_data->GetBackgroundAt(0).FindString(kWallpaperFilePathKey));
   EXPECT_EQ("chrome://background-wallpaper/background-image-source.avif",
-            *bi_data->GetBackgroundAt(1).FindString(kWallpaperImageURLKey));
+            *bi_data->GetBackgroundAt(1).FindString(kWallpaperURLKey));
   EXPECT_EQ("background-image-source.avif",
-            *bi_data->GetBackgroundAt(1).FindString(kWallpaperImagePathKey));
+            *bi_data->GetBackgroundAt(1).FindString(kWallpaperFilePathKey));
 
   // Invalid schema version
   const std::string test_json_string_higher_schema = R"(
@@ -436,7 +464,7 @@ TEST_F(NTPBackgroundImagesServiceTest, MultipleCampaignsTest) {
   EXPECT_FALSE(campaign_0.campaign_id.empty());
   EXPECT_EQ(3UL, campaign_0.backgrounds.size());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-1.jpg"),
-            campaign_0.backgrounds[0].image_file.BaseName());
+            campaign_0.backgrounds[0].file_path.BaseName());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("logo.png"),
             campaign_0.backgrounds[0].logo.image_file.BaseName());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("logo-2.png"),
@@ -449,15 +477,38 @@ TEST_F(NTPBackgroundImagesServiceTest, MultipleCampaignsTest) {
   EXPECT_FALSE(campaign_1.campaign_id.empty());
   EXPECT_EQ(2UL, campaign_1.backgrounds.size());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-4.jpg"),
-            campaign_1.backgrounds[0].image_file.BaseName());
+            campaign_1.backgrounds[0].file_path.BaseName());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("background-5.jpg"),
-            campaign_1.backgrounds[1].image_file.BaseName());
+            campaign_1.backgrounds[1].file_path.BaseName());
   EXPECT_EQ(base::FilePath::FromUTF8Unsafe("logo-4.png"),
             campaign_1.backgrounds[1].logo.image_file.BaseName());
   EXPECT_FALSE(campaign_1.backgrounds[0].creative_instance_id.empty());
   EXPECT_TRUE(campaign_1.backgrounds[1].creative_instance_id.empty());
 
   service_->RemoveObserver(&observer);
+}
+
+TEST_F(NTPBackgroundImagesServiceTest, SponsoredImageWithMissingImageUrlTest) {
+  Init();
+  TestObserver observer;
+  service_->AddObserver(&observer);
+
+  pref_service_.SetBoolean(kReferralCheckedForPromoCodeFile, true);
+  pref_service_.SetBoolean(kReferralInitialization, true);
+
+  observer.si_data_ = nullptr;
+  service_->si_images_data_.reset();
+  observer.on_si_updated_ = false;
+  service_->OnGetSponsoredComponentJsonData(
+      false, kTestSponsoredImagesWithMissingImageUrl);
+  // Mark this is not SR to get SI data.
+  service_->MarkThisInstallIsNotSuperReferralForever();
+
+  auto* si_data = service_->GetBrandedImagesData(false);
+  EXPECT_FALSE(si_data);
+  EXPECT_TRUE(observer.on_si_updated_);
+  EXPECT_TRUE(observer.si_data_->campaigns.empty());
+  EXPECT_TRUE(service_->si_images_data_->campaigns.empty());
 }
 
 #if BUILDFLAG(IS_LINUX)
@@ -475,7 +526,7 @@ TEST_F(NTPBackgroundImagesServiceTest, TestOnNonReferralService) {
 
 #else
 
-const char kTestMappingTable[] = R"(
+constexpr char kTestMappingTable[] = R"(
     {
         "schemaVersion": 1,
         "BRV003": {
@@ -490,8 +541,8 @@ const char kTestMappingTable[] = R"(
         }
     })";
 
-  // Super referral wallpaper json data.
-const char kTestSuperReferral[] = R"(
+// Super referral wallpaper json data.
+constexpr char kTestSuperReferral[] = R"(
     {
       "schemaVersion": 1,
       "themeName": "Technikke",

@@ -3,10 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-import { createAction, createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import {
-  BraveWallet,
   PageState,
   NFTMetadataReturnType
 } from '../../constants/types'
@@ -18,22 +17,13 @@ import {
 const defaultState: PageState = {
   hasInitialized: false,
   showRecoveryPhrase: false,
-  selectedTimeline: BraveWallet.AssetPriceTimeframe.OneDay,
   isFetchingNFTMetadata: true,
   nftMetadata: undefined,
   nftMetadataError: undefined,
   enablingAutoPin: false,
   isAutoPinEnabled: false,
-  pinStatusOverview: undefined,
   setupStillInProgress: false,
-  walletTermsAcknowledged: false,
-  selectedCoinMarket: undefined
-}
-
-export const WalletPageAsyncActions = {
-  addHardwareAccounts: createAction<BraveWallet.HardwareWalletAccount[]>(
-    'addHardwareAccounts'
-  )
+  walletTermsAcknowledged: false
 }
 
 export const createPageSlice = (initialState: PageState = defaultState) => {
@@ -54,13 +44,6 @@ export const createPageSlice = (initialState: PageState = defaultState) => {
         }
       },
 
-      selectCoinMarket(
-        state,
-        { payload }: PayloadAction<BraveWallet.CoinMarket | undefined>
-      ) {
-        state.selectedCoinMarket = payload
-      },
-
       setIsFetchingNFTMetadata(state, { payload }: PayloadAction<boolean>) {
         state.isFetchingNFTMetadata = payload
       },
@@ -79,13 +62,6 @@ export const createPageSlice = (initialState: PageState = defaultState) => {
         state.nftMetadataError = payload
       },
 
-      selectPriceTimeframe(
-        state,
-        { payload }: PayloadAction<BraveWallet.AssetPriceTimeframe>
-      ) {
-        state.selectedTimeline = payload
-      },
-
       walletCreated(
         state,
         { payload }: PayloadAction<WalletCreatedPayloadType>
@@ -98,13 +74,6 @@ export const createPageSlice = (initialState: PageState = defaultState) => {
         // complete setup unless explicitly halted
         state.setupStillInProgress = !action?.payload
         state.mnemonic = undefined
-      },
-
-      updateNFTPinStatus(
-        state,
-        { payload }: PayloadAction<BraveWallet.TokenPinOverview | undefined>
-      ) {
-        state.pinStatusOverview = payload
       },
 
       updateEnablingAutoPin(state, { payload }: PayloadAction<boolean>) {
@@ -124,5 +93,5 @@ export const createPageReducer = (initialState: PageState) => {
 
 export const pageSlice = createPageSlice()
 export const pageReducer = pageSlice.reducer
-export const PageActions = { ...WalletPageAsyncActions, ...pageSlice.actions }
+export const PageActions = pageSlice.actions
 export default pageReducer

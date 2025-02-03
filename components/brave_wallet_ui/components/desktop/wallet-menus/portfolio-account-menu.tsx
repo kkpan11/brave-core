@@ -16,12 +16,13 @@ import {
 } from './wellet-menus.style'
 
 interface Props {
-  onClickViewOnExplorer: () => void
+  onClickDeposit: () => void
+  onClickViewOnExplorer?: () => void
   onClickSell?: () => void
 }
 
 export const PortfolioAccountMenu = (props: Props) => {
-  const { onClickSell, onClickViewOnExplorer } = props
+  const { onClickSell, onClickViewOnExplorer, onClickDeposit } = props
 
   return (
     <StyledWrapper yPosition={42}>
@@ -31,10 +32,18 @@ export const PortfolioAccountMenu = (props: Props) => {
           <PopupButtonText>{getLocale('braveWalletSell')}</PopupButtonText>
         </PopupButton>
       )}
-      <PopupButton onClick={onClickViewOnExplorer}>
-        <ButtonIcon name='launch' />
+      {onClickViewOnExplorer && (
+        <PopupButton onClick={onClickViewOnExplorer}>
+          <ButtonIcon name='launch' />
+          <PopupButtonText>
+            {getLocale('braveWalletPortfolioViewOnExplorerMenuLabel')}
+          </PopupButtonText>
+        </PopupButton>
+      )}
+      <PopupButton onClick={onClickDeposit}>
+        <ButtonIcon name='money-bag-coins' />
         <PopupButtonText>
-          {getLocale('braveWalletPortfolioViewOnExplorerMenuLabel')}
+          {getLocale('braveWalletDepositCryptoButton')}
         </PopupButtonText>
       </PopupButton>
     </StyledWrapper>

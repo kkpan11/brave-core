@@ -7,13 +7,13 @@
 
 #include <string_view>
 
-#include "base/containers/contains.h"
 #include "base/containers/fixed_flat_set.h"
 
 namespace {
 
-constexpr auto kCountryComponentIds =
-    base::MakeFixedFlatSetSorted<std::string_view>({
+constexpr auto kCountryComponentIds = base::MakeFixedFlatSet<std::string_view>(
+    base::sorted_unique,
+    {
         "aafjalakdldginkbeobaiamnfphcdmko", "aaoipmkakdldlippoaocoegnnfnpcokj",
         "adnhangbagjlobdeicimblgcnafegpfb", "aeglmpapdhfhdicbifhnmaoehffffmie",
         "aeiffmlccgeaacefkfknodmnebanekbo", "ahhbponhjohgifhjbjggafboffbimmmg",
@@ -146,7 +146,7 @@ constexpr auto kCountryComponentIds =
 namespace brave_ads {
 
 bool IsValidCountryComponentId(const std::string& id) {
-  return base::Contains(kCountryComponentIds, id);
+  return kCountryComponentIds.contains(id);
 }
 
 }  // namespace brave_ads

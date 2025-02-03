@@ -23,14 +23,8 @@ void DatabaseErrorCallback(sql::Database* db,
                            const base::FilePath& db_file_path,
                            int extended_error,
                            sql::Statement* stmt) {
-  if (sql::Recovery::ShouldRecover(extended_error)) {
-    // Prevent reentrant calls.
-    db->reset_error_callback();
-
-    // After this call, the |db| handle is poisoned so that future calls will
-    // return errors until the handle is re-opened.
-    sql::Recovery::RecoverDatabase(db, db_file_path);
-
+  if (sql::Recovery::RecoverIfPossible(
+          db, extended_error, sql::Recovery::Strategy::kRecoverOrRaze)) {
     // The DLOG(FATAL) below is intended to draw immediate attention to errors
     // in newly-written code.  Database corruption is generally a result of OS
     // or hardware issues, not coding errors at the client level, so displaying
@@ -66,7 +60,8 @@ namespace brave_federated {
 DataStore::DataStore(const DataStoreTask data_store_task,
                      const base::FilePath& db_file_path)
     : database_(
-          {.exclusive_locking = true, .page_size = 4096, .cache_size = 500}),
+          {.exclusive_locking = true, .page_size = 4096, .cache_size = 500},
+          sql::Database::Tag(data_store_task.name)),
       db_file_path_(db_file_path),
       data_store_task_(data_store_task) {}
 
@@ -74,7 +69,6 @@ DataStore::~DataStore() = default;
 
 bool DataStore::InitializeDatabase() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  database_.set_histogram_tag(data_store_task_.name);
 
   // To recover from corruption.
   database_.set_error_callback(
@@ -87,8 +81,7 @@ bool DataStore::InitializeDatabase() {
 int DataStore::GetNextTrainingInstanceId() {
   sql::Statement statement(database_.GetUniqueStatement(
       base::StringPrintf("SELECT MAX(training_instance_id) FROM %s",
-                         data_store_task_.name.c_str())
-          .c_str()));
+                         data_store_task_.name.value)));
 
   if (statement.Step()) {
     return statement.ColumnInt(0) + 1;
@@ -105,8 +98,7 @@ void DataStore::SaveCovariate(
                          "feature_name, feature_type, "
                          "feature_value, created_at) "
                          "VALUES (?,?,?,?,?)",
-                         data_store_task_.name.c_str())
-          .c_str()));
+                         data_store_task_.name.value)));
 
   BindCovariateToStatement(covariate, training_instance_id, created_at,
                            &statement);
@@ -135,8 +127,7 @@ TrainingData DataStore::LoadTrainingData() {
   sql::Statement statement(database_.GetUniqueStatement(
       base::StringPrintf("SELECT id, training_instance_id, feature_name, "
                          "feature_type, feature_value FROM %s",
-                         data_store_task_.name.c_str())
-          .c_str()));
+                         data_store_task_.name.value)));
 
   training_instances.clear();
   while (statement.Step()) {
@@ -156,9 +147,9 @@ bool DataStore::DeleteTrainingData() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!database_.Execute(
-          base::StringPrintf("DELETE FROM %s", data_store_task_.name.c_str())
-              .c_str()))
+          base::StringPrintf("DELETE FROM %s", data_store_task_.name.value))) {
     return false;
+  }
 
   std::ignore = database_.Execute("VACUUM");
   return true;
@@ -167,12 +158,11 @@ bool DataStore::DeleteTrainingData() {
 void DataStore::PurgeTrainingDataAfterExpirationDate() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  sql::Statement delete_statement(database_.GetUniqueStatement(
-      base::StringPrintf(" DELETE FROM %s WHERE created_at < ? OR id NOT IN "
-                         "(SELECT id FROM %s ORDER BY id DESC LIMIT ?)",
-                         data_store_task_.name.c_str(),
-                         data_store_task_.name.c_str())
-          .c_str()));
+  sql::Statement delete_statement(
+      database_.GetUniqueStatement(base::StringPrintf(
+          " DELETE FROM %s WHERE created_at < ? OR id NOT IN "
+          "(SELECT id FROM %s ORDER BY id DESC LIMIT ?)",
+          data_store_task_.name.value, data_store_task_.name.value)));
   base::Time expiration_threshold =
       base::Time::Now() - data_store_task_.max_retention_days;
   delete_statement.BindDouble(0,
@@ -182,20 +172,18 @@ void DataStore::PurgeTrainingDataAfterExpirationDate() {
 }
 
 bool DataStore::MaybeCreateTable() {
-  if (database_.DoesTableExist(data_store_task_.name)) {
+  if (database_.DoesTableExist(data_store_task_.name.value)) {
     return true;
   }
 
   sql::Transaction transaction(&database_);
   return transaction.Begin() &&
-         database_.Execute(
-             base::StringPrintf(
-                 "CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                 "training_instance_id INTEGER NOT NULL, feature_name INTEGER "
-                 "NOT NULL, feature_type INTEGER NOT NULL, "
-                 "feature_value TEXT NOT NULL, created_at DOUBLE NOT NULL)",
-                 data_store_task_.name.c_str())
-                 .c_str()) &&
+         database_.Execute(base::StringPrintf(
+             "CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "training_instance_id INTEGER NOT NULL, feature_name INTEGER "
+             "NOT NULL, feature_type INTEGER NOT NULL, "
+             "feature_value TEXT NOT NULL, created_at DOUBLE NOT NULL)",
+             data_store_task_.name.value)) &&
          transaction.Commit();
 }
 

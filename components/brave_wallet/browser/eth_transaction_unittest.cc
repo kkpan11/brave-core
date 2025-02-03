@@ -14,6 +14,7 @@
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "brave/components/brave_wallet/browser/internal/hd_key.h"
+#include "brave/components/brave_wallet/common/hex_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace brave_wallet {
@@ -39,11 +40,12 @@ TEST(EthTransactionUnitTest, GetMessageToSign) {
                          "0xbe862ad9abfe6f22bcb087716c7d89a26051f74c",
                          "0x016345785d8a0000", data, false, std::nullopt));
 
-  EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx1.GetMessageToSign(0))),
+  EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx1.GetHashedMessageToSign(0))),
             "61e1ec33764304dddb55348e7883d4437426f44ab3ef65e6da1e025734c03ff0");
 
-  EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx1.GetMessageToSign(1337))),
-            "9ad82175b6921c5525fc52ebc08b97118cc9709952a16b2249a3f42d44614721");
+  EXPECT_EQ(
+      base::ToLowerASCII(base::HexEncode(tx1.GetHashedMessageToSign(1337))),
+      "9ad82175b6921c5525fc52ebc08b97118cc9709952a16b2249a3f42d44614721");
 
   data.clear();
   EthTransaction tx2 = *EthTransaction::FromTxData(
@@ -52,11 +54,11 @@ TEST(EthTransactionUnitTest, GetMessageToSign) {
                          "0x2386f26fc10000", data, false, std::nullopt));
 
   // with chain id (mainnet)
-  EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx2.GetMessageToSign(1))),
+  EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx2.GetHashedMessageToSign(1))),
             "f97c73fdca079da7652dbc61a46cd5aeef804008e057be3e712c43eac389aaf0");
 
   EXPECT_EQ(
-      base::ToLowerASCII(base::HexEncode(tx2.GetMessageToSign(1, false))),
+      base::ToLowerASCII(base::HexEncode(tx2.GetMessageToSign(1))),
       "eb0b85051f4d5c0082520894656e929d6fc0cac52d3d9526d288fe02dcd56fbd872386f"
       "26fc1000080018080");
 
@@ -106,16 +108,16 @@ TEST(EthTransactionUnitTest, GetMessageToSign) {
         entry.nonce, entry.gas_price, entry.gas_limit, entry.to, entry.value,
         std::vector<uint8_t>(), false, std::nullopt));
     // with chain id (mainnet)
-    EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx.GetMessageToSign(1))),
+    EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx.GetHashedMessageToSign(1))),
               entry.hash);
   }
 }
 
 TEST(EthTransactionUnitTest, GetSignedTransactionAndHash) {
-  std::vector<uint8_t> private_key;
-  EXPECT_TRUE(base::HexStringToBytes(
+  std::array<uint8_t, 32> private_key;
+  EXPECT_TRUE(base::HexStringToSpan(
       "4646464646464646464646464646464646464646464646464646464646464646",
-      &private_key));
+      private_key));
 
   HDKey key;
   key.SetPrivateKey(private_key);
@@ -124,12 +126,12 @@ TEST(EthTransactionUnitTest, GetSignedTransactionAndHash) {
       "0x3535353535353535353535353535353535353535", "0x0de0b6b3a7640000",
       std::vector<uint8_t>(), false, std::nullopt));
 
-  const std::vector<uint8_t> message = tx.GetMessageToSign(1);
+  auto message = tx.GetHashedMessageToSign(1);
   EXPECT_EQ(base::ToLowerASCII(base::HexEncode(message)),
             "daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53");
 
   int recid;
-  const std::vector<uint8_t> signature = key.SignCompact(message, &recid);
+  auto signature = *key.SignCompact(message, &recid);
 
   // invalid
   tx.ProcessSignature(std::vector<uint8_t>(63), recid, 1);
@@ -164,12 +166,11 @@ TEST(EthTransactionUnitTest, GetSignedTransactionAndHash) {
             "67CBE9D8997F761AECB703304B3800CCF555C9F3DC64214B297FB1966A3B6D83");
 
   // Bigger chain_id
-  const std::vector<uint8_t> message1337 = tx.GetMessageToSign(1337);
+  auto message1337 = tx.GetHashedMessageToSign(1337);
   EXPECT_EQ(base::ToLowerASCII(base::HexEncode(message1337)),
             "9df81edc908cd622cbbab86525a4588fdcbaf6c88757f39b42b1f8f58fd617c2");
   recid = 0;
-  const std::vector<uint8_t> signature1337 =
-      key.SignCompact(message1337, &recid);
+  auto signature1337 = *key.SignCompact(message1337, &recid);
   tx.ProcessSignature(signature1337, recid, 1337);
   EXPECT_EQ(tx.GetSignedTransaction(),
             "0xf86e098504a817c8008252089435353535353535353535353535353535353535"
@@ -226,13 +227,6 @@ TEST(EthTransactionUnitTest, GetDataFee) {
                          "0xbe862ad9abfe6f22bcb087716c7d89a26051f74c",
                          "0x016345785d8a0000", data, false, std::nullopt));
   EXPECT_EQ(tx2.GetDataFee(), uint256_t(1716));
-}
-
-TEST(EthTransactionUnitTest, GetUpFrontCost) {
-  EthTransaction tx = *EthTransaction::FromTxData(mojom::TxData::New(
-      "0x00", "0x3E8", "0x989680", "0x3535353535353535353535353535353535353535",
-      "0x2A", std::vector<uint8_t>(), false, std::nullopt));
-  EXPECT_EQ(tx.GetUpfrontCost(), uint256_t(10000000042));
 }
 
 TEST(EthTransactionUnitTest, FromTxData) {
@@ -298,8 +292,8 @@ TEST(EthTransactionUnitTest, FromTxData) {
 
 TEST(EthTransactionUnitTest, ProcessVRS) {
   EthTransaction tx;
-  ASSERT_FALSE(tx.ProcessVRS("", "", ""));
-  ASSERT_FALSE(tx.ProcessVRS("00", "aefrwr", "342fds"));
+  ASSERT_FALSE(tx.ProcessVRS({}, {}, {}));
+  ASSERT_FALSE(tx.ProcessVRS({0}, {}, {}));
   EXPECT_EQ(tx.v(), (uint256_t)0);
   ASSERT_TRUE(tx.r().empty());
   ASSERT_TRUE(tx.s().empty());
@@ -309,7 +303,9 @@ TEST(EthTransactionUnitTest, ProcessVRS) {
       "0x93b9121e82df014428924df439ff044f89c205dd76a194f8b11f50d2eade744e";
   std::string s =
       "0x7aa705c9144742836b7fbbd0745c57f67b60df7b8d1790fe59f91ed8d2bfc11d";
-  ASSERT_TRUE(tx.ProcessVRS("0x00", r, s));
+  ASSERT_TRUE(tx.ProcessVRS(*PrefixedHexStringToBytes("0x00"),
+                            *PrefixedHexStringToBytes(r),
+                            *PrefixedHexStringToBytes(s)));
   EXPECT_EQ(tx.v(), (uint256_t)0);
   EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx.r())), r.substr(2));
   EXPECT_EQ(base::ToLowerASCII(base::HexEncode(tx.s())), s.substr(2));
@@ -323,18 +319,13 @@ TEST(EthTransactionUnitTest, ProcessVRS) {
 
 TEST(EthTransactionUnitTest, ProcessVRSFail) {
   EthTransaction tx;
-  ASSERT_FALSE(tx.ProcessVRS("", "", ""));
-  ASSERT_FALSE(tx.ProcessVRS("00", "aefrwr", "342fds"));
+  ASSERT_FALSE(tx.ProcessVRS({}, {}, {}));
+  ASSERT_FALSE(tx.ProcessVRS({0}, {0}, {}));
+  ASSERT_FALSE(tx.ProcessVRS({0}, {}, {0}));
+  ASSERT_FALSE(tx.ProcessVRS({}, {}, {0}));
   EXPECT_EQ(tx.v(), (uint256_t)0);
   ASSERT_TRUE(tx.r().empty());
   ASSERT_TRUE(tx.s().empty());
-  tx.set_nonce(0u);
-
-  std::string r =
-      "93b9121e82df014428924df439ff044f89c205dd76a194f8b11f50d2eade744e";
-  std::string s =
-      "7aa705c9144742836b7fbbd0745c57f67b60df7b8d1790fe59f91ed8d2bfc11d";
-  ASSERT_FALSE(tx.ProcessVRS("0x00", r, s));
 }
 
 }  // namespace brave_wallet

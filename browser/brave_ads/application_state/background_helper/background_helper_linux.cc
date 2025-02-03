@@ -24,8 +24,8 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/gfx/x/x11_atom_cache.h"
-#include "ui/gfx/x/xproto_util.h"
+#include "ui/gfx/x/atom_cache.h"
+#include "ui/gfx/x/connection.h"
 
 namespace brave_ads {
 
@@ -40,10 +40,10 @@ BackgroundHelperLinux::~BackgroundHelperLinux() {
 
 bool BackgroundHelperLinux::IsForeground() const {
   x11::Window x11_window = x11::Window::None;
-  x11::GetProperty(ui::GetX11RootWindow(), x11::GetAtom("_NET_ACTIVE_WINDOW"),
-                   &x11_window);
+  x11::Connection::Get()->GetPropertyAs(
+      ui::GetX11RootWindow(), x11::GetAtom("_NET_ACTIVE_WINDOW"), &x11_window);
 
-  for (auto* browser : *BrowserList::GetInstance()) {
+  for (Browser* browser : *BrowserList::GetInstance()) {
     auto window =
         browser->window()->GetNativeWindow()->GetHost()->GetAcceleratedWidget();
     if (x11_window == static_cast<x11::Window>(window)) {
@@ -56,14 +56,14 @@ bool BackgroundHelperLinux::IsForeground() const {
 
 void BackgroundHelperLinux::OnBrowserSetLastActive(Browser* browser) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&BackgroundHelperLinux::TriggerOnForeground, AsWeakPtr()));
+      FROM_HERE, base::BindOnce(&BackgroundHelperLinux::TriggerOnForeground,
+                                weak_ptr_factory_.GetWeakPtr()));
 }
 
 void BackgroundHelperLinux::OnBrowserNoLongerActive(Browser* browser) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&BackgroundHelperLinux::TriggerOnBackground, AsWeakPtr()));
+      FROM_HERE, base::BindOnce(&BackgroundHelperLinux::TriggerOnBackground,
+                                weak_ptr_factory_.GetWeakPtr()));
 }
 
 }  // namespace brave_ads

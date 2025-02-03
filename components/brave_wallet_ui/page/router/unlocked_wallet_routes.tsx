@@ -6,10 +6,10 @@
 import * as React from 'react'
 import { Route, Switch } from 'react-router'
 
-// constants
+// Types
 import { WalletRoutes } from '../../constants/types'
 
-// components
+// Components
 import { CryptoView } from '../../components/desktop/views/crypto'
 import { WalletPageLayout } from '../../components/desktop/wallet-page-layout'
 import {
@@ -19,11 +19,11 @@ import {
   BackupWalletRoutes //
 } from '../screens/backup-wallet/backup-wallet.routes'
 import { DepositFundsScreen } from '../screens/fund-wallet/deposit-funds'
-import { FundWalletScreen } from '../screens/fund-wallet/fund-wallet'
+import { FundWalletScreen } from '../screens/fund-wallet/fund_wallet_v2'
 import { SimplePageWrapper } from '../screens/page-screen.styles'
 import {
   OnboardingSuccess //
-} from '../screens/onboarding/onboarding-success/onboarding-success'
+} from '../screens/onboarding/onboarding_success/onboarding_success'
 
 export const UnlockedWalletRoutes = ({
   sessionRoute
@@ -32,39 +32,41 @@ export const UnlockedWalletRoutes = ({
 }) => {
   // render
   return (
-    <Switch>
-      <Route
-        path={WalletRoutes.OnboardingComplete}
-        exact
-      >
-        <WalletPageLayout>
-          <WalletSubViewLayout>
-            <OnboardingSuccess />
-          </WalletSubViewLayout>
-        </WalletPageLayout>
-      </Route>
+    <>
+      <Switch>
+        <Route
+          path={WalletRoutes.OnboardingComplete}
+          exact
+        >
+          <WalletPageLayout>
+            <WalletSubViewLayout>
+              <OnboardingSuccess />
+            </WalletSubViewLayout>
+          </WalletPageLayout>
+        </Route>
 
-      <Route path={WalletRoutes.Backup}>
-        <WalletPageLayout>
-          <WalletSubViewLayout>
-            <SimplePageWrapper>
-              <BackupWalletRoutes />
-            </SimplePageWrapper>
-          </WalletSubViewLayout>
-        </WalletPageLayout>
-      </Route>
+        <Route path={WalletRoutes.Backup}>
+          <WalletPageLayout>
+            <WalletSubViewLayout>
+              <SimplePageWrapper>
+                <BackupWalletRoutes />
+              </SimplePageWrapper>
+            </WalletSubViewLayout>
+          </WalletPageLayout>
+        </Route>
 
-      <Route path={WalletRoutes.FundWalletPageStart}>
-        <FundWalletScreen />
-      </Route>
+        <Route path={WalletRoutes.FundWalletPageStart}>
+          <FundWalletScreen />
+        </Route>
 
-      <Route path={WalletRoutes.DepositFundsPageStart}>
-        <DepositFundsScreen />
-      </Route>
+        <Route path={WalletRoutes.DepositFundsPageStart}>
+          <DepositFundsScreen />
+        </Route>
 
-      <Route path={WalletRoutes.CryptoPage}>
-        <CryptoView sessionRoute={sessionRoute} />
-      </Route>
-    </Switch>
+        <Route path={WalletRoutes.CryptoPage}>
+          <CryptoView sessionRoute={sessionRoute} />
+        </Route>
+      </Switch>
+    </>
   )
 }

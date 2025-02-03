@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -17,7 +18,7 @@
 #include "brave/browser/brave_browser_process.h"
 #include "brave/browser/ui/webui/brave_webui_source.h"
 #include "brave/components/brave_adblock/adblock_internals/resources/grit/brave_adblock_internals_generated_map.h"
-#include "brave/components/brave_shields/browser/ad_block_service.h"
+#include "brave/components/brave_shields/content/browser/ad_block_service.h"
 #include "components/grit/brave_components_resources.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -65,8 +66,9 @@ class BraveAdblockInternalsMessageHandler
         memory_instrumentation::MemoryInstrumentation::GetInstance();
 
     std::vector<std::string> mad_list;
-    for (const auto& metric : kCollectedMemoryMetrics)
+    for (const auto& metric : kCollectedMemoryMetrics) {
       mad_list.push_back(metric.dump_name);
+    }
     instrumentation->RequestGlobalDumpForPid(
         base::Process::Current().Pid(), mad_list,
         base::BindOnce(&BraveAdblockInternalsMessageHandler::OnGetMemoryDump,
@@ -108,8 +110,9 @@ class BraveAdblockInternalsMessageHandler
   void DiscardRegex(const base::Value::List& args) {
     CHECK_EQ(1U, args.size());
     uint64_t regex_id = 0U;
-    if (!base::StringToUint64(args[0].GetString(), &regex_id))
+    if (!base::StringToUint64(args[0].GetString(), &regex_id)) {
       return;
+    }
     g_brave_browser_process->ad_block_service()->DiscardRegex(regex_id);
   }
 
@@ -130,11 +133,10 @@ class BraveAdblockInternalsMessageHandler
 
 }  // namespace
 
-BraveAdblockInternalsUI::BraveAdblockInternalsUI(content::WebUI* web_ui,
-                                                 const std::string& name)
+BraveAdblockInternalsUI::BraveAdblockInternalsUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
-  CreateAndAddWebUIDataSource(web_ui, name, kBraveAdblockInternalsGenerated,
-                              kBraveAdblockInternalsGeneratedSize,
+  CreateAndAddWebUIDataSource(web_ui, kAdblockInternalsHost,
+                              kBraveAdblockInternalsGenerated,
                               IDR_BRAVE_ADBLOCK_INTERNALS_HTML);
 
   web_ui->AddMessageHandler(

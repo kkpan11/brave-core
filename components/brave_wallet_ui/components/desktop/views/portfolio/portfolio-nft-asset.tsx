@@ -14,17 +14,12 @@ import { WalletRoutes } from '../../../../constants/types'
 import { getBalance } from '../../../../utils/balance-utils'
 import { makeSendRoute } from '../../../../utils/routes-utils'
 import Amount from '../../../../utils/amount'
-
-// selectors
-import { WalletSelectors } from '../../../../common/selectors'
+import { getAssetIdKey } from '../../../../utils/asset-utils'
 
 // Components
 import { NftScreen } from '../../../../nft/components/nft-details/nft-screen'
 
 // Hooks
-import {
-  useUnsafeWalletSelector //
-} from '../../../../common/hooks/use-safe-selector'
 import {
   useGetNetworkQuery,
   useGetSimpleHashSpamNftsQuery,
@@ -35,7 +30,8 @@ import {
 } from '../../../../common/hooks/use-scoped-balance-updater'
 import { useAccountsQuery } from '../../../../common/slices/api.slice.extra'
 import {
-  selectAllVisibleUserAssetsFromQueryResult //
+  selectAllVisibleUserAssetsFromQueryResult, //
+  selectHiddenNftsFromQueryResult
 } from '../../../../common/slices/entities/blockchain-token.entity'
 
 // Styled Components
@@ -47,49 +43,32 @@ import { StyledWrapper } from './style'
 export const PortfolioNftAsset = () => {
   // routing
   const history = useHistory()
-  const { contractAddress, tokenId } = useParams<{
-    contractAddress: string
-    tokenId?: string
+  const { assetId } = useParams<{
+    assetId?: string
   }>()
-
-  // redux
-  const hiddenNfts = useUnsafeWalletSelector(
-    WalletSelectors.removedNonFungibleTokens
-  )
 
   // queries
   const { data: simpleHashNfts = [], isLoading: isLoadingSpamNfts } =
     useGetSimpleHashSpamNftsQuery()
 
-  const { userVisibleTokensInfo, isLoadingVisibleTokens } =
+  const { hiddenNfts, userVisibleTokensInfo, isLoadingTokens } =
     useGetUserTokensRegistryQuery(undefined, {
       selectFromResult: (result) => ({
+        hiddenNfts: selectHiddenNftsFromQueryResult(result),
         userVisibleTokensInfo:
           selectAllVisibleUserAssetsFromQueryResult(result),
-        isLoadingVisibleTokens: result.isLoading
+        isLoadingTokens: result.isLoading
       })
     })
 
   const selectedAssetFromParams = React.useMemo(() => {
-    const userToken = userVisibleTokensInfo
+    return userVisibleTokensInfo
       .concat(hiddenNfts)
       .concat(simpleHashNfts)
-      .find((token) =>
-        tokenId
-          ? token.tokenId === tokenId &&
-            token.contractAddress.toLowerCase() ===
-              contractAddress.toLowerCase()
-          : token.contractAddress.toLowerCase() ===
-            contractAddress.toLowerCase()
-      )
-    return userToken
-  }, [
-    userVisibleTokensInfo,
-    contractAddress,
-    tokenId,
-    hiddenNfts,
-    simpleHashNfts
-  ])
+      .find((token) => {
+        return getAssetIdKey(token) === assetId
+      })
+  }, [assetId, userVisibleTokensInfo, hiddenNfts, simpleHashNfts])
 
   const { accounts } = useAccountsQuery()
   const { data: selectedAssetNetwork } = useGetNetworkQuery(
@@ -147,13 +126,13 @@ export const PortfolioNftAsset = () => {
     }
 
     history.push(makeSendRoute(selectedAssetFromParams, ownerAccount))
-  }, [selectedAssetFromParams, ownerAccount])
+  }, [selectedAssetFromParams, ownerAccount, history])
 
   // asset not found
   if (
     !selectedAssetFromParams &&
     !isLoadingSpamNfts &&
-    !isLoadingVisibleTokens &&
+    !isLoadingTokens &&
     userVisibleTokensInfo.length === 0
   ) {
     return <Redirect to={WalletRoutes.PortfolioNFTs} />
@@ -164,14 +143,12 @@ export const PortfolioNftAsset = () => {
     <WalletPageWrapper
       wrapContentInBox={true}
       noCardPadding={false}
-      hideDivider={false}
       cardHeader={
         <NftAssetHeader
           onBack={history.goBack}
           assetName={selectedAssetFromParams?.name}
           tokenId={selectedAssetFromParams?.tokenId}
-          showSendButton={showSendButton}
-          onSend={onSend}
+          onSend={showSendButton ? onSend : undefined}
         />
       }
     >

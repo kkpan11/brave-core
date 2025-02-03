@@ -5,15 +5,16 @@
 
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/exclusion_rules_base.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "brave/components/brave_ads/core/internal/common/logging_util.h"
 #include "brave/components/brave_ads/core/internal/creatives/creative_ad_info.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/anti_targeting_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/conversion_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/daily_cap_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/daypart_exclusion_rule.h"
-#include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/dislike_category_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/dislike_exclusion_rule.h"
+#include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/dislike_segment_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/marked_as_inappropriate_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/page_land_exclusion_rule.h"
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/per_day_exclusion_rule.h"
@@ -31,9 +32,9 @@ ExclusionRulesBase::ExclusionRulesBase(
     const AdEventList& ad_events,
     const SubdivisionTargeting& subdivision_targeting,
     const AntiTargetingResource& anti_targeting_resource,
-    const BrowsingHistoryList& browsing_history) {
+    const SiteHistoryList& site_history) {
   exclusion_rules_.push_back(std::make_unique<AntiTargetingExclusionRule>(
-      anti_targeting_resource, browsing_history));
+      anti_targeting_resource, site_history));
 
   exclusion_rules_.push_back(
       std::make_unique<ConversionExclusionRule>(ad_events));
@@ -43,7 +44,7 @@ ExclusionRulesBase::ExclusionRulesBase(
 
   exclusion_rules_.push_back(std::make_unique<DaypartExclusionRule>());
 
-  exclusion_rules_.push_back(std::make_unique<DislikeCategoryExclusionRule>());
+  exclusion_rules_.push_back(std::make_unique<DislikeSegmentExclusionRule>());
 
   exclusion_rules_.push_back(std::make_unique<DislikeExclusionRule>());
 
@@ -74,7 +75,7 @@ ExclusionRulesBase::~ExclusionRulesBase() = default;
 
 bool ExclusionRulesBase::ShouldExcludeCreativeAd(
     const CreativeAdInfo& creative_ad) {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       exclusion_rules_,
       [&](const std::unique_ptr<ExclusionRuleInterface<CreativeAdInfo>>&
               exclusion_rule) {
@@ -107,7 +108,7 @@ bool ExclusionRulesBase::AddToCacheIfNeeded(
 ///////////////////////////////////////////////////////////////////////////////
 
 bool ExclusionRulesBase::IsCached(const CreativeAdInfo& creative_ad) const {
-  return base::ranges::any_of(uuids_, [&creative_ad](const std::string& uuid) {
+  return std::ranges::any_of(uuids_, [&creative_ad](const std::string& uuid) {
     return creative_ad.creative_instance_id == uuid ||
            creative_ad.creative_set_id == uuid ||
            creative_ad.campaign_id == uuid ||

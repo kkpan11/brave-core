@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 import Icon from '@brave/leo/react/icon';
-import { effect, font, radius, spacing } from '@brave/leo/tokens/css';
+import { effect, font, radius, spacing } from '@brave/leo/tokens/css/variables';
 import * as React from 'react';
 import styled, { css } from 'styled-components';
 import { useInspectContext } from './context';
@@ -12,6 +12,7 @@ import { useBraveNews } from './shared/Context';
 import { isPublisherEnabled } from './shared/api';
 import { FeedView } from './shared/useFeedV2';
 import { getLocale } from '$web-common/locale';
+import SettingsButton from './SettingsButton';
 
 const DEFAULT_SHOW_COUNT = 4;
 
@@ -32,14 +33,6 @@ const Container = styled(Card)`
   scrollbar-color: var(--bn-glass-10) var(--bn-glass-10);
 `
 
-const Heading = styled.h3`
-  font: ${font.default.semibold};
-  color: var(--bn-glass-25);
-  margin: 0;
-
-  padding-left: ${PAD_LEFT};
-`
-
 const CustomButton = styled.button <{ selected?: boolean, faint?: boolean, bold?: boolean }>`
   padding: ${spacing.m};
   padding-left: ${PAD_LEFT};
@@ -52,7 +45,7 @@ const CustomButton = styled.button <{ selected?: boolean, faint?: boolean, bold?
   text-align: left;
   width: 100%;
 
-  color: ${p => p.faint ? `var(--bn-glass-25)` : `var(--bn-glass-70)`};
+  color: ${p => p.faint ? `var(--bn-glass-50)` : `var(--bn-glass-100)`};
   font: ${p => font.small[p.bold ? 'semibold' : 'regular']};
   cursor: pointer;
 
@@ -87,12 +80,7 @@ const Section = styled.details`
       box-shadow: ${effect.focusState};
     }
 
-    ${CustomButton} {
-      padding: 0;
-      flex: 0;
-      display: flex;
-      gap: ${spacing.m};
-      align-items: center;
+    ${SettingsButton} {
       margin-left: auto;
     }
   }
@@ -108,6 +96,10 @@ const Section = styled.details`
   }
 `
 
+const AddButton = styled(SettingsButton)`
+  --leo-button-padding: ${spacing.xs};
+`
+
 function usePersistedState<T>(name: string, defaultValue: T) {
   const [value, setValue] = React.useState<T>(JSON.parse(localStorage[name] ?? null) ?? defaultValue)
   React.useEffect(() => {
@@ -118,11 +110,19 @@ function usePersistedState<T>(name: string, defaultValue: T) {
 }
 
 const Marker = <Icon name='arrow-small-right' className='marker' />
+const PlaceholderMarker = <Icon />
 
 export function Item(props: { id: FeedView, name: string }) {
-  const { feedView, setFeedView } = useBraveNews()
-
-  return <CustomButton selected={props.id === feedView} onClick={() => setFeedView(props.id)} bold={props.id === 'all'}>
+  const { feedView, setFeedView, reportSidebarFilterUsage } = useBraveNews()
+  const topLevel = ['all', 'following'].includes(props.id)
+  return <CustomButton
+    selected={props.id === feedView}
+    onClick={() => {
+      setFeedView(props.id)
+      reportSidebarFilterUsage()
+    }}
+    bold={topLevel}
+  >
     {props.name}
   </CustomButton>
 }
@@ -147,17 +147,18 @@ export default function Sidebar() {
     .slice(0, showingMoreChannels ? undefined : DEFAULT_SHOW_COUNT), [subscribedChannels, showingMoreChannels])
 
   return <Container>
-    <Heading>{getLocale('braveNewsMyFeedHeading')}</Heading>
     <Item id='all' name={getLocale('braveNewsForYouFeed')} />
     <Item id='following' name={getLocale('braveNewsFollowingFeed')} />
     <Section open>
       <summary>
-        {Marker}
+        {subscribedChannels.length ? Marker : PlaceholderMarker}
         {getLocale('braveNewsChannelsHeader')}
-        <CustomButton faint onClick={() => setCustomizePage('news')}>
+        <AddButton size="tiny" onClick={(event) => {
+          event.preventDefault()
+          setCustomizePage('news')
+        }}>
           <Icon name='plus-add' />
-          {getLocale('braveNewsAddChannelsOrPublishers')}
-        </CustomButton>
+        </AddButton>
       </summary>
       {slicedChannelIds.map(c => <Item key={c} id={`channels/${c}`} name={c} />)}
       {subscribedChannels.length > DEFAULT_SHOW_COUNT
@@ -169,12 +170,14 @@ export default function Sidebar() {
     </Section>
     <Section open>
       <summary>
-        {Marker}
+        {subscribedPublisherIds.length ? Marker : PlaceholderMarker}
         {getLocale('braveNewsPublishersHeading')}
-        <CustomButton faint onClick={() => setCustomizePage('popular')}>
+        <AddButton size="tiny" onClick={(event) => {
+          event.preventDefault()
+          setCustomizePage('popular')
+        }}>
           <Icon name='plus-add' />
-          {getLocale('braveNewsAddChannelsOrPublishers')}
-        </CustomButton>
+        </AddButton>
       </summary>
       {slicedPublisherIds.map(p => <Item key={p} id={`publishers/${p}`} name={publishers[p]?.publisherName} />)}
       {subscribedPublisherIds.length > DEFAULT_SHOW_COUNT

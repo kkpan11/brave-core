@@ -73,6 +73,7 @@ class MetricLogStore : public metrics::LogStore {
   void StageNextLog() override;
   void DiscardStagedLog(std::string_view reason = "") override;
   void MarkStagedLogAsSent() override;
+  const metrics::LogMetadata staged_log_metadata() const override;
 
   // |TrimAndPersistUnsentLogs| should not be used, since we persist everything
   // on the fly.
@@ -101,7 +102,7 @@ class MetricLogStore : public metrics::LogStore {
   const char* GetPrefName() const;
 
   const raw_ref<Delegate> delegate_;
-  const raw_ref<PrefService> local_state_;
+  const raw_ref<PrefService, DanglingUntriaged> local_state_;
 
   MetricLogType type_;
 

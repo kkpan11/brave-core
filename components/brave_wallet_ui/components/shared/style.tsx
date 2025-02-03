@@ -8,7 +8,9 @@
 import { FC } from 'react'
 import styled, { css, CSSProperties } from 'styled-components'
 import { Link } from 'react-router-dom'
-import * as leo from '@brave/leo/tokens/css'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
+import Button from '@brave/leo/react/button'
 
 // types
 import { BraveWallet, StringWithAutocomplete } from '../../constants/types'
@@ -70,6 +72,7 @@ export const MutedLinkText = styled(LinkText)`
   font-size: 12px;
   font-weight: 400;
   color: ${leo.color.text.tertiary};
+  line-height: 20px;
 `
 
 export const ErrorText = styled.span`
@@ -81,7 +84,10 @@ export const ErrorText = styled.span`
 `
 
 type FlexProps = Partial<
-  Pick<CSSProperties, 'flex' | 'alignItems' | 'justifyContent' | 'gap'>
+  Pick<
+    CSSProperties,
+    'flex' | 'alignItems' | 'justifyContent' | 'gap' | 'alignSelf' | 'flexWrap'
+  >
 >
 
 // Mixins
@@ -93,8 +99,38 @@ export const walletButtonFocusMixin = css`
   }
 `
 
+/**
+ * Also forces the scroll indicator to be visible on MacOS when present,
+ * even when the element is not hovered
+ */
+export const styledScrollbarMixin = css`
+  ::-webkit-scrollbar {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  ::-webkit-scrollbar:vertical {
+    width: 7px;
+  }
+
+  ::-webkit-scrollbar:horizontal {
+    height: 7px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: none;
+    border-radius: 8px;
+  }
+`
+
 export const backgroundColorMixin = css<{
-  color?: ThemeColor
+  color?: keyof IThemeProps['color']
 }>`
   background-color: ${(p) =>
     p?.color
@@ -106,23 +142,33 @@ export const backgroundColorMixin = css<{
 export const Row = styled.div<
   FlexProps & {
     maxWidth?: CSSProperties['maxWidth']
+    minWidth?: CSSProperties['minWidth']
+    minHeight?: CSSProperties['minHeight']
+    height?: '100%' | 'unset'
     margin?: number | string
     padding?: number | string
-    width?: '100%' | 'unset'
+    width?: CSSProperties['width']
     marginBottom?: number | string
-    wrap?: boolean
+    // https://styled-components.com/docs/api#transient-props
+    $wrap?: boolean
+    gap?: string
   }
 >`
+  cursor: ${(p) => (p.onClick ? 'pointer' : 'unset')};
   font-family: 'Poppins';
   display: flex;
   flex-direction: row;
-  flex-wrap: ${(p) => (p.wrap ? 'wrap' : 'unset')};
+  flex-wrap: ${(p) => (p.$wrap ? 'wrap' : 'unset')};
   flex: ${(p) => p.flex ?? 'unset'};
   align-items: ${(p) => p.alignItems ?? 'center'};
+  align-self: ${(p) => p.alignSelf ?? 'unset'};
   justify-content: ${(p) => p.justifyContent ?? 'center'};
   gap: ${(p) => p.gap ?? 'unset'};
   width: ${(p) => p.width ?? '100%'};
+  min-width: ${(p) => p.minWidth ?? 'unset'};
   max-width: ${(p) => p.maxWidth ?? 'unset'};
+  height: ${(p) => p.height ?? 'unset'};
+  min-height: ${(p) => p.minHeight ?? 'unset'};
   margin: ${(p) => p.margin ?? 'unset'};
   ${(p) =>
     p?.marginBottom || p?.marginBottom === 0
@@ -135,6 +181,8 @@ export const Row = styled.div<
   position: relative;
   ${makePaddingMixin(0)}
   box-sizing: border-box;
+  gap: ${(p) => p.gap ?? 'unset'};
+  flex-wrap: ${(p) => p.flexWrap ?? 'unset'};
 `
 
 export const Column = styled.div<
@@ -155,6 +203,7 @@ export const Column = styled.div<
   display: flex;
   flex-direction: column;
   align-items: ${(p) => p.alignItems ?? 'center'};
+  align-self: ${(p) => p.alignSelf ?? 'unset'};
   justify-content: ${(p) => p.justifyContent ?? 'center'};
   gap: ${(p) => p.gap ?? 'unset'};
   margin: ${(p) => p.margin ?? 0};
@@ -457,6 +506,12 @@ export const SwitchAccountIcon = styled.div`
   margin-right: 6px;
 `
 
+export const LaunchIcon = styled(Icon).attrs({ name: 'launch' })`
+  --leo-icon-size: 14px;
+  --leo-icon-color: ${leo.color.icon.interactive};
+  margin-bottom: 1px;
+`
+
 // Asset Icon containers
 export const IconsWrapper = styled.div<{
   marginRight?: string
@@ -516,10 +571,11 @@ export const InputLabelText = styled.label`
   width: 100%;
 `
 
-export const VerticalDivider = styled.div`
+export const VerticalDivider = styled.div<{ margin?: string }>`
   height: 1px;
   width: 100%;
   background-color: ${leo.color.divider.subtle};
+  margin: ${(p) => p.margin || 0};
 `
 
 export const BraveRewardsIndicator = styled.div`
@@ -534,4 +590,8 @@ export const BraveRewardsIndicator = styled.div`
   padding: 2px 6px;
   border: 1px solid ${leo.color.divider.subtle};
   border-radius: 4px;
+`
+
+export const LeoSquaredButton = styled(Button)`
+  --leo-button-radius: 12px;
 `

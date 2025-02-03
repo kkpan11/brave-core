@@ -12,13 +12,13 @@
 #include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_constants.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_utils.h"
+#include "brave/components/brave_wallet/browser/network_manager.h"
 #include "brave/components/brave_wallet/browser/wallet_data_files_installer.h"
-#include "brave/components/brave_wallet/common/brave_wallet.mojom-shared.h"
-#include "brave/components/json/rs/src/lib.rs.h"
+#include "brave/components/brave_wallet/common/brave_wallet.mojom.h"
+#include "brave/components/json/json_helper.h"
 #include "net/base/url_util.h"
 #include "services/data_decoder/public/cpp/json_sanitizer.h"
 
@@ -170,8 +170,7 @@ void DoParseDappLists(const base::FilePath& dir, ParseListsResult& out) {
     return;
   }
 
-  auto converted_json =
-      std::string(json::convert_all_numbers_to_string(*result, ""));
+  auto converted_json = json::convert_all_numbers_to_string(*result, "");
   if (converted_json.empty()) {
     return;
   }
@@ -275,7 +274,7 @@ void BlockchainRegistry::UpdateTokenList(TokenListMap token_list_map) {
 }
 
 void BlockchainRegistry::UpdateTokenList(
-    const std::string key,
+    const std::string& key,
     std::vector<mojom::BlockchainTokenPtr> list) {
   token_list_map_[key] = std::move(list);
 }
@@ -326,7 +325,7 @@ mojom::BlockchainTokenPtr BlockchainRegistry::GetTokenByAddress(
   }
 
   const auto& tokens = token_list_map_[key];
-  auto token_it = base::ranges::find_if(
+  auto token_it = std::ranges::find_if(
       tokens, [&](const mojom::BlockchainTokenPtr& current_token) {
         return current_token->contract_address == address;
       });
@@ -343,7 +342,7 @@ void BlockchainRegistry::GetTokenBySymbol(const std::string& chain_id,
     return;
   }
   const auto& tokens = token_list_map_[key];
-  auto token_it = base::ranges::find_if(
+  auto token_it = std::ranges::find_if(
       tokens, [&](const mojom::BlockchainTokenPtr& current_token) {
         return current_token->symbol == symbol;
       });
@@ -458,7 +457,7 @@ void BlockchainRegistry::GetSellTokens(mojom::OffRampProvider provider,
       continue;
     }
 
-    blockchain_sell_tokens.push_back(mojom::BlockchainToken::New(*token));
+    blockchain_sell_tokens.push_back(token->Clone());
   }
 
   std::move(callback).Run(std::move(blockchain_sell_tokens));
@@ -478,8 +477,8 @@ std::vector<mojom::NetworkInfoPtr>
 BlockchainRegistry::GetPrepopulatedNetworks() {
   std::vector<mojom::NetworkInfoPtr> result;
   for (auto& chain : chain_list_) {
-    if (auto known_chain =
-            GetKnownChain(nullptr, chain->chain_id, mojom::CoinType::ETH)) {
+    if (auto known_chain = NetworkManager::GetKnownChain(
+            chain->chain_id, mojom::CoinType::ETH)) {
       result.push_back(known_chain.Clone());
     } else {
       result.push_back(chain.Clone());

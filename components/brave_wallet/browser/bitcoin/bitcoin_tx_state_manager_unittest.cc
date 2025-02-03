@@ -39,7 +39,7 @@ class BitcoinTxStateManagerUnitTest : public testing::Test {
     account_resolver_delegate_ =
         std::make_unique<AccountResolverDelegateForTest>();
     bitcoin_tx_state_manager_ = std::make_unique<BitcoinTxStateManager>(
-        GetPrefs(), delegate_.get(), account_resolver_delegate_.get());
+        *delegate_, *account_resolver_delegate_);
   }
 
   PrefService* GetPrefs() { return &prefs_; }
@@ -54,9 +54,10 @@ class BitcoinTxStateManagerUnitTest : public testing::Test {
 };
 
 TEST_F(BitcoinTxStateManagerUnitTest, BitcoinTxMetaAndValue) {
-  auto btc_account_id = account_resolver_delegate_->RegisterAccount(
-      MakeBitcoinAccountId(mojom::CoinType::BTC, mojom::KeyringId::kBitcoin84,
-                           mojom::AccountKind::kDerived, 1));
+  auto btc_account_id =
+      account_resolver_delegate_->RegisterAccount(MakeIndexBasedAccountId(
+          mojom::CoinType::BTC, mojom::KeyringId::kBitcoin84,
+          mojom::AccountKind::kDerived, 1));
 
   std::unique_ptr<BitcoinTransaction> tx =
       std::make_unique<BitcoinTransaction>();
@@ -91,15 +92,6 @@ TEST_F(BitcoinTxStateManagerUnitTest, BitcoinTxMetaAndValue) {
       bitcoin_tx_state_manager_->ValueToBitcoinTxMeta(meta_value);
   ASSERT_TRUE(meta_from_value);
   EXPECT_EQ(*meta_from_value, meta);
-}
-
-TEST_F(BitcoinTxStateManagerUnitTest, GetTxPrefPathPrefix) {
-  EXPECT_EQ("bitcoin.mainnet", bitcoin_tx_state_manager_->GetTxPrefPathPrefix(
-                                   mojom::kBitcoinMainnet));
-  EXPECT_EQ("bitcoin.testnet", bitcoin_tx_state_manager_->GetTxPrefPathPrefix(
-                                   mojom::kBitcoinTestnet));
-  EXPECT_EQ("bitcoin",
-            bitcoin_tx_state_manager_->GetTxPrefPathPrefix(std::nullopt));
 }
 
 }  // namespace brave_wallet

@@ -23,10 +23,16 @@ import sys
 import os
 import tempfile
 
+import components.android_tools as android_tools
 import components.perf_config as perf_config
 import components.perf_test_runner as perf_test_runner
 import components.perf_test_utils as perf_test_utils
 import components.path_util as path_util
+import components.profile_tools as profile_tools
+import components.wpr_utils as wpr_utils
+
+from components.common_options import CommonOptions, PerfMode
+
 
 with path_util.SysPath(path_util.GetPyJson5Dir()):
   # pylint: disable=import-error # pytype: disable=import-error
@@ -34,7 +40,7 @@ with path_util.SysPath(path_util.GetPyJson5Dir()):
   # pylint: enable=import-error # pytype: enable=import-error
 
 
-def load_config(config: str, options: perf_test_runner.CommonOptions) -> dict:
+def load_config(config: str, options: CommonOptions) -> dict:
   if config.startswith('https://'):  # URL to download the config
     _, config_path = tempfile.mkstemp(dir=options.working_directory,
                                       prefix='config-')
@@ -63,6 +69,32 @@ def load_config(config: str, options: perf_test_runner.CommonOptions) -> dict:
     return json5.load(config_file)
 
 
+def _RunUpdateProfile(config: perf_config.PerfConfig,
+                      options: CommonOptions) -> int:
+  if len(config.runners) != 1:
+    raise RuntimeError('Only one configuration should be specified.')
+  options.do_report = False
+  config.runners[0].profile_rebase = perf_config.ProfileRebaseType.NONE
+  config.benchmarks = [
+      perf_config.BenchmarkConfig({
+          'name': 'brave_utils.online',
+          'pageset-repeat': 5,
+          'stories': ['UpdateProfile'],
+          'stories_exclude': [],
+      })
+  ]
+
+  configurations = perf_test_runner.SpawnConfigurationsFromTargetList(
+      options.targets, config.runners[0])
+  assert len(configurations) == 1
+  profile_tools.CleanupBrowserComponents(configurations[0], options)
+  if not perf_test_runner.RunConfigurations(configurations, config.benchmarks,
+                                            options):
+    return 1
+
+  profile_tools.MakeUpdatedProfileArchive(configurations[0], options)
+  return 0
+
 def main():
   parser = argparse.ArgumentParser(
       formatter_class=argparse.RawTextHelpFormatter,
@@ -71,18 +103,16 @@ def main():
       epilog=R'''
 To some launch tests locally:
 npm run perf_tests -- compare/compare_with_on_off_feature.json5
-     --variations-repo-dir=~/work/brave-variations
 
 On CI:
 npm run perf_tests -- smoke-brave.json5 v1.58.45
      --working-directory=e:\work\brave\src\out\100
-     --variations-repo-dir=e:\work\brave-variations
      --ci-mode
 ''')
-  perf_test_runner.CommonOptions.add_parser_args(parser)
+  CommonOptions.add_parser_args(parser)
 
   args = parser.parse_args()
-  options = perf_test_runner.CommonOptions.from_args(args)
+  options = CommonOptions.from_args(args)
 
   log_level = logging.DEBUG if options.verbose else logging.INFO
   log_format = '%(asctime)s: %(message)s'
@@ -93,23 +123,36 @@ npm run perf_tests -- smoke-brave.json5 v1.58.45
     logging.info('Cleaning working directory %s', options.working_directory)
     shutil.rmtree(options.working_directory)
 
-  if not os.path.exists(options.working_directory):
-    os.mkdir(options.working_directory)
+  os.makedirs(options.working_directory, exist_ok=True)
+
   json_config = load_config(args.config, options)
   config = perf_config.PerfConfig(json_config)
 
-  if options.compare:  # compare mode
-    configurations = config.runners
-  else:
+  if options.is_android:
+    if options.reboot_android:
+      android_tools.RebootAndroid()
+    android_tools.SetupAndroidDevice()
+
+  if options.mode == PerfMode.RUN:
     if len(config.runners) != 1:
       raise RuntimeError('Only one configuration should be specified.')
 
     configurations = perf_test_runner.SpawnConfigurationsFromTargetList(
         options.targets, config.runners[0])
+    return 0 if perf_test_runner.RunConfigurations(
+        configurations, config.benchmarks, options) else 1
 
-  return 0 if perf_test_runner.RunConfigurations(
-      configurations, config.benchmarks, options) else 1
+  if options.mode == PerfMode.COMPARE:
+    return 0 if perf_test_runner.RunConfigurations(
+        config.runners, config.benchmarks, options) else 1
 
+  if options.mode == PerfMode.UPDATE_PROFILE:
+    return _RunUpdateProfile(config, options)
+
+  if options.mode == PerfMode.RECORD_WPR:
+    return 0 if wpr_utils.record_wpr(config, options) else 1
+
+  raise RuntimeError('Unknown mode')
 
 if __name__ == '__main__':
   sys.exit(main())

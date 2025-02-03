@@ -11,13 +11,13 @@
 #include "brave/components/constants/webui_url_constants.h"
 #include "brave/components/l10n/common/localization_util.h"
 #include "brave/components/nft_display/resources/grit/nft_display_generated_map.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/grit/browser_resources.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/grit/brave_components_resources.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
-#include "ui/resources/grit/webui_resources.h"
+#include "ui/webui/resources/grit/webui_resources.h"
+#include "ui/webui/webui_util.h"
 
 namespace nft {
 
@@ -33,14 +33,11 @@ UntrustedNftUI::UntrustedNftUI(content::WebUI* web_ui)
   }
 
   untrusted_source->SetDefaultResource(IDR_BRAVE_WALLET_NFT_DISPLAY_HTML);
-  untrusted_source->AddResourcePaths(
-      base::make_span(kNftDisplayGenerated, kNftDisplayGeneratedSize));
+  untrusted_source->AddResourcePaths(kNftDisplayGenerated);
   untrusted_source->AddFrameAncestor(GURL(kBraveUIWalletPageURL));
   untrusted_source->AddFrameAncestor(GURL(kBraveUIWalletPanelURL));
-  webui::SetupWebUIDataSource(
-      untrusted_source,
-      base::make_span(kNftDisplayGenerated, kNftDisplayGeneratedSize),
-      IDR_BRAVE_WALLET_NFT_DISPLAY_HTML);
+  webui::SetupWebUIDataSource(untrusted_source, kNftDisplayGenerated,
+                              IDR_BRAVE_WALLET_NFT_DISPLAY_HTML);
   untrusted_source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
       std::string("script-src 'self' chrome-untrusted://resources;"));

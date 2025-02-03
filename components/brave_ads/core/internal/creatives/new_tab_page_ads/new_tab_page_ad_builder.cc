@@ -15,14 +15,15 @@ NewTabPageAdInfo BuildNewTabPageAd(
     const CreativeNewTabPageAdInfo& creative_ad) {
   const std::string placement_id =
       base::Uuid::GenerateRandomV4().AsLowercaseString();
-  return BuildNewTabPageAd(creative_ad, placement_id);
+  return BuildNewTabPageAd(placement_id, creative_ad);
 }
 
-NewTabPageAdInfo BuildNewTabPageAd(const CreativeNewTabPageAdInfo& creative_ad,
-                                   const std::string& placement_id) {
+NewTabPageAdInfo BuildNewTabPageAd(
+    const std::string& placement_id,
+    const CreativeNewTabPageAdInfo& creative_ad) {
   NewTabPageAdInfo ad;
 
-  ad.type = AdType::kNewTabPageAd;
+  ad.type = mojom::AdType::kNewTabPageAd;
   ad.placement_id = placement_id;
   ad.creative_instance_id = creative_ad.creative_instance_id;
   ad.creative_set_id = creative_ad.creative_set_id;
@@ -30,16 +31,8 @@ NewTabPageAdInfo BuildNewTabPageAd(const CreativeNewTabPageAdInfo& creative_ad,
   ad.advertiser_id = creative_ad.advertiser_id;
   ad.segment = creative_ad.segment;
   ad.company_name = creative_ad.company_name;
-  ad.image_url = creative_ad.image_url;
   ad.alt = creative_ad.alt;
   ad.target_url = creative_ad.target_url;
-
-  for (const auto& [image_url, focal_point] : creative_ad.wallpapers) {
-    ad.wallpapers.push_back(NewTabPageAdWallpaperInfo{
-        .image_url = image_url,
-        .focal_point =
-            NewTabPageAdWallpaperFocalPointInfo{focal_point.x, focal_point.y}});
-  }
 
   return ad;
 }

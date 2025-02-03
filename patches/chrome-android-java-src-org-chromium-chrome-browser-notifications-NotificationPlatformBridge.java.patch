@@ -1,31 +1,22 @@
 diff --git a/chrome/android/java/src/org/chromium/chrome/browser/notifications/NotificationPlatformBridge.java b/chrome/android/java/src/org/chromium/chrome/browser/notifications/NotificationPlatformBridge.java
-index c2733a26fae40f39344adc62fb7e82dae5674ba4..059ffdc320b60b3317e9c7ecf275293dcc5e2bf9 100644
+index b3fd18f85cb154811f77f800ae09c0625e428bf8..2125a5c53345c7456a7138727a3bb786b616a859 100644
 --- a/chrome/android/java/src/org/chromium/chrome/browser/notifications/NotificationPlatformBridge.java
 +++ b/chrome/android/java/src/org/chromium/chrome/browser/notifications/NotificationPlatformBridge.java
-@@ -83,7 +83,7 @@ public class NotificationPlatformBridge {
- 
-     private static final int[] EMPTY_VIBRATION_PATTERN = new int[0];
- 
--    private static NotificationPlatformBridge sInstance;
-+    protected static NotificationPlatformBridge sInstance;
- 
-     private static NotificationManagerProxy sNotificationManagerOverride;
- 
 @@ -134,7 +134,7 @@ public class NotificationPlatformBridge {
-         sNotificationManagerOverride = notificationManager;
+     private static long sLastPreUnsubscribePreNativeTaskStartRealMillis = -1;
+ 
+     /** Encapsulates attributes that identify a notification and where it originates from. */
+-    private static class NotificationIdentifyingAttributes {
++    public static class NotificationIdentifyingAttributes {
+         public final String notificationId;
+         public final @NotificationType int notificationType;
+         public final String origin;
+@@ -883,7 +883,7 @@ public class NotificationPlatformBridge {
+                 .storeNotificationResourcesIfSuspended(notification);
      }
  
--    private NotificationPlatformBridge(long nativeNotificationPlatformBridge) {
-+    protected NotificationPlatformBridge(long nativeNotificationPlatformBridge) {
-         mNativeNotificationPlatformBridge = nativeNotificationPlatformBridge;
-         Context context = ContextUtils.getApplicationContext();
-         if (sNotificationManagerOverride != null) {
-@@ -584,7 +584,7 @@ public class NotificationPlatformBridge {
-         }
-     }
- 
--    private NotificationBuilderBase prepareNotificationBuilder(String notificationId,
-+    protected NotificationBuilderBase prepareNotificationBuilder(String notificationId,
-             @NotificationType int notificationType, String origin, String scopeUrl,
-             String profileId, boolean incognito, boolean vibrateEnabled, String title, String body,
-             Bitmap image, Bitmap icon, Bitmap badge, int[] vibrationPattern, long timestamp,
+-    private static NotificationBuilderBase prepareNotificationBuilder(
++    protected static NotificationBuilderBase prepareNotificationBuilder(
+             NotificationIdentifyingAttributes identifyingAttributes,
+             boolean vibrateEnabled,
+             String title,

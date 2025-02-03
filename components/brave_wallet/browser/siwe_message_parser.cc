@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_wallet/browser/siwe_message_parser.h"
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -206,7 +207,7 @@ mojom::SIWEMessagePtr SIWEMessageParser::Parse(const std::string& message) {
       }
     }
     if (result->request_id &&
-        !base::ranges::all_of(*result->request_id, &IsPChar)) {
+        !std::ranges::all_of(*result->request_id, &IsPChar)) {
       return {};
     }
     if (!message_view.empty()) {
@@ -350,7 +351,7 @@ bool SIWEMessageParser::ParseNonce(std::string_view& msg_view,
   }
   nonce = value->second;
   if (nonce.size() < kMinNonceLength ||
-      !base::ranges::all_of(nonce, &base::IsAsciiAlphaNumeric<char>)) {
+      !std::ranges::all_of(nonce, &base::IsAsciiAlphaNumeric<char>)) {
     return false;
   }
 
@@ -413,7 +414,7 @@ bool SIWEMessageParser::ParseOptionalResources(
   StringTokenizer tokenizer(urls_str, "\n");
   std::vector<GURL> urls;
   while (tokenizer.GetNext()) {
-    if (!base::StartsWith(tokenizer.token(), kResourcesSeperator)) {
+    if (!tokenizer.token().starts_with(kResourcesSeperator)) {
       return false;
     }
     auto url_str = tokenizer.token().substr(strlen(kResourcesSeperator));

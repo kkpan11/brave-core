@@ -5,7 +5,8 @@
 
 #include "brave/components/brave_ads/core/internal/serving/eligible_ads/exclusion_rules/daypart_exclusion_rule.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "brave/components/brave_ads/core/internal/common/calendar/calendar_util.h"
@@ -20,21 +21,19 @@ namespace {
 
 bool DoesRespectCap(const CreativeAdInfo& creative_ad) {
   if (creative_ad.dayparts.empty()) {
-    // Always respect cap if there are no dayparts specified
+    // Always respect cap if there are no dayparts specified.
     return true;
   }
 
   const base::Time now = base::Time::Now();
-
   const int day_of_week = DayOfWeek(now, /*is_local=*/true);
+  const int minutes = LocalTimeInMinutesSinceMidnight(now);
 
-  const int local_time_in_minutes = GetLocalTimeInMinutes(now);
-
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       creative_ad.dayparts,
-      [day_of_week, local_time_in_minutes](const CreativeDaypartInfo& daypart) {
-        return MatchDayOfWeek(daypart, static_cast<char>('0' + day_of_week)) &&
-               MatchTimeSlot(daypart, local_time_in_minutes);
+      [day_of_week, minutes](const CreativeDaypartInfo& daypart) {
+        return MatchDayOfWeek(daypart, day_of_week) &&
+               MatchTimeSlot(daypart, minutes);
       });
 }
 

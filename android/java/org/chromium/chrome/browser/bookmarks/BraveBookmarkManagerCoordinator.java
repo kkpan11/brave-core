@@ -8,6 +8,8 @@ package org.chromium.chrome.browser.bookmarks;
 import android.content.ComponentName;
 import android.content.Context;
 
+import androidx.annotation.Nullable;
+
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.ui.base.ActivityWindowAndroid;
@@ -16,11 +18,22 @@ public class BraveBookmarkManagerCoordinator extends BookmarkManagerCoordinator 
     // Overridden Chromium's BookmarkManagerCoordinator.mMediator
     private BookmarkManagerMediator mMediator;
 
-    public BraveBookmarkManagerCoordinator(Context context, ComponentName openBookmarkComponentName,
-            boolean isDialogUi, boolean isIncognito, SnackbarManager snackbarManager,
-            Profile profile, BookmarkUiPrefs bookmarkUiPrefs) {
-        super(context, openBookmarkComponentName, isDialogUi, isIncognito, snackbarManager, profile,
-                bookmarkUiPrefs);
+    public BraveBookmarkManagerCoordinator(
+            Context context,
+            ComponentName openBookmarkComponentName,
+            boolean isDialogUi,
+            SnackbarManager snackbarManager,
+            Profile profile,
+            BookmarkUiPrefs bookmarkUiPrefs,
+            @Nullable Runnable bookmarkOpenedCallback) {
+        super(
+                context,
+                openBookmarkComponentName,
+                isDialogUi,
+                snackbarManager,
+                profile,
+                bookmarkUiPrefs,
+                bookmarkOpenedCallback);
     }
 
     public void setWindow(ActivityWindowAndroid window) {

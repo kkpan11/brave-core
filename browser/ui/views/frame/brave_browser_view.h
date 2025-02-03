@@ -17,11 +17,17 @@
 #include "base/scoped_observation.h"
 #include "brave/browser/ui/commands/accelerator_service.h"
 #include "brave/browser/ui/tabs/brave_tab_strip_model.h"
+#include "brave/browser/ui/tabs/split_view_browser_data.h"
+#include "brave/browser/ui/tabs/split_view_browser_data_observer.h"
 #include "brave/components/brave_vpn/common/buildflags/buildflags.h"
+#include "brave/components/brave_wayback_machine/buildflags/buildflags.h"
 #include "brave/components/commands/browser/accelerator_pref_manager.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/base/metadata/metadata_header_macros.h"
 
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
 #include "brave/browser/ui/views/toolbar/brave_vpn_panel_controller.h"
@@ -48,31 +54,42 @@ class SidebarBrowserTest;
 }  // namespace sidebar
 
 class BraveBrowser;
+class BraveHelpBubbleHostView;
 class ContentsLayoutManager;
 class SidebarContainerView;
-class WalletButton;
-class ViewShadow;
+class SidePanelEntry;
+class SplitView;
 class VerticalTabStripWidgetDelegateView;
-class BraveHelpBubbleHostView;
+class ViewShadow;
+class WalletButton;
 
 class BraveBrowserView : public BrowserView,
                          public commands::AcceleratorService::Observer {
+  METADATA_HEADER(BraveBrowserView, BrowserView)
  public:
   explicit BraveBrowserView(std::unique_ptr<Browser> browser);
   BraveBrowserView(const BraveBrowserView&) = delete;
   BraveBrowserView& operator=(const BraveBrowserView&) = delete;
   ~BraveBrowserView() override;
 
+  SplitView* split_view() { return split_view_; }
+  const SplitView* split_view() const { return split_view_; }
+
   void SetStarredState(bool is_starred) override;
   void ShowUpdateChromeDialog() override;
+
+  void ShowBraveVPNBubble(bool show_select = false);
   void CreateWalletBubble();
   void CreateApproveWalletBubble();
   void CloseWalletBubble();
   WalletButton* GetWalletButton();
   views::View* GetWalletButtonAnchorView();
 
+  // Triggers layout of web modal dialogs
+  void NotifyDialogPositionRequiresUpdate();
+
   // BrowserView overrides:
-  void Layout() override;
+  void Layout(PassKey) override;
   void StartTabCycling() override;
   views::View* GetAnchorViewForBraveVPNPanel();
   gfx::Rect GetShieldsBubbleRect() override;
@@ -90,6 +107,13 @@ class BraveBrowserView : public BrowserView,
   bool ShouldShowWindowTitle() const override;
   void OnThemeChanged() override;
   TabSearchBubbleHost* GetTabSearchBubbleHost() override;
+  void OnActiveTabChanged(content::WebContents* old_contents,
+                          content::WebContents* new_contents,
+                          int index,
+                          int reason) override;
+  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
+  bool IsInTabDragging() const override;
+  views::View* GetContentsContainerForLayoutManager() override;
 
 #if defined(USE_AURA)
   views::View* sidebar_host_view() { return sidebar_host_view_; }
@@ -107,11 +131,17 @@ class BraveBrowserView : public BrowserView,
   // commands::AcceleratorService:
   void OnAcceleratorsChanged(const commands::Accelerators& changed) override;
 
+  SidebarContainerView* sidebar_container_view() {
+    return sidebar_container_view_;
+  }
+
  private:
   class TabCyclingEventHandler;
   friend class WindowClosingConfirmBrowserTest;
   friend class sidebar::SidebarBrowserTest;
   friend class VerticalTabStripDragAndDropBrowserTest;
+  friend class SplitViewBrowserTest;
+  friend class SplitViewLocationBarBrowserTest;
 
   FRIEND_TEST_ALL_PREFIXES(VerticalTabStripBrowserTest, VisualState);
   FRIEND_TEST_ALL_PREFIXES(VerticalTabStripBrowserTest, Fullscreen);
@@ -119,6 +149,8 @@ class BraveBrowserView : public BrowserView,
                            DragTabToReorder);
   FRIEND_TEST_ALL_PREFIXES(SpeedReaderBrowserTest, Toolbar);
   FRIEND_TEST_ALL_PREFIXES(SpeedReaderBrowserTest, ToolbarLangs);
+  FRIEND_TEST_ALL_PREFIXES(VerticalTabStripBrowserTest, ExpandedState);
+  FRIEND_TEST_ALL_PREFIXES(VerticalTabStripBrowserTest, ExpandedWidth);
 
   static void SetDownloadConfirmReturnForTesting(bool allow);
 
@@ -129,7 +161,6 @@ class BraveBrowserView : public BrowserView,
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
-  void ShowBraveVPNBubble() override;
   views::CloseRequestResult OnWindowCloseRequested() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
@@ -139,6 +170,7 @@ class BraveBrowserView : public BrowserView,
   void UpdateDevToolsForContents(content::WebContents* web_contents,
                                  bool update_devtools_web_contents) override;
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+  void GetAccessiblePanes(std::vector<views::View*>* panes) override;
 
   void StopTabCycling();
   void UpdateSearchTabsButtonState();
@@ -156,6 +188,10 @@ class BraveBrowserView : public BrowserView,
   void ShowPlaylistBubble() override;
 #endif
 
+#if BUILDFLAG(ENABLE_BRAVE_WAYBACK_MACHINE)
+  void ShowWaybackMachineBubble() override;
+#endif
+
   void UpdateSideBarHorizontalAlignment();
 
   bool closing_confirm_dialog_activated_ = false;
@@ -164,7 +200,7 @@ class BraveBrowserView : public BrowserView,
   raw_ptr<views::View> sidebar_separator_view_ = nullptr;
   raw_ptr<views::View> contents_background_view_ = nullptr;
   raw_ptr<views::View> vertical_tab_strip_host_view_ = nullptr;
-  raw_ptr<VerticalTabStripWidgetDelegateView>
+  raw_ptr<VerticalTabStripWidgetDelegateView, DanglingUntriaged>
       vertical_tab_strip_widget_delegate_view_ = nullptr;
 
 #if defined(USE_AURA)
@@ -181,6 +217,9 @@ class BraveBrowserView : public BrowserView,
 
   std::unique_ptr<TabCyclingEventHandler> tab_cycling_event_handler_;
   std::unique_ptr<ViewShadow> contents_shadow_;
+
+  raw_ptr<SplitView> split_view_ = nullptr;
+
   PrefChangeRegistrar pref_change_registrar_;
   base::ScopedObservation<commands::AcceleratorService,
                           commands::AcceleratorService::Observer>

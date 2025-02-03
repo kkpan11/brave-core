@@ -74,7 +74,8 @@ class MessageManager : public MetricLogStore::Delegate {
 
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
-  void Init(scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
+  void Start(scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
+  void Stop();
 
   // If only_update_for_constellation is null, the value will be updated for
   // both STAR and Constellation. If true, only the Constellation log store will
@@ -86,6 +87,9 @@ class MessageManager : public MetricLogStore::Delegate {
   void RemoveMetricValue(
       std::string_view histogram_name,
       std::optional<bool> only_update_for_constellation = std::nullopt);
+
+  const std::optional<MetricConfig>* GetMetricConfig(
+      std::string_view histogram_name) const;
 
  private:
   void StartScheduledUpload(bool is_constellation, MetricLogType log_type);
@@ -102,6 +106,7 @@ class MessageManager : public MetricLogStore::Delegate {
       std::string histogram_name,
       MetricLogType log_type,
       uint8_t epoch,
+      bool is_success,
       std::unique_ptr<std::string> serialized_message);
 
   void OnRandomnessServerInfoReady(MetricLogType log_type,
@@ -121,7 +126,7 @@ class MessageManager : public MetricLogStore::Delegate {
   bool IsActualMetric(const std::string& histogram_name) const override;
   bool IsEphemeralMetric(const std::string& histogram_name) const override;
 
-  const raw_ref<PrefService> local_state_;
+  const raw_ref<PrefService, DanglingUntriaged> local_state_;
 
   MessageMetainfo message_meta_;
 

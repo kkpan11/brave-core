@@ -12,6 +12,7 @@
 
 #include "base/files/file_path.h"
 #include "base/values.h"
+#include "brave/components/brave_ads/core/public/serving/targeting/condition_matcher/condition_matcher_util.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -31,7 +32,7 @@ struct TopSite {
   TopSite();
   // For unit test.
   TopSite(const std::string& name,
-          const std::string destination_url,
+          const std::string& destination_url,
           const std::string& image_path,
           const base::FilePath& image_file);
   TopSite(const TopSite& data);
@@ -53,9 +54,13 @@ struct Logo {
   ~Logo();
 };
 
+enum class WallpaperType { kImage };
+
 struct SponsoredBackground {
-  base::FilePath image_file;
+  WallpaperType wallpaper_type;
+  base::FilePath file_path;
   gfx::Point focal_point;
+  brave_ads::ConditionMatcherMap condition_matchers;
   std::string background_color;
 
   std::string creative_instance_id;
@@ -65,7 +70,7 @@ struct SponsoredBackground {
 
   SponsoredBackground();
   // For unit test.
-  SponsoredBackground(const base::FilePath& image_file_path,
+  SponsoredBackground(const base::FilePath& file_path,
                       const gfx::Point& point,
                       const Logo& test_logo,
                       const std::string& creative_instance_id);
@@ -90,7 +95,7 @@ struct Campaign {
 // For SR, campaign list has only one item.
 struct NTPSponsoredImagesData {
   NTPSponsoredImagesData();
-  NTPSponsoredImagesData(const std::string& json_string,
+  NTPSponsoredImagesData(const base::Value::Dict& data,
                          const base::FilePath& installed_dir);
   NTPSponsoredImagesData(const NTPSponsoredImagesData& data);
   NTPSponsoredImagesData& operator=(const NTPSponsoredImagesData& data);
@@ -109,7 +114,7 @@ struct NTPSponsoredImagesData {
 
   std::optional<base::Value::Dict> GetBackgroundAt(size_t campaign_index,
                                                    size_t background_index);
-  std::optional<base::Value::Dict> GetBackgroundByAdInfo(
+  std::optional<base::Value::Dict> GetBackgroundFromAdInfo(
       const brave_ads::NewTabPageAdInfo& ad_info);
 
   bool IsSuperReferral() const;

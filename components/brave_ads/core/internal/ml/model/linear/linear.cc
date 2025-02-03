@@ -5,23 +5,19 @@
 
 #include "brave/components/brave_ads/core/internal/ml/model/linear/linear.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/containers/adapters.h"
-#include "base/ranges/algorithm.h"
 #include "brave/components/brave_ads/core/internal/common/resources/flat/text_classification_linear_model_generated.h"
 #include "brave/components/brave_ads/core/internal/ml/ml_prediction_util.h"
 
 namespace brave_ads::ml {
 
-LinearModel::LinearModel() = default;
-
-LinearModel::LinearModel(const linear_text_classification::flat::Model* model)
-    : model_(model) {
-  CHECK(model_);
-}
+LinearModel::LinearModel(const linear_text_classification::flat::Model& model)
+    : model_(model) {}
 
 LinearModel::LinearModel(LinearModel&& other) noexcept = default;
 
@@ -30,13 +26,14 @@ LinearModel& LinearModel::operator=(LinearModel&& other) noexcept = default;
 std::optional<PredictionMap> LinearModel::Predict(
     const VectorData& data) const {
   PredictionMap predictions;
-  const auto* classifier = model_->classifier();
+  const auto* const classifier = model_->classifier();
   if (!classifier || !classifier->biases() ||
       !classifier->segment_weight_vectors()) {
     return std::nullopt;
   }
 
-  for (const auto* segment_weight : *classifier->segment_weight_vectors()) {
+  for (const auto* const segment_weight :
+       *classifier->segment_weight_vectors()) {
     if (!segment_weight || !segment_weight->segment() ||
         !segment_weight->weights()) {
       return std::nullopt;
@@ -47,10 +44,10 @@ std::optional<PredictionMap> LinearModel::Predict(
     }
     std::vector<float> weights;
     weights.reserve(segment_weight->weights()->size());
-    base::ranges::copy(*segment_weight->weights(), std::back_inserter(weights));
+    std::ranges::copy(*segment_weight->weights(), std::back_inserter(weights));
     VectorData weight_vector(std::move(weights));
     double prediction = weight_vector * data;
-    const auto* iter = classifier->biases()->LookupByKey(segment.c_str());
+    const auto* const iter = classifier->biases()->LookupByKey(segment.c_str());
     if (iter) {
       prediction += iter->bias();
     }
@@ -84,7 +81,7 @@ std::optional<PredictionMap> LinearModel::GetTopCountPredictionsImpl(
   for (const auto& [segment, probability] : predictions_softmax) {
     prediction_order.emplace_back(probability, segment);
   }
-  base::ranges::sort(base::Reversed(prediction_order));
+  std::ranges::sort(base::Reversed(prediction_order));
 
   PredictionMap top_predictions;
   if (top_count && *top_count < prediction_order.size()) {

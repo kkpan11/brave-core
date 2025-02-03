@@ -11,11 +11,13 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/check.h"
 #include "base/environment.h"
 #include "base/strings/strcat.h"
 #include "brave/components/brave_wallet/browser/blockchain_registry.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_constants.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_service.h"
+#include "brave/components/brave_wallet/browser/brave_wallet_utils.h"
 #include "brave/components/brave_wallet/browser/json_rpc_service.h"
 #include "brave/components/brave_wallet/browser/pref_names.h"
 #include "brave/components/brave_wallet/common/common_utils.h"
@@ -27,10 +29,10 @@
 
 namespace brave_wallet {
 
-AssetDiscoveryTask::AssetDiscoveryTask(APIRequestHelper* api_request_helper,
-                                       SimpleHashClient* simple_hash_client,
-                                       BraveWalletService* wallet_service,
-                                       JsonRpcService* json_rpc_service,
+AssetDiscoveryTask::AssetDiscoveryTask(APIRequestHelper& api_request_helper,
+                                       SimpleHashClient& simple_hash_client,
+                                       BraveWalletService& wallet_service,
+                                       JsonRpcService& json_rpc_service,
                                        PrefService* prefs)
     : api_request_helper_(api_request_helper),
       simple_hash_client_(simple_hash_client),
@@ -184,8 +186,8 @@ void AssetDiscoveryTask::MergeDiscoveredAnkrTokens(
 
   for (const auto& discovered_assets_result : discovered_assets_results) {
     for (const auto& balance : discovered_assets_result) {
-      if (!BraveWalletService::AddUserAsset(balance->asset.Clone(), true,
-                                            prefs_)) {
+      DCHECK(balance->asset->visible);
+      if (!AddUserAsset(prefs_, balance->asset.Clone())) {
         continue;
       }
       discovered_tokens.push_back(balance->asset.Clone());
@@ -204,8 +206,7 @@ void AssetDiscoveryTask::DiscoverERC20sFromRegistry(
     return;
   }
 
-  std::vector<mojom::BlockchainTokenPtr> user_assets =
-      BraveWalletService::GetUserAssets(prefs_);
+  std::vector<mojom::BlockchainTokenPtr> user_assets = GetAllUserAssets(prefs_);
   TokenListMap token_list_map =
       BlockchainRegistry::GetInstance()->GetEthTokenListMap(chain_ids);
 
@@ -331,8 +332,12 @@ void AssetDiscoveryTask::MergeDiscoveredERC20s(
         seen_contract_addresses[chain_id].insert(contract_address);
         auto token = std::move(
             chain_id_to_contract_address_to_token[chain_id][contract_address]);
-        if (token &&
-            BraveWalletService::AddUserAsset(token.Clone(), true, prefs_)) {
+        if (!token) {
+          continue;
+        }
+
+        DCHECK(token->visible);
+        if (AddUserAsset(prefs_, token.Clone())) {
           discovered_tokens.push_back(std::move(token));
         }
       }
@@ -380,7 +385,7 @@ void AssetDiscoveryTask::DiscoverSPLTokensFromRegistry(
 
 void AssetDiscoveryTask::OnGetSolanaTokenAccountsByOwner(
     base::OnceCallback<void(std::vector<SolanaAddress>)> barrier_callback,
-    const std::vector<SolanaAccountInfo>& token_accounts,
+    std::vector<SolanaAccountInfo> token_accounts,
     mojom::SolanaProviderError error,
     const std::string& error_message) {
   if (error != mojom::SolanaProviderError::kSuccess || token_accounts.empty()) {
@@ -447,7 +452,8 @@ void AssetDiscoveryTask::OnGetSolanaTokenRegistry(
   std::vector<mojom::BlockchainTokenPtr> discovered_tokens;
   for (const auto& token : sol_token_registry) {
     if (discovered_mint_addresses.contains(token->contract_address)) {
-      if (!BraveWalletService::AddUserAsset(token.Clone(), true, prefs_)) {
+      DCHECK(token->visible);
+      if (!AddUserAsset(prefs_, token.Clone())) {
         continue;
       }
       discovered_tokens.push_back(token.Clone());
@@ -508,7 +514,8 @@ void AssetDiscoveryTask::MergeDiscoveredNFTs(
       seen_nft.insert(nft.Clone());
 
       // Add the NFT to the user's assets
-      if (BraveWalletService::AddUserAsset(nft.Clone(), true, prefs_)) {
+      DCHECK(nft->visible);
+      if (AddUserAsset(prefs_, nft.Clone())) {
         discovered_nfts.push_back(nft.Clone());
       }
     }

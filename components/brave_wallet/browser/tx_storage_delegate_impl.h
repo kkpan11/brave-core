@@ -39,6 +39,7 @@ class TxStorageDelegateImpl final : public TxStorageDelegate {
   const base::Value::Dict& GetTxs() const override;
   base::Value::Dict& GetTxs() override;
   void ScheduleWrite() override;
+  void DisableWritesForTesting(bool disable);
 
   // Only owner ex.TxService can clear data.
   void Clear();
@@ -50,13 +51,21 @@ class TxStorageDelegateImpl final : public TxStorageDelegate {
   friend class TxStateManagerUnitTest;
   friend class TxStorageDelegateImplUnitTest;
   FRIEND_TEST_ALL_PREFIXES(TxStorageDelegateImplUnitTest, ReadWriteAndClear);
+  FRIEND_TEST_ALL_PREFIXES(TxStorageDelegateImplUnitTest,
+                           BraveWalletTransactionsDBFormatMigrated);
   FRIEND_TEST_ALL_PREFIXES(EthTxManagerUnitTest, Reset);
+
+  static std::unique_ptr<value_store::ValueStoreFrontend>
+  MakeValueStoreFrontend(
+      scoped_refptr<value_store::ValueStoreFactory> store_factory,
+      scoped_refptr<base::SequencedTaskRunner> ui_task_runner);
 
   // Read all txs from db
   void Initialize();
-  void OnTxsRead(std::optional<base::Value> txs);
+  void OnTxsInitialRead(std::optional<base::Value> txs);
+  void RunDBMigrations();
 
-  bool MigrateTransactionsFromPrefsToDB(PrefService* prefs);
+  bool MigrateTransactionsFromPrefsToDB();
 
   base::ObserverList<TxStorageDelegate::Observer> observers_;
 
@@ -67,8 +76,11 @@ class TxStorageDelegateImpl final : public TxStorageDelegate {
   // txs, once the limit is reached we will retire oldest entries.
   base::Value::Dict txs_;
 
+  bool disable_writes_for_testing_ = false;
+
   std::unique_ptr<value_store::ValueStoreFrontend> store_;
 
+  raw_ptr<PrefService, DanglingUntriaged> prefs_;
   base::WeakPtrFactory<TxStorageDelegateImpl> weak_factory_{this};
 };
 

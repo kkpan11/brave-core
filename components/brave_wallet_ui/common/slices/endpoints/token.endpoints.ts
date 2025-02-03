@@ -4,30 +4,30 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { EntityId } from '@reduxjs/toolkit'
-import { mapLimit } from 'async'
 
 // types
 import { BraveWallet } from '../../../constants/types'
-import { WalletApiEndpointBuilderParams } from '../api-base.slice'
-import { SetUserAssetVisiblePayloadType } from '../../constants/action_types'
-import type { BaseQueryCache } from '../../async/base-query-cache'
+import {
+  TOKEN_TAG_IDS,
+  WalletApiEndpointBuilderParams
+} from '../api-base.slice'
+import { type BaseQueryCache } from '../../async/base-query-cache'
 
 // utils
 import { handleEndpointError } from '../../../utils/api-utils'
-import { addChainIdToToken, getAssetIdKey } from '../../../utils/asset-utils'
-import { getEntitiesListFromEntityState } from '../../../utils/entities.utils'
+import {
+  addLogoToToken,
+  getAssetIdKey,
+  getDeletedTokenIds,
+  getHiddenTokenIds
+} from '../../../utils/asset-utils'
 import { cacher } from '../../../utils/query-cache-utils'
-import { addLogoToToken } from '../../async/lib'
 import {
   BlockchainTokenEntityAdaptorState,
-  blockchainTokenEntityAdaptor,
-  blockchainTokenEntityAdaptorInitialState
+  blockchainTokenEntityAdaptor
 } from '../entities/blockchain-token.entity'
-import { networkEntityAdapter } from '../entities/network.entity'
-
-export const TOKEN_TAG_IDS = {
-  REGISTRY: 'REGISTRY'
-} as const
+import { LOCAL_STORAGE_KEYS } from '../../constants/local-storage-keys'
+import { stripERC20TokenImageURL } from '../../../utils/string-utils'
 
 export const tokenEndpoints = ({
   mutation,
@@ -37,97 +37,9 @@ export const tokenEndpoints = ({
     getTokensRegistry: query<BlockchainTokenEntityAdaptorState, void>({
       queryFn: async (arg, { endpoint }, extraOptions, baseQuery) => {
         try {
-          const {
-            cache,
-            data: { blockchainRegistry }
-          } = baseQuery(undefined)
-
-          const networksRegistry = await cache.getNetworksRegistry()
-          const networksList: BraveWallet.NetworkInfo[] =
-            getEntitiesListFromEntityState(
-              networksRegistry,
-              networksRegistry.visibleIds
-            )
-
-          const tokenIdsByChainId: Record<string, string[]> = {}
-          const tokenIdsByCoinType: Record<BraveWallet.CoinType, string[]> = {}
-
-          const getTokensList = async () => {
-            const tokenListsForNetworks = await mapLimit(
-              networksList,
-              10,
-              async (network: BraveWallet.NetworkInfo) => {
-                const networkId = networkEntityAdapter.selectId(network)
-
-                const { tokens } = await blockchainRegistry.getAllTokens(
-                  network.chainId,
-                  network.coin
-                )
-
-                const fullTokensListForChain: //
-                BraveWallet.BlockchainToken[] = await mapLimit(
-                  tokens,
-                  10,
-                  async (token: BraveWallet.BlockchainToken) => {
-                    return addChainIdToToken(
-                      await addLogoToToken(token),
-                      network.chainId
-                    )
-                  }
-                )
-
-                tokenIdsByChainId[networkId] =
-                  fullTokensListForChain.map(getAssetIdKey)
-
-                tokenIdsByCoinType[network.coin] = (
-                  tokenIdsByCoinType[network.coin] || []
-                ).concat(tokenIdsByChainId[networkId] || [])
-
-                return fullTokensListForChain
-              }
-            )
-
-            const flattenedTokensList = tokenListsForNetworks.flat(1)
-            return flattenedTokensList
-          }
-
-          let flattenedTokensList = await getTokensList()
-
-          // on startup, the tokens list returned from core may be empty
-          const startDate = new Date()
-          const timeoutSeconds = 5
-          const timeoutMilliseconds = timeoutSeconds * 1000
-
-          // retry until we have some tokens or the request takes too
-          // long
-          while (
-            // empty list
-            flattenedTokensList.length < 1 &&
-            // try until timeout reached
-            new Date().getTime() - startDate.getTime() < timeoutMilliseconds
-          ) {
-            flattenedTokensList = await getTokensList()
-          }
-
-          // return an error on timeout, so a retry can be attempted
-          if (flattenedTokensList.length === 0) {
-            throw new Error('No tokens found in tokens registry')
-          }
-
-          const tokensByChainIdRegistry = blockchainTokenEntityAdaptor.setAll(
-            {
-              ...blockchainTokenEntityAdaptorInitialState,
-              idsByChainId: tokenIdsByChainId,
-              idsByCoinType: tokenIdsByCoinType,
-              visibleTokenIds: [],
-              visibleTokenIdsByChainId: {},
-              visibleTokenIdsByCoinType: {}
-            },
-            flattenedTokensList
-          )
-
+          const { cache } = baseQuery(undefined)
           return {
-            data: tokensByChainIdRegistry
+            data: await cache.getKnownTokensRegistry()
           }
         } catch (error) {
           return handleEndpointError(
@@ -139,6 +51,7 @@ export const tokenEndpoints = ({
       },
       providesTags: cacher.providesRegistry('KnownBlockchainTokens')
     }),
+
     getUserTokensRegistry: query<BlockchainTokenEntityAdaptorState, void>({
       queryFn: async (arg, { endpoint }, extraOptions, baseQuery) => {
         try {
@@ -163,82 +76,138 @@ export const tokenEndpoints = ({
               }
             ]
     }),
+
     addUserToken: mutation<{ id: EntityId }, BraveWallet.BlockchainToken>({
-      queryFn: async (tokenArg, { dispatch }, extraOptions, baseQuery) => {
-        const {
-          cache,
-          data: { braveWalletService }
-        } = baseQuery(undefined)
-
-        const result = await addUserToken({
-          braveWalletService,
-          cache,
-          tokenArg
-        })
-        const tokenIdentifier = blockchainTokenEntityAdaptor.selectId(tokenArg)
-
-        if (!result.success) {
-          return {
-            error: `Error adding user token: ${tokenIdentifier}`
-          }
-        }
-
-        return {
-          data: { id: tokenIdentifier }
-        }
-      },
-      invalidatesTags: (_, __, tokenArg) => [
-        { type: 'UserBlockchainTokens', id: TOKEN_TAG_IDS.REGISTRY },
-        { type: 'UserBlockchainTokens', id: getAssetIdKey(tokenArg) }
-      ]
-    }),
-    removeUserToken: mutation<boolean, BraveWallet.BlockchainToken>({
-      queryFn: async (tokenArg, { endpoint }, extraOptions, baseQuery) => {
-        const {
-          cache,
-          data: { braveWalletService }
-        } = baseQuery(undefined)
-
-        cache.clearUserTokensRegistry()
-
-        try {
-          const deleteResult = await braveWalletService.removeUserAsset(
-            tokenArg
-          )
-          if (!deleteResult.success) {
-            throw new Error()
-          }
-          return {
-            data: true
-          }
-        } catch (error) {
-          return handleEndpointError(
-            endpoint,
-            `Unable to remove user asset: ${getAssetIdKey(tokenArg)}`,
-            error
-          )
-        }
-      },
-      invalidatesTags: (_, __, tokenArg) => [
-        { type: 'UserBlockchainTokens', id: TOKEN_TAG_IDS.REGISTRY },
-        { type: 'UserBlockchainTokens', id: getAssetIdKey(tokenArg) }
-      ]
-    }),
-    updateUserToken: mutation<{ id: EntityId }, BraveWallet.BlockchainToken>({
       queryFn: async (
         tokenArg,
         { dispatch, endpoint },
         extraOptions,
         baseQuery
       ) => {
+        const {
+          cache,
+          data: { braveWalletService }
+        } = baseQuery(undefined)
+
+        const tokenIdentifier = blockchainTokenEntityAdaptor.selectId(tokenArg)
+
         try {
-          const { cache, data: api } = baseQuery(undefined)
-          const { braveWalletService } = api
+          cache.clearUserTokensRegistry()
+
+          // update core user assets list
+          const result = await addUserToken({
+            braveWalletService,
+            cache,
+            tokenArg
+          })
+
+          if (!result.success) {
+            throw new Error(`addUserToken failed`)
+          }
+
+          return {
+            data: { id: tokenIdentifier }
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            `Error adding user token: ${tokenIdentifier}`,
+            error
+          )
+        }
+      },
+      invalidatesTags: (_, __, tokenArg) => [
+        { type: 'UserBlockchainTokens', id: TOKEN_TAG_IDS.REGISTRY },
+        { type: 'UserBlockchainTokens', id: getAssetIdKey(tokenArg) },
+        'TokenBalances',
+        'TokenBalancesForChainId',
+        'AccountTokenCurrentBalance',
+        'PricesHistory'
+      ]
+    }),
+
+    removeUserToken: mutation<
+      boolean,
+      /** tokenId */
+      string
+    >({
+      queryFn: async (tokenId, { endpoint }, extraOptions, baseQuery) => {
+        const {
+          cache,
+          data: { braveWalletService }
+        } = baseQuery(undefined)
+
+        try {
+          const tokensRegistry = await cache.getUserTokensRegistry()
+          const token = tokensRegistry.entities[tokenId]
+
+          if (token?.contractAddress === '') {
+            throw new Error('Removal of native assets not allowed')
+          }
+
+          // prevent showing the token in any list if it is auto-discovered
+          const currentIds = getDeletedTokenIds()
+          if (!currentIds.includes(tokenId)) {
+            localStorage.setItem(
+              LOCAL_STORAGE_KEYS.USER_DELETED_TOKEN_IDS,
+              JSON.stringify(currentIds.concat(tokenId))
+            )
+          }
+
+          // remove from user assets list
+          if (token) {
+            const deleteResult = await braveWalletService.removeUserAsset(token)
+            if (!deleteResult.success) {
+              throw new Error(
+                'braveWalletService.removeUserAsset was unsuccessful'
+              )
+            }
+          }
 
           cache.clearUserTokensRegistry()
 
+          return {
+            data: true
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            `Unable to remove user asset: ${tokenId}`,
+            error
+          )
+        }
+      },
+      invalidatesTags: (_, __, tokenId) => [
+        { type: 'UserBlockchainTokens', id: TOKEN_TAG_IDS.REGISTRY },
+        { type: 'UserBlockchainTokens', id: tokenId }
+      ]
+    }),
+
+    updateUserToken: mutation<
+      /** new asset id */
+      string,
+      {
+        existingToken: BraveWallet.BlockchainToken
+        updatedToken: BraveWallet.BlockchainToken
+      }
+    >({
+      queryFn: async (
+        { existingToken, updatedToken },
+        { dispatch, endpoint },
+        extraOptions,
+        baseQuery
+      ) => {
+        try {
+          const {
+            cache,
+            data: { braveWalletService }
+          } = baseQuery(undefined)
+
+          cache.clearUserTokensRegistry()
+
+          // update core user assets list
           const deleteResult = await braveWalletService.removeUserAsset(
-            tokenArg
+            existingToken
           )
 
           if (!deleteResult.success) {
@@ -248,7 +217,7 @@ export const tokenEndpoints = ({
           const { success } = await addUserToken({
             braveWalletService,
             cache,
-            tokenArg
+            tokenArg: updatedToken
           })
 
           if (!success) {
@@ -256,24 +225,32 @@ export const tokenEndpoints = ({
           }
 
           return {
-            data: {
-              id: blockchainTokenEntityAdaptor.selectId(tokenArg)
-            }
+            data: getAssetIdKey(updatedToken)
           }
         } catch (error) {
           return handleEndpointError(
             endpoint,
-            `unable to update token ${getAssetIdKey(tokenArg)}`,
+            `unable to update token ${getAssetIdKey(updatedToken)}`,
             error
           )
         }
       },
-      invalidatesTags: (_, __, tokenArg) => [
+      invalidatesTags: (_, __, { updatedToken }) => [
         { type: 'UserBlockchainTokens', id: TOKEN_TAG_IDS.REGISTRY },
-        { type: 'UserBlockchainTokens', id: getAssetIdKey(tokenArg) }
+        { type: 'UserBlockchainTokens', id: getAssetIdKey(updatedToken) },
+        'TokenBalances',
+        'TokenBalancesForChainId',
+        'AccountTokenCurrentBalance'
       ]
     }),
-    updateUserAssetVisible: mutation<boolean, SetUserAssetVisiblePayloadType>({
+
+    updateUserAssetVisible: mutation<
+      boolean,
+      {
+        token: BraveWallet.BlockchainToken
+        isVisible: boolean
+      }
+    >({
       queryFn: async (
         { isVisible, token },
         { endpoint },
@@ -288,11 +265,52 @@ export const tokenEndpoints = ({
 
           cache.clearUserTokensRegistry()
 
+          const tokenId = getAssetIdKey(token)
+
+          // update local storage
+          const currentHiddenIds = getHiddenTokenIds()
+          if (isVisible) {
+            localStorage.setItem(
+              LOCAL_STORAGE_KEYS.USER_HIDDEN_TOKEN_IDS,
+              JSON.stringify(currentHiddenIds.filter((id) => id !== tokenId))
+            )
+          }
+
+          if (!isVisible && !currentHiddenIds.includes(tokenId)) {
+            localStorage.setItem(
+              LOCAL_STORAGE_KEYS.USER_HIDDEN_TOKEN_IDS,
+              JSON.stringify(currentHiddenIds.concat(tokenId))
+            )
+          }
+
+          // update asset in user assets list
           const { success } = await braveWalletService.setUserAssetVisible(
             token,
             isVisible
           )
-          return { data: success }
+
+          if (
+            !success &&
+            token.contractAddress !== '' // skip native assets to prevent errors in the core list
+          ) {
+            console.log(
+              `update visibility for token (${
+                tokenId //
+              }) failed, attempting to add the token...`
+            )
+            // token is probably not in the core-side assets list,
+            // try adding it to the list
+            const { success: addTokenSuccess } = await addUserToken({
+              braveWalletService,
+              cache,
+              tokenArg: { ...token, visible: isVisible }
+            })
+            if (!addTokenSuccess) {
+              throw new Error('Token could not be updated or added')
+            }
+          }
+
+          return { data: true }
         } catch (error) {
           return handleEndpointError(
             endpoint,
@@ -317,6 +335,7 @@ export const tokenEndpoints = ({
             ]
           : ['UNKNOWN_ERROR']
     }),
+
     invalidateUserTokensRegistry: mutation<boolean, void>({
       queryFn: async (arg, { endpoint }, extraOptions, baseQuery) => {
         try {
@@ -337,10 +356,14 @@ export const tokenEndpoints = ({
               {
                 type: 'UserBlockchainTokens',
                 id: TOKEN_TAG_IDS.REGISTRY
-              }
+              },
+              'TokenBalances',
+              'TokenBalancesForChainId',
+              'AccountTokenCurrentBalance'
             ]
           : ['UNKNOWN_ERROR']
     }),
+
     getTokenInfo: query<
       BraveWallet.BlockchainToken | null,
       Pick<BraveWallet.BlockchainToken, 'chainId' | 'coin' | 'contractAddress'>
@@ -370,11 +393,16 @@ export const tokenEndpoints = ({
             data: token
           }
         } catch (err) {
-          console.error(err)
           // Typically this means the token does not exist on the chain
-          return {
-            data: null
-          }
+          return handleEndpointError(
+            api.endpoint,
+            `Failed to get token info for: ${JSON.stringify(
+              { coin, chainId, contractAddress },
+              undefined,
+              2
+            )}`,
+            err
+          )
         }
       },
       providesTags: (result, err, args) =>
@@ -425,6 +453,73 @@ export const tokenEndpoints = ({
           )
         }
       }
+    }),
+    discoverAssets: mutation<true, void>({
+      queryFn: async (
+        _arg,
+        { endpoint, dispatch },
+        extraOptions,
+        baseQuery
+      ) => {
+        try {
+          const { data: api } = baseQuery(undefined)
+          api.braveWalletService.discoverAssetsOnAllSupportedChains(true)
+          return {
+            data: true
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            'Failed to start asset auto-discovery',
+            error
+          )
+        }
+      }
+    }),
+
+    // Token spam
+    updateNftSpamStatus: mutation<
+      boolean,
+      {
+        // Not using tokenId since spam NFTs are not
+        // included in token registry by default
+        token: BraveWallet.BlockchainToken
+        isSpam: boolean
+      }
+    >({
+      queryFn: async (arg, { endpoint }, _extraOptions, baseQuery) => {
+        try {
+          const { data: api, cache } = baseQuery(undefined)
+          const { braveWalletService } = api
+          const { success } = await braveWalletService.setAssetSpamStatus(
+            arg.token,
+            arg.isSpam
+          )
+
+          // update user token
+
+          cache.clearUserTokensRegistry()
+
+          return {
+            data: success
+          }
+        } catch (error) {
+          return handleEndpointError(
+            endpoint,
+            'Error setting NFT spam status',
+            error
+          )
+        }
+      },
+      invalidatesTags: (_res, err, arg) => {
+        const tokenId = getAssetIdKey(arg.token)
+        return err
+          ? ['SimpleHashSpamNFTs', 'UserBlockchainTokens']
+          : [
+              { type: 'SimpleHashSpamNFTs', id: tokenId },
+              { type: 'UserBlockchainTokens', id: tokenId }
+            ]
+      }
     })
   }
 }
@@ -439,23 +534,35 @@ async function addUserToken({
   cache: BaseQueryCache
   tokenArg: BraveWallet.BlockchainToken
 }) {
-  cache.clearUserTokensRegistry()
+  if (tokenArg.isNft || tokenArg.isErc721 || tokenArg.isErc1155) {
+    try {
+      // Get NFTMetadata
+      const metadata = await cache.getNftMetadata(tokenArg)
 
-  if (tokenArg.isErc721) {
-    // Get NFTMetadata
-    const metadata = await cache.getErc721Metadata({
-      coin: tokenArg.coin,
-      chainId: tokenArg.chainId,
-      contractAddress: tokenArg.contractAddress,
-      isErc721: tokenArg.isErc721,
-      tokenId: tokenArg.tokenId,
-      isNft: tokenArg.isNft
-    })
-
-    if (metadata?.image) {
-      tokenArg.logo = metadata?.image || metadata?.image_url || tokenArg.logo
+      if (metadata?.imageURL) {
+        tokenArg = addLogoToToken(tokenArg, metadata.imageURL)
+      }
+    } catch (error) {
+      console.log(error)
     }
   }
 
-  return await braveWalletService.addUserAsset(tokenArg)
+  const tokenIdentifier = getAssetIdKey(tokenArg)
+
+  // token may have previously been deleted
+  localStorage.setItem(
+    LOCAL_STORAGE_KEYS.USER_DELETED_TOKEN_IDS,
+    JSON.stringify(getDeletedTokenIds().filter((id) => id !== tokenIdentifier))
+  )
+
+  // token may have previously been hidden
+  localStorage.setItem(
+    LOCAL_STORAGE_KEYS.USER_HIDDEN_TOKEN_IDS,
+    JSON.stringify(getHiddenTokenIds().filter((id) => id !== tokenIdentifier))
+  )
+
+  return await braveWalletService.addUserAsset({
+    ...tokenArg,
+    logo: stripERC20TokenImageURL(tokenArg.logo) || ''
+  })
 }

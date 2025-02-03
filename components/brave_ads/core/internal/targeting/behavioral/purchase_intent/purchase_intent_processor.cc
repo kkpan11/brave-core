@@ -5,17 +5,21 @@
 
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/purchase_intent_processor.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/check.h"
+#include "base/types/optional_ref.h"
 #include "brave/components/brave_ads/core/internal/common/logging_util.h"
 #include "brave/components/brave_ads/core/internal/common/search_engine/search_engine_results_page_util.h"
 #include "brave/components/brave_ads/core/internal/common/url/url_util.h"
+#include "brave/components/brave_ads/core/internal/tabs/tab_info.h"
 #include "brave/components/brave_ads/core/internal/tabs/tab_manager.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/keyphrase/purchase_intent_keyphrase_parser.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/model/purchase_intent_model.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/model/purchase_intent_signal_info.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/resource/purchase_intent_funnel_info.h"
-#include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/resource/purchase_intent_info.h"
 #include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/resource/purchase_intent_resource.h"
+#include "brave/components/brave_ads/core/internal/targeting/behavioral/purchase_intent/resource/purchase_intent_resource_info.h"
 #include "url/gurl.h"
 
 namespace brave_ads {
@@ -35,7 +39,7 @@ PurchaseIntentProcessor::~PurchaseIntentProcessor() {
 }
 
 void PurchaseIntentProcessor::Process(const GURL& url) {
-  if (!resource_->IsInitialized()) {
+  if (!resource_->IsLoaded()) {
     return;
   }
 
@@ -62,7 +66,7 @@ void PurchaseIntentProcessor::Process(const GURL& url) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool PurchaseIntentProcessor::ShouldProcess(const int32_t tab_id,
+bool PurchaseIntentProcessor::ShouldProcess(int32_t tab_id,
                                             const GURL& url) const {
   const auto iter = tabs_.find(tab_id);
   if (iter == tabs_.cend()) {
@@ -70,6 +74,16 @@ bool PurchaseIntentProcessor::ShouldProcess(const int32_t tab_id,
   }
 
   return iter->second != url;
+}
+
+void PurchaseIntentProcessor::MaybeProcess(int32_t tab_id, const GURL& url) {
+  if (!ShouldProcess(tab_id, url)) {
+    return;
+  }
+
+  tabs_[tab_id] = url;
+
+  Process(url);
 }
 
 std::optional<PurchaseIntentSignalInfo>
@@ -88,7 +102,7 @@ PurchaseIntentProcessor::MaybeExtractSignalForSearchQuery(
   BLOG(1, "Extracting purchase intent signal from search query");
 
   KeywordList search_query_keywords = ParseKeyphrase(search_query);
-  base::ranges::sort(search_query_keywords);
+  std::ranges::sort(search_query_keywords);
 
   const std::optional<SegmentList> search_query_segments =
       MaybeGetSegmentsForSearchQuery(search_query_keywords);
@@ -106,16 +120,17 @@ PurchaseIntentProcessor::MaybeExtractSignalForSearchQuery(
 std::optional<SegmentList>
 PurchaseIntentProcessor::MaybeGetSegmentsForSearchQuery(
     const KeywordList& search_query_keywords) const {
-  const std::optional<PurchaseIntentInfo>& purchase_intent = resource_->get();
+  base::optional_ref<const PurchaseIntentResourceInfo> purchase_intent =
+      resource_->get();
   if (!purchase_intent) {
     return std::nullopt;
   }
 
-  const auto iter = base::ranges::find_if(
+  const auto iter = std::ranges::find_if(
       purchase_intent->segment_keyphrases,
       [&search_query_keywords](const auto& segment_keyphrase) {
-        return base::ranges::includes(search_query_keywords,
-                                      segment_keyphrase.keywords);
+        return std::ranges::includes(search_query_keywords,
+                                     segment_keyphrase.keywords);
       });
 
   if (iter == purchase_intent->segment_keyphrases.cend()) {
@@ -127,7 +142,8 @@ PurchaseIntentProcessor::MaybeGetSegmentsForSearchQuery(
 
 int PurchaseIntentProcessor::ComputeFunnelKeyphraseWeightForSearchQuery(
     const KeywordList& search_query_keywords) const {
-  const std::optional<PurchaseIntentInfo>& purchase_intent = resource_->get();
+  base::optional_ref<const PurchaseIntentResourceInfo> purchase_intent =
+      resource_->get();
   if (!purchase_intent) {
     return kDefaultFunnelKeyphraseWeightForSearchQuery;
   }
@@ -136,8 +152,8 @@ int PurchaseIntentProcessor::ComputeFunnelKeyphraseWeightForSearchQuery(
 
   for (const auto& funnel_keyphrase : purchase_intent->funnel_keyphrases) {
     if (funnel_keyphrase.weight > max_funnel_keyphrase_weight &&
-        base::ranges::includes(search_query_keywords,
-                               funnel_keyphrase.keywords)) {
+        std::ranges::includes(search_query_keywords,
+                              funnel_keyphrase.keywords)) {
       max_funnel_keyphrase_weight = funnel_keyphrase.weight;
     }
   }
@@ -163,7 +179,8 @@ PurchaseIntentProcessor::MaybeExtractSignalForUrl(const GURL& url) const {
 
 std::optional<PurchaseIntentFunnelInfo>
 PurchaseIntentProcessor::MaybeGetFunnelForUrl(const GURL& url) const {
-  const std::optional<PurchaseIntentInfo>& purchase_intent = resource_->get();
+  base::optional_ref<const PurchaseIntentResourceInfo> purchase_intent =
+      resource_->get();
   if (!purchase_intent) {
     return std::nullopt;
   }
@@ -177,25 +194,21 @@ PurchaseIntentProcessor::MaybeGetFunnelForUrl(const GURL& url) const {
   return iter->second;
 }
 
-void PurchaseIntentProcessor::OnTextContentDidChange(
-    const int32_t tab_id,
-    const std::vector<GURL>& redirect_chain,
-    const std::string& /*text*/) {
-  if (redirect_chain.empty()) {
-    return;
-  }
+void PurchaseIntentProcessor::OnDidOpenNewTab(const TabInfo& tab) {
+  CHECK(!tab.redirect_chain.empty());
 
-  const GURL& url = redirect_chain.back();
-
-  if (!ShouldProcess(tab_id, url)) {
-    return;
-  }
-  tabs_[tab_id] = url;
-
-  Process(url);
+  const GURL& url = tab.redirect_chain.back();
+  MaybeProcess(tab.id, url);
 }
 
-void PurchaseIntentProcessor::OnDidCloseTab(const int32_t tab_id) {
+void PurchaseIntentProcessor::OnTabDidChange(const TabInfo& tab) {
+  CHECK(!tab.redirect_chain.empty());
+
+  const GURL& url = tab.redirect_chain.back();
+  MaybeProcess(tab.id, url);
+}
+
+void PurchaseIntentProcessor::OnDidCloseTab(int32_t tab_id) {
   tabs_.erase(tab_id);
 }
 

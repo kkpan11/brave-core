@@ -12,6 +12,7 @@ const config = require('./config')
 const util = require('./util')
 const path = require('path')
 const fs = require('fs-extra')
+const depotTools = require('./depotTools')
 const syncUtil = require('./syncUtils')
 const Log = require('./logging')
 
@@ -29,7 +30,7 @@ const getOutputFilename = () => {
 
 const chromiumConfigs = {
   'win': {
-    buildTarget: 'mini_installer',
+    buildTargets: ['mini_installer'],
     processArtifacts: () => {
       // Repack it to reduce the size and use .zip instead of .7z.
       input = path.join(config.outputDir, 'chrome.7z')
@@ -45,7 +46,7 @@ const chromiumConfigs = {
     }
   },
   'linux': {
-    buildTarget: 'chrome/installer/linux:stable_deb',
+    buildTargets: ['chrome/installer/linux:stable_deb'],
     processArtifacts: () => {
       const debArch = (() => {
         if (config.targetArch === 'x64') return 'amd64'
@@ -58,13 +59,13 @@ const chromiumConfigs = {
     }
   },
   'mac': {
-    buildTarget: 'chrome',
+    buildTargets: ['chrome'],
     extraHooks: () => {
       Log.progressScope('download_hermetic_xcode', () => {
         util.run('vpython3',
           [
             path.join(config.braveCoreDir,
-                      'build', 'mac', 'download_hermetic_xcode.py'),
+              'build', 'mac', 'download_hermetic_xcode.py'),
           ],
           config.defaultOptions)
       })
@@ -77,10 +78,10 @@ const chromiumConfigs = {
     }
   },
   'android': {
-    buildTarget: 'chrome_public_apk',
+    buildTargets: ['monochrome_64_public_apk'],
     processArtifacts: () => {
       fs.moveSync(
-        path.join(config.outputDir, 'apks', 'ChromePublic.apk'),
+        path.join(config.outputDir, 'apks', 'MonochromePublic64.apk'),
         path.join(config.outputDir, `${getOutputFilename()}.apk`))
     }
   },
@@ -97,17 +98,18 @@ function getChromiumGnArgs() {
     target_cpu: targetArch,
     target_os: targetOs,
     is_official_build: true,
-    enable_keystone_registration_framework: false,
     ffmpeg_branding: 'Chrome',
     enable_widevine: true,
+    proprietary_codecs: true,
     ignore_missing_widevine_signing_cert: true,
+    skip_secondary_abi_for_cq: true,
     ...config.extraGnArgs,
   }
 
   if (targetOs === 'android') {
     args.debuggable_apks = false
   } else {
-    args.enable_hangout_services_extension = true
+    args.enable_hangout_services_extension = false
     args.enable_nacl = false
   }
 
@@ -133,7 +135,7 @@ function buildChromiumRelease(buildOptions = {}) {
   if (chromiumConfig == undefined)
     throw Error(`${config.getTargetOS()} is unsupported`)
 
-  syncUtil.maybeInstallDepotTools()
+  depotTools.installDepotTools()
   syncUtil.buildDefaultGClientConfig(
     [config.getTargetOS()], [config.targetArch], true)
 
@@ -141,7 +143,7 @@ function buildChromiumRelease(buildOptions = {}) {
 
 
   Log.progressScope('gclient sync', () => {
-    syncUtil.syncChromium(true, true, false)
+    syncUtil.syncChromium({ force: true, sync_chromium: true })
   })
 
   Log.progressScope('gclient runhooks', () => {
@@ -152,16 +154,23 @@ function buildChromiumRelease(buildOptions = {}) {
     chromiumConfig.extraHooks()
   }
 
-  const options = config.defaultOptions
-  const buildArgsStr = util.buildArgsToString(getChromiumGnArgs())
-  util.run('gn', ['gen', config.outputDir, '--args="' + buildArgsStr + '"'],
-    options)
+  util.runGnGen(config.outputDir, getChromiumGnArgs())
 
+  Log.progressScope(`remove recursive symlinks`, () => {
+    // node_modules could have a symlink to src/brave. The recursive symlinks
+    // break the logic of some chromium scripts and should be remove before
+    // the build.
+    const linkPath = path.join(config.braveCoreDir, 'node_modules',
+      'brave-core')
+    if (fs.existsSync(linkPath)) {
+      fs.unlinkSync(linkPath);
+    }
+  })
 
   Log.progressScope(`ninja`, () => {
-    const target = chromiumConfig.buildTarget
+    const target = chromiumConfig.buildTargets
     const ninjaOpts = [
-      '-C', options.outputDir || config.outputDir, target,
+      '-C', config.outputDir, target.join(' '),
       ...config.extraNinjaOpts
     ]
     util.run('autoninja', ninjaOpts, config.defaultOptions)

@@ -15,7 +15,7 @@ You can obtain one at https://mozilla.org/MPL/2.0/.
     android:layout_height="match_parent"
     android:background="@color/brave_private_tabs_bg_color">
 
-    <org.chromium.components.browser_ui.widget.listmenu.ListMenuButton
+    <org.chromium.ui.listmenu.ListMenuButton
         android:id="@+id/incognito_reauth_menu_button"
         android:layout_marginTop="24dp"
         android:background="@null"
@@ -55,7 +55,7 @@ You can obtain one at https://mozilla.org/MPL/2.0/.
 
         <org.chromium.ui.widget.ButtonCompat
             android:id="@+id/incognito_reauth_unlock_incognito_button"
-            style="@style/FilledButton.Flat"
+            style="@style/FilledButton"
             android:backgroundTint="@color/brave_private_reauth_unlock_button_bg_color"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

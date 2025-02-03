@@ -19,7 +19,7 @@ constexpr char kTrialName[] = "AdvertiserSplitTestStudy";
 
 std::optional<std::string> GetSplitTestGroupName(
     const std::string& trial_name) {
-  base::FieldTrial* field_trial = base::FieldTrialList::Find(trial_name);
+  base::FieldTrial* const field_trial = base::FieldTrialList::Find(trial_name);
   if (!field_trial) {
     return std::nullopt;
   }
@@ -31,12 +31,12 @@ bool DoesRespectCap(const CreativeAdInfo& creative_ad) {
   const std::optional<std::string> split_test_group =
       GetSplitTestGroupName(kTrialName);
   if (!split_test_group) {
-    // Only respect cap if browser has signed up to a field trial
+    // Only respect cap if browser has signed up to a field trial.
     return creative_ad.split_test_group.empty();
   }
 
   if (creative_ad.split_test_group.empty()) {
-    // Always respect cap if there is no split testing group in the catalog
+    // Always respect cap if there is no split testing group in the catalog.
     return true;
   }
 

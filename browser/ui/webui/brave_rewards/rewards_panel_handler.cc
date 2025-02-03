@@ -7,7 +7,7 @@
 
 #include <utility>
 
-#include "brave/components/brave_rewards/browser/rewards_service.h"
+#include "brave/components/brave_rewards/content/rewards_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -17,7 +17,7 @@ namespace brave_rewards {
 RewardsPanelHandler::RewardsPanelHandler(
     mojo::PendingRemote<mojom::Panel> panel,
     mojo::PendingReceiver<mojom::PanelHandler> receiver,
-    base::WeakPtr<ui::MojoBubbleWebUIController::Embedder> embedder,
+    base::WeakPtr<TopChromeWebUIController::Embedder> embedder,
     RewardsService* rewards_service,
     RewardsPanelCoordinator* panel_coordinator)
     : receiver_(this, std::move(receiver)),

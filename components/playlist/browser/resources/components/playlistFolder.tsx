@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 
-import { color, font, spacing } from '@brave/leo/tokens/css'
+import { color, font, spacing } from '@brave/leo/tokens/css/variables'
 import LeoButton from '@brave/leo/react/button'
 
 import { PlaylistItem as PlaylistItemMojo } from 'gen/brave/components/playlist/common/mojom/playlist.mojom.m'
@@ -61,6 +61,7 @@ const StyledEditActionContainer = styled.div`
 const StyledEditButton = styled(LeoButton)`
   width: fit-content;
   flex-grow: 0;
+  color: var(--leo-color-text-primary);
   --leo-button-padding: 10px 12px;
 
   &:last-child {
@@ -160,7 +161,7 @@ const StyledEmptyFolderMessageContainer = styled.div`
 `
 
 const StyledEmptyFolderIcon = styled.div`
-  content: url(${`/${EmptyFolderIcon}`});
+  content: url(${EmptyFolderIcon});
 `
 
 const StyledEmptyFolderMessage = styled.div`
@@ -219,7 +220,7 @@ export default function PlaylistFolder({
 
   // Share single callback among multiple items.
   const onItemClick = React.useCallback(
-    (item) => {
+    (item: PlaylistItemMojo) => {
       if (!playlist) return
 
       if (editMode === PlaylistEditMode.BULK_EDIT) {
