@@ -7,6 +7,7 @@
 #define BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_BRAVE_WALLET_CONSTANTS_H_
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "brave/components/brave_wallet/common/brave_wallet_types.h"
@@ -1626,6 +1627,8 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"braveWalletSwitchToShieldedAccount",
      IDS_BRAVE_WALLET_SWITCH_TO_SHIELDED_ACCOUNT},
     {"braveWalletShieldAccount", IDS_BRAVE_WALLET_SHIELD_ACCOUNT},
+    {"braveWalletShieldAccountAlertDescription",
+     IDS_BRAVE_WALLET_SHIELD_ACCOUNT_ALERT_DESCRIPTION},
     {"braveWalletAccountNotShieldedDescription",
      IDS_BRAVE_WALLET_ACCOUNT_NOT_SHIELDED_DESCRIPTION},
     {"braveWalletAccountShieldedDescription",
@@ -1753,18 +1756,18 @@ inline constexpr char kMeldRpcEndpoint[] = "https://api-meld.wallet.brave.com";
 inline constexpr char kMeldRpcVersionHeader[] = "Meld-Version";
 inline constexpr char kMeldRpcVersion[] = "2023-05-26";
 
-const std::string GetSardineNetworkName(const std::string& chain_id);
+std::optional<std::string> GetSardineNetworkName(std::string_view chain_id);
 const base::flat_map<std::string, std::string>&
 GetEthBalanceScannerContractAddresses();
 const std::vector<std::string>& GetEthSupportedNftInterfaces();
 // Returns the URL for the Ratios service.
-const std::string GetAssetRatioBaseURL();
+std::string GetAssetRatioBaseURL();
 const base::flat_map<std::string, std::string>& GetAnkrBlockchains();
 // https://docs.rs/solana-program/1.18.10/src/solana_program/clock.rs.html#129-131
 inline constexpr int kSolanaValidBlockHeightThreshold = 150;
 
 std::optional<std::string> GetZeroExAllowanceHolderAddress(
-    const std::string& chain_id);
+    std::string_view chain_id);
 
 }  // namespace brave_wallet
 

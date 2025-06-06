@@ -136,10 +136,10 @@ void MessageManager::Stop() {
 
 void MessageManager::RemoveObsoleteLogs() {
   for (MetricLogType log_type : kAllMetricLogTypes) {
-    if (json_log_stores_.contains(log_type)) {
+    if (json_log_stores_[log_type]) {
       json_log_stores_[log_type]->RemoveObsoleteLogs();
     }
-    if (constellation_prep_log_stores_.contains(log_type)) {
+    if (constellation_prep_log_stores_[log_type]) {
       constellation_prep_log_stores_[log_type]->RemoveObsoleteLogs();
     }
   }
@@ -374,8 +374,8 @@ void MessageManager::StartScheduledConstellationPrep(MetricLogType log_type) {
     log_store->StageNextLog();
   }
 
-  const std::string log = log_store->staged_log();
-  const std::string log_key = log_store->staged_log_key();
+  const std::string& log = log_store->staged_log();
+  const std::string& log_key = log_store->staged_log_key();
   VLOG(2) << "MessageManager::StartScheduledConstellationPrep - Requesting "
              "randomness for histogram: "
           << log_key << " " << log;
@@ -391,8 +391,8 @@ void MessageManager::StartScheduledConstellationPrep(MetricLogType log_type) {
     return;
   }
 
-  if (!constellation_helper_->StartMessagePreparation(log_key.c_str(), log_type,
-                                                      log, is_nebula)) {
+  if (!constellation_helper_->StartMessagePreparation(log_key, log_type, log,
+                                                      is_nebula)) {
     scheduler->UploadFinished(false);
   }
 }

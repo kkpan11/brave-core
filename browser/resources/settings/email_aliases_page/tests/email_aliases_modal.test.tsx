@@ -5,11 +5,11 @@
 
 import * as React from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
-import { EmailAliasModal, EditState, EditMode }
+import { EmailAliasModal, DeleteAliasModal }
   from '../content/email_aliases_modal'
 
 import { clickLeoButton } from './test_utils'
-import { EmailAliasesServiceInterface, GenerateAliasResult }
+import { Alias, EmailAliasesServiceInterface, GenerateAliasResult }
   from "gen/brave/components/email_aliases/email_aliases.mojom.m"
 
 jest.mock('$web-common/locale', () => ({
@@ -38,11 +38,21 @@ const mockEmailAliasesService: EmailAliasesServiceInterface = {
 describe('EmailAliasModal', () => {
   const mockOnReturnToMain = jest.fn()
   const mockEmail = 'test@brave.com'
+  const mockAlias: Alias = {
+    email: 'existing@brave.com',
+    note: 'Existing Alias',
+    domains: ['brave.com']
+  }
 
   beforeEach(() => {
     jest.clearAllMocks()
     mockEmailAliasesService.updateAlias = jest.fn().mockResolvedValue(
       Promise.resolve({ errorMessage: null }))
+    mockEmailAliasesService.deleteAlias = jest.fn().mockImplementation(
+      async () => {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        return { errorMessage: null }
+      })
     mockEmailAliasesService.generateAlias = jest.fn()
       .mockResolvedValue({
         result: {
@@ -54,7 +64,7 @@ describe('EmailAliasModal', () => {
   it('renders create mode correctly', async () => {
     render(
       <EmailAliasModal
-        editState={{ mode: 'Create' }}
+        editing={false}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -73,18 +83,16 @@ describe('EmailAliasModal', () => {
   })
 
   it('renders edit mode correctly', () => {
-    const mockEditState: EditState = {
-      mode: 'Edit',
-      alias: {
-        email: 'existing@brave.com',
-        note: 'Existing Alias',
-        domains: ['brave.com']
-      }
+    const mockEditAlias: Alias = {
+      email: 'existing@brave.com',
+      note: 'Existing Alias',
+      domains: ['brave.com']
     }
 
     render(
       <EmailAliasModal
-        editState={mockEditState}
+        editing={true}
+        editAlias={mockEditAlias}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -102,11 +110,51 @@ describe('EmailAliasModal', () => {
       .toHaveValue('Existing Alias')
   })
 
+  it('renders delete mode correctly and calls deleteAlias when delete button ' +
+    'is clicked', async () => {
+    const mockAlias: Alias = {
+      email: 'existing@brave.com',
+      note: 'Existing Alias',
+      domains: ['brave.com']
+    }
+    render(
+      <DeleteAliasModal
+        onReturnToMain={mockOnReturnToMain}
+        alias={mockAlias}
+        emailAliasesService={mockEmailAliasesService}
+      />
+    )
+
+    // Check expected strings
+    expect(screen.getByText('emailAliasesDeleteAliasTitle'))
+      .toBeInTheDocument()
+    expect(screen.getByText('emailAliasesDeleteAliasDescription'))
+      .toBeInTheDocument()
+    expect(screen.getByText('emailAliasesDeleteAliasButton'))
+      .toBeInTheDocument()
+    expect(screen.getByText('emailAliasesDeleteWarning'))
+      .toBeInTheDocument()
+
+    // Click delete button
+    const deleteButton = screen.getByText('emailAliasesDeleteAliasButton')
+    clickLeoButton(deleteButton)
+
+    await waitFor(() => {
+      expect(deleteButton).toHaveAttribute('isdisabled', 'true')
+    })
+
+    // Check that deleteAlias was called
+    await waitFor(() => {
+      expect(mockEmailAliasesService.deleteAlias).toHaveBeenCalled()
+      expect(deleteButton).toHaveAttribute('isdisabled', 'false')
+    })
+  })
+
   it('handles alias creation', async () => {
     await act(async () => {
       render(
         <EmailAliasModal
-        editState={{ mode: 'Create' }}
+        editing={false}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -145,7 +193,7 @@ describe('EmailAliasModal', () => {
   it('handles alias regeneration', async () => {
     render(
       <EmailAliasModal
-        editState={{ mode: 'Create' }}
+        editing={false}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -176,7 +224,7 @@ describe('EmailAliasModal', () => {
     await act(async () => {
       render(
         <EmailAliasModal
-          editState={{ mode: 'Create' }}
+          editing={false}
           mainEmail={mockEmail}
           aliasCount={5}
           onReturnToMain={mockOnReturnToMain}
@@ -201,7 +249,7 @@ describe('EmailAliasModal', () => {
 
     render(
       <EmailAliasModal
-        editState={{ mode: 'Create' }}
+        editing={false}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -240,7 +288,7 @@ describe('EmailAliasModal', () => {
 
     render(
       <EmailAliasModal
-        editState={{ mode: 'Create' }}
+        editing={false}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -265,18 +313,16 @@ describe('EmailAliasModal', () => {
   })
 
   it('handles alias updates', async () => {
-    const mockEditState: EditState = {
-      mode: 'Edit',
-      alias: {
-        email: 'existing@brave.com',
-        note: 'Existing Alias',
-        domains: ['brave.com']
-      }
+    const mockEditAlias: Alias = {
+      email: 'existing@brave.com',
+      note: 'Existing Alias',
+      domains: ['brave.com']
     }
 
     render(
       <EmailAliasModal
-        editState={mockEditState}
+        editing={true}
+        editAlias={mockEditAlias}
         mainEmail={mockEmail}
         aliasCount={0}
         onReturnToMain={mockOnReturnToMain}
@@ -308,30 +354,27 @@ describe('EmailAliasModal', () => {
     })
   })
 
-  const states: EditState[] = [{
-    mode: 'Create' as EditMode,
-    alias: {
+  const aliases: Alias[] = [
+    {
       email: 'new@brave.com',
       note: 'New Alias',
       domains: undefined
-    }
-  }, {
-    mode: 'Edit' as EditMode,
-    alias: {
+    }, {
       email: 'existing@brave.com',
       note: 'Existing Alias',
       domains: ['brave.com']
     }
-  }]
+  ]
 
-  for (const state of states) {
+  for (const alias of aliases) {
     it('shows error message when creating or editing alias fails', async () => {
       mockEmailAliasesService.updateAlias = jest.fn().mockImplementation(
         () => Promise.resolve({ errorMessage: 'emailAliasesUpdateAliasError' }))
 
       render(
         <EmailAliasModal
-          editState={state}
+          editing={alias.email === 'existing@brave.com'}
+          editAlias={alias}
           mainEmail={mockEmail}
           aliasCount={0}
           onReturnToMain={mockOnReturnToMain}
@@ -359,5 +402,31 @@ describe('EmailAliasModal', () => {
       })
     })
   }
+
+  it('shows error message when deleting alias fails', async () => {
+    mockEmailAliasesService.deleteAlias = jest.fn().mockImplementation(
+      () => Promise.resolve({ errorMessage: 'emailAliasesDeleteAliasError' }))
+
+    render(
+      <DeleteAliasModal
+        onReturnToMain={mockOnReturnToMain}
+        alias={mockAlias}
+        emailAliasesService={mockEmailAliasesService}
+      />
+    )
+
+    // Click delete button
+    await act(async () => {
+      const deleteButton = screen.getByText('emailAliasesDeleteAliasButton')
+      clickLeoButton(deleteButton)
+    })
+
+    // Wait for error message to appear. Delete button should be enabled.
+    await waitFor(() => {
+      expect(mockEmailAliasesService.deleteAlias).toHaveBeenCalled()
+      expect(screen.getByText('emailAliasesDeleteAliasError'))
+        .toBeInTheDocument()
+    })
+  })
 
 })

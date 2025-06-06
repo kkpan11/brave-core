@@ -115,11 +115,7 @@ export type EditMode =
   | 'None'
   | 'Create'
   | 'Edit'
-
-export type EditState = {
-  mode: EditMode,
-  alias?: Alias
-}
+  | 'Delete'
 
 const RefreshButton = ({ onClick, waiting }:
   { onClick: () => Promise<void>, waiting: boolean }) => {
@@ -134,12 +130,62 @@ const RefreshButton = ({ onClick, waiting }:
   </ButtonWrapper>
 }
 
+export const DeleteAliasModal = ({
+  onReturnToMain,
+  alias,
+  emailAliasesService }: {
+  onReturnToMain: () => void,
+  alias: Alias,
+  emailAliasesService: EmailAliasesServiceInterface
+}) => {
+  const [deleting, setDeleting] = React.useState<boolean>(false)
+  const [deleteErrorMessage, setDeleteErrorMessage] =
+    React.useState<string | null>(null)
+  const onDeleteAlias = async () => {
+    setDeleteErrorMessage(null)
+    setDeleting(true)
+    const { errorMessage } = await emailAliasesService.deleteAlias(alias.email)
+    setDeleting(false)
+    if (errorMessage) {
+      setDeleteErrorMessage(errorMessage)
+    } else {
+      onReturnToMain()
+    }
+  }
+  return <ModalCol>
+    <ModalTitle>{getLocale('emailAliasesDeleteAliasTitle')}</ModalTitle>
+    <ModalDescription>
+      {formatLocale('emailAliasesDeleteAliasDescription',
+        { $1: <b>{alias.email}</b> })}
+    </ModalDescription>
+    <Alert type='warning'>
+      {getLocale('emailAliasesDeleteWarning')}
+    </Alert>
+    <ButtonRow>
+      <span>
+        <Button onClick={onReturnToMain} kind='plain-faint'>
+          {getLocale('emailAliasesCancelButton')}
+        </Button>
+        <Button onClick={onDeleteAlias} kind='filled'
+          isDisabled={deleting}>
+          {getLocale('emailAliasesDeleteAliasButton')}
+        </Button>
+      </span>
+    </ButtonRow>
+    {deleteErrorMessage &&
+      <Alert>
+        {deleteErrorMessage}
+      </Alert>}
+  </ModalCol>
+}
+
 export const EmailAliasModal = (
-  { onReturnToMain, editState, mainEmail, aliasCount, emailAliasesService,
-    bubble }:
+  { onReturnToMain, editing, editAlias, mainEmail, aliasCount,
+    emailAliasesService, bubble }:
     {
       onReturnToMain: () => void,
-      editState: EditState,
+      editing: boolean,
+      editAlias?: Alias,
       bubble?: boolean,
       mainEmail: string,
       aliasCount: number,
@@ -148,12 +194,12 @@ export const EmailAliasModal = (
 ) => {
   const [limitReached, setLimitReached] = React.useState<boolean>(false)
   const [proposedNote, setProposedNote] = React.useState<string>(
-    editState?.alias?.note ?? '')
+    editAlias?.note ?? '')
   const [awaitingProposedAlias, setAwaitingProposedAlias] =
     React.useState<boolean>(true)
   const [generateAliasResult, setGenerateAliasResult] =
     React.useState<GenerateAliasResult>({
-      aliasEmail: editState?.alias?.email ?? '',
+      aliasEmail: editAlias?.email ?? '',
       errorMessage: undefined
     })
   const [updateErrorMessage, setUpdateErrorMessage] =
@@ -182,13 +228,13 @@ export const EmailAliasModal = (
     if (bubble) {
       setLimitReached(aliasCount >= MAX_ALIASES)
     }
-    if (editState.mode === 'Create') {
+    if (!editing) {
       regenerateAlias()
     }
-  }, [editState.mode])
+  }, [editing])
   return (
     <ModalCol>
-      <ModalTitle>{editState.mode === 'Create'
+      <ModalTitle>{!editing
         ? getLocale('emailAliasesCreateAliasTitle')
         : getLocale('emailAliasesEditAliasTitle')}</ModalTitle>
       {bubble && <ModalDescription>
@@ -205,7 +251,7 @@ export const EmailAliasModal = (
                 <div data-testid='generated-email'>
                   {generateAliasResult.aliasEmail}
                 </div>
-                {editState.mode === 'Create' &&
+                {!editing &&
                  <RefreshButton data-testid='regenerate-button'
                                 onClick={regenerateAlias}
                                 waiting={awaitingProposedAlias} />}
@@ -229,10 +275,10 @@ export const EmailAliasModal = (
                 onChange={(detail) => setProposedNote(detail.value)}
                 onKeyDown={onEnterKeyForInput(createOrSave)}>
               </NoteInput>
-              {editState.mode === 'Edit' && editState?.alias?.domains &&
+              {editing && editAlias?.domains &&
                 <div>
                 {formatLocale('emailAliasesUsedBy',
-                              { $1: editState?.alias?.domains?.join(', ') })}
+                              { $1: editAlias?.domains?.join(', ') })}
                 </div>}
             </ModalSectionCol>
           </ModalCol>
@@ -244,11 +290,11 @@ export const EmailAliasModal = (
           </Button>
           <Button
             kind='filled'
-            isDisabled={editState.mode === 'Create'
+            isDisabled={!editing
                          && (limitReached || awaitingProposedAlias ||
                              !generateAliasResult?.aliasEmail)}
             onClick={createOrSave}>
-            {editState.mode === 'Create'
+            {!editing
               ? getLocale('emailAliasesCreateAliasButton')
               : getLocale('emailAliasesSaveAliasButton')}
           </Button>

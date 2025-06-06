@@ -198,20 +198,9 @@ void P3AService::Init(
     url_loader_factory_ = url_loader_factory;
   }
 
-  if (initialized_ || !url_loader_factory_) {
+  if (initialized_ || !url_loader_factory_ ||
+      !remote_config_manager_->is_loaded()) {
     return;
-  }
-
-  // TODO(djandries): remove the buildflag guard once
-  // https://github.com/brave/brave-browser/issues/45042 is resolved
-#if !BUILDFLAG(IS_IOS)
-  if (!remote_config_manager_->is_loaded()) {
-    return;
-  }
-#endif
-
-  if (local_state_->GetBoolean(kP3AEnabled)) {
-    message_manager_->Start(url_loader_factory_);
   }
 
   initialized_ = true;
@@ -221,6 +210,10 @@ void P3AService::Init(
     HandleHistogramChange(std::string(entry.first), entry.second);
   }
   histogram_values_.clear();
+
+  if (local_state_->GetBoolean(kP3AEnabled)) {
+    message_manager_->Start(url_loader_factory_);
+  }
 }
 
 void P3AService::OnRotation(MetricLogType log_type, bool is_constellation) {
