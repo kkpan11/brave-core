@@ -10,8 +10,10 @@
 
 #include "base/command_line.h"
 #include "base/json/json_file_value_serializer.h"
+#include "base/notreached.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/string_util.h"
 #include "base/test/scoped_mock_time_message_loop_task_runner.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/time/time.h"

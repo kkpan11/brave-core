@@ -56,10 +56,6 @@ OBJC_EXPORT
 /// Returns `true` if the ads service is running otherwise returns `false`.
 - (BOOL)isServiceRunning;
 
-/// Returns `true` if always run the ads service, even if Brave Private Ads are
-/// disabled.
-+ (BOOL)shouldAlwaysRunService;
-
 /// Returns `true` if should show Sponsored Images & Videos option in settings.
 /// This function will be deprecated once Sponsored Video is available globally.
 - (BOOL)shouldShowSponsoredImagesAndVideosSetting;
@@ -90,6 +86,9 @@ OBJC_EXPORT
 /// Used to notify the ads service that the user has opted-in/opted-out to
 /// sponsored images.
 - (void)notifySponsoredImagesIsEnabledPreferenceDidChange:(BOOL)isEnabled;
+
+/// Indicates if the user has opted-in to survey panelist.
+@property(nonatomic) BOOL isSurveyPanelistEnabled;
 
 /// Whether or not Brave Ads is enabled and the user should receive
 /// notification-style ads and be rewarded for it

@@ -28,7 +28,6 @@ challenge-bypass-ristretto-cxx = "1"
 zcash = "1"
 anonymous-credentials = "0.1"
 document-extractor = "0.1"
-flatbuffers = { version = "25.2.10" }
 
 [patch.crates-io.idna_v1]
 path = "../idna/v1/crate"
@@ -97,10 +96,6 @@ package = "document-extractor"
 [patch.crates-io.anstyle]
 path = "../../../../third_party/rust/chromium_crates_io/vendor/anstyle-v1"
 package = "anstyle"
-
-[patch.crates-io.arrayvec_v0_7]
-path = "../../../../third_party/rust/chromium_crates_io/vendor/arrayvec-v0_7"
-package = "arrayvec"
 
 [patch.crates-io.anyhow_v1]
 path = "../../../../third_party/rust/chromium_crates_io/vendor/anyhow-v1"
@@ -185,6 +180,10 @@ package = "libc"
 [patch.crates-io.log_v0_4]
 path = "../../../../third_party/rust/chromium_crates_io/vendor/log-v0_4"
 package = "log"
+
+[patch.crates-io.libm_v0_2]
+path = "../../../../third_party/rust/chromium_crates_io/vendor/libm-v0_2"
+package = "libm"
 
 [patch.crates-io.memchr_v2]
 path = "../../../../third_party/rust/chromium_crates_io/vendor/memchr-v2"

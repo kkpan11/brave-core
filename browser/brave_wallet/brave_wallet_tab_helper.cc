@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "brave/browser/brave_wallet/brave_wallet_provider_delegate_impl.h"
 #include "brave/browser/brave_wallet/brave_wallet_service_factory.h"
 #include "brave/components/brave_wallet/browser/ethereum_provider_impl.h"
@@ -220,7 +221,7 @@ GURL BraveWalletTabHelper::GetBubbleURL() {
   // Handle ConnectWithSite (ethereum permission) request.
   std::vector<std::string> accounts;
   url::Origin requesting_origin;
-  for (permissions::PermissionRequest* request : manager->Requests()) {
+  for (const auto& request : manager->Requests()) {
     std::string account;
     if (!ParseRequestingOriginFromSubRequest(
             request->request_type(),

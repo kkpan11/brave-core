@@ -12,6 +12,7 @@
 
 #include "base/i18n/time_formatting.h"
 #include "base/json/values_util.h"
+#include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
@@ -325,7 +326,7 @@ TEST_F(P3AMessageManagerTest, UpdateLogsAndSendJson) {
     task_environment_.FastForwardBy(base::Seconds(kUploadIntervalSeconds * 50));
 
     EXPECT_EQ(p3a_json_sent_metrics_.size(), 3U);
-    EXPECT_EQ(p2a_json_sent_metrics_.size(), p2a_count);
+    EXPECT_EQ(p2a_json_sent_metrics_.size(), 0U);
 
     for (size_t i = 0; i < test_histograms.size(); i++) {
       if (test_histograms[i].rfind(kP2APrefix, 0) == 0) {
@@ -348,7 +349,7 @@ TEST_F(P3AMessageManagerTest, UpdateLogsAndSendJson) {
                                     base::Seconds(kUploadIntervalSeconds * 50));
 
     EXPECT_EQ(p3a_json_sent_metrics_.size(), 3U);
-    EXPECT_EQ(p2a_json_sent_metrics_.size(), p2a_count);
+    EXPECT_EQ(p2a_json_sent_metrics_.size(), 0U);
     for (size_t i = 0; i < test_histograms.size(); i++) {
       if (test_histograms[i].rfind(kP2APrefix, 0) == 0) {
         ASSERT_EQ(p2a_json_sent_metrics_.find(test_histograms[i])->second,

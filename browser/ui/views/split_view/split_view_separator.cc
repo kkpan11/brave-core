@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/time/time.h"
 #include "brave/browser/ui/color/brave_color_id.h"
@@ -132,6 +133,10 @@ SplitViewSeparator::SplitViewSeparator(Browser* browser)
     : ResizeArea(this), browser_(browser) {}
 
 SplitViewSeparator::~SplitViewSeparator() = default;
+
+void SplitViewSeparator::ShowMenuButtonWidget() {
+  menu_button_widget_->Show();
+}
 
 void SplitViewSeparator::AddedToWidget() {
   ResizeArea::AddedToWidget();

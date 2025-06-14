@@ -5,6 +5,8 @@
 
 import { provideStrings } from '../../../../../../.storybook/locale'
 
+import '../../../common/strings'
+
 provideStrings({
   summarizeFailedLabel: 'The summarizer feature is currently available only for select articles and other long-form web pages.',
   placeholderLabel: 'Enter a prompt here',
@@ -153,7 +155,9 @@ provideStrings({
     'model, language, version, and premium status to Brave in order ' +
     'to improve Leo. $1Learn more$1',
   regenerateAnswerMenuTitle: 'Change model for answer',
-  regenerateAnswerButtonLabel: 'Regenerate',
+  regenerateAnswerMenuTooltip: 'Change model for answer (current model: $1)',
+  retrySameModelButtonLabel: 'Retry same model',
+  currentLabel: 'Current',
   temporaryChatLabel: 'Temporary chat',
   temporaryChatInfo: 'This chat won\'t be saved into your history or ' +
     'use any of Leo\'s customization or memories.'

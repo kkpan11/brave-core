@@ -8,10 +8,10 @@
 #include <string>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notimplemented.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "brave/browser/ai_chat/ai_chat_service_factory.h"
 #include "brave/browser/ui/ai_rewriter/ai_rewriter_dialog_delegate.h"

@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
 #include "brave/browser/ai_chat/ai_chat_service_factory.h"
@@ -209,7 +210,7 @@ void AIChatUIPageHandler::OpenAIChatSettings() {
       (active_chat_tab_helper_) ? active_chat_tab_helper_->web_contents()
                                 : owner_web_contents_.get();
 #if !BUILDFLAG(IS_ANDROID)
-  const GURL url("brave://settings/leo-ai");
+  const GURL url(kAIChatSettingsURL);
   if (auto* browser = chrome::FindBrowserWithTab(contents_to_navigate)) {
     ShowSingletonTab(browser, url);
   } else {

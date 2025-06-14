@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_wallet/browser/zcash/zcash_wallet_service.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,7 +13,6 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"

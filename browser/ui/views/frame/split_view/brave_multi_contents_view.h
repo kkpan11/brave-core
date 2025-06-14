@@ -27,27 +27,30 @@ class BraveMultiContentsView : public MultiContentsView,
  public:
   static constexpr int kBorderThickness = 2;
 
+  static BraveMultiContentsView* From(MultiContentsView* view);
+
   BraveMultiContentsView(
       BrowserView* browser_view,
       WebContentsFocusedCallback inactive_contents_focused_callback,
       WebContentsResizeCallback contents_resize_callback);
   ~BraveMultiContentsView() override;
 
+  void UpdateSecondaryLocationBar();
+
  private:
   friend class SplitViewLocationBarBrowserTest;
+  friend class SideBySideEnabledBrowserTest;
   FRIEND_TEST_ALL_PREFIXES(SideBySideEnabledBrowserTest,
                            BraveMultiContentsViewTest);
 
   // MultiContentsView:
-  void UpdateContentsBorder() override;
+  void UpdateContentsBorderAndOverlay() override;
   void Layout(PassKey) override;
-  void SetActiveIndex(int index) override;
 
   // SplitViewSeparatorDelegate:
   void OnDoubleClicked() override;
 
   float GetCornerRadius() const;
-  void UpdateSecondaryLocationBar();
 
   std::vector<ContentsContainerView*> contents_container_views_for_testing()
       const {

@@ -20,6 +20,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
@@ -37,7 +38,6 @@
 #include "brave/components/brave_ads/core/public/ads_callback.h"
 #include "brave/components/brave_ads/core/public/ads_client/ads_client_notifier.h"
 #include "brave/components/brave_ads/core/public/ads_client/ads_client_notifier_observer.h"
-#include "brave/components/brave_ads/core/public/ads_feature.h"
 #include "brave/components/brave_ads/core/public/ads_util.h"
 #include "brave/components/brave_ads/core/public/flags/flags_util.h"
 #include "brave/components/brave_ads/core/public/prefs/pref_names.h"
@@ -159,7 +159,7 @@ constexpr NSString* kAdsResourceComponentMetadataVersion = @".v1";
     ProfileIOS* profile = [self getLastUsedProfile];
     CHECK(profile);
     virtualPrefProvider = std::make_unique<brave_ads::VirtualPrefProvider>(
-        self.localStatePrefService,
+        self.profilePrefService, self.localStatePrefService,
         std::make_unique<brave_ads::VirtualPrefProviderDelegateIOS>(*profile));
   }
   return self;
@@ -196,10 +196,6 @@ constexpr NSString* kAdsResourceComponentMetadataVersion = @".v1";
 - (BOOL)isServiceRunning {
   return adsClientNotifier != nil && adsService != nil &&
          adsService->IsInitialized();
-}
-
-+ (BOOL)shouldAlwaysRunService {
-  return brave_ads::ShouldAlwaysRunService();
 }
 
 - (BOOL)shouldShowSponsoredImagesAndVideosSetting {
@@ -248,6 +244,17 @@ constexpr NSString* kAdsResourceComponentMetadataVersion = @".v1";
   [self setProfilePref:ntp_background_images::prefs::
                            kNewTabPageShowSponsoredImagesBackgroundImage
                  value:base::Value(isEnabled)];
+}
+
+- (BOOL)isSurveyPanelistEnabled {
+  return self.profilePrefService->GetBoolean(
+      ntp_background_images::prefs::kNewTabPageSponsoredImagesSurveyPanelist);
+}
+
+- (void)setIsSurveyPanelistEnabled:(BOOL)enabled {
+  [self setProfilePref:ntp_background_images::prefs::
+                           kNewTabPageSponsoredImagesSurveyPanelist
+                 value:base::Value(enabled)];
 }
 
 - (BOOL)isEnabled {
@@ -1394,11 +1401,6 @@ constexpr NSString* kAdsResourceComponentMetadataVersion = @".v1";
   [self.captchaHandler
       handleAdaptiveCaptchaForPaymentId:base::SysUTF8ToNSString(payment_id)
                               captchaId:base::SysUTF8ToNSString(captcha_id)];
-}
-
-- (void)recordP2AEvents:(const std::vector<std::string>&)events {
-  // TODO(https://github.com/brave/brave-browser/issues/33786): Unify Brave Ads
-  // P3A analytics.
 }
 
 - (bool)findProfilePref:(const std::string&)path {

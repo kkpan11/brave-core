@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/gtest_prod_util.h"
@@ -59,6 +60,7 @@ class Widget;
 
 class BraveBrowser;
 class BraveHelpBubbleHostView;
+class BraveMultiContentsView;
 class ContentsLayoutManager;
 class SidebarContainerView;
 class SidePanelEntry;
@@ -182,8 +184,14 @@ class BraveBrowserView : public BrowserView,
                                  bool update_devtools_web_contents) override;
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
   void GetAccessiblePanes(std::vector<views::View*>* panes) override;
-  void ShowSplitView() override;
+  void ShowSplitView(bool focus_active_view) override;
   void HideSplitView() override;
+  void UpdateActiveTabInSplitView() override;
+
+  void UpdateContentsInSplitView(
+      const std::vector<std::pair<tabs::TabInterface*, int>>& prev_tabs,
+      const std::vector<std::pair<tabs::TabInterface*, int>>& new_tabs)
+      override;
 
   void StopTabCycling();
   void UpdateSearchTabsButtonState();
@@ -206,7 +214,7 @@ class BraveBrowserView : public BrowserView,
 #endif
 
   void UpdateSideBarHorizontalAlignment();
-
+  BraveMultiContentsView* GetBraveMultiContentsView() const;
   views::View* contents_separator_for_testing() const {
     return contents_separator_;
   }

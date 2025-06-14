@@ -7,7 +7,6 @@
 
 #include <initializer_list>
 
-#include "base/strings/string_util.h"
 #include "brave/browser/brave_browser_features.h"
 #include "brave/browser/brave_features_internal_names.h"
 #include "brave/browser/ui/brave_ui_features.h"
@@ -938,13 +937,6 @@ const flags_ui::FeatureEntry::FeatureVariation kZCashFeatureVariations[] = {
           "by rounding all DOMHighResTimeStamps to the nearest millisecond.",  \
           kOsAll,                                                              \
           FEATURE_VALUE_TYPE(blink::features::kBraveRoundTimeStamps),          \
-      },                                                                       \
-      {                                                                        \
-          "translate",                                                         \
-          "Enable Chromium Translate feature",                                 \
-          "Should be used with brave-translate-go, see the description here.", \
-          kOsDesktop | kOsAndroid,                                             \
-          FEATURE_VALUE_TYPE(translate::kTranslate),                           \
       },                                                                       \
       {                                                                        \
           "restrict-event-source-pool",                                        \

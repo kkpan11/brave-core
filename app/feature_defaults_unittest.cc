@@ -7,7 +7,6 @@
 #include "base/feature_list.h"
 #include "base/feature_override.h"
 #include "base/features.h"
-#include "base/logging.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/devtools/features.h"
 #include "chrome/browser/history_embeddings/history_embeddings_utils.h"
@@ -68,7 +67,6 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "android_webview/common/aw_features.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
-#include "components/password_manager/core/common/password_manager_features.h"
 #else
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_features.h"
 #include "chrome/browser/sharing_hub/sharing_hub_features.h"
@@ -107,11 +105,9 @@ TEST(FeatureDefaultsTest, DisabledFeatures) {
       &blink::features::kParakeet,
       &blink::features::kPrerender2,
       &blink::features::kPrivateAggregationApi,
-      &blink::features::kSpeculationRulesPrefetchFuture,
 #if BUILDFLAG(IS_ANDROID)
       &chrome::android::kAdaptiveButtonInTopToolbarCustomizationV2,
 #endif
-      &chrome_urls::kInternalOnlyUisPref,
       &commerce::kCommerceAllowOnDemandBookmarkUpdates,
       &commerce::kCommerceDeveloper,
       &commerce::kCommerceMerchantViewer,
@@ -190,14 +186,10 @@ TEST(FeatureDefaultsTest, DisabledFeatures) {
       &history_embeddings::kHistoryEmbeddings,
       &history_embeddings::kHistoryEmbeddingsAnswers,
       &history_embeddings::kLaunchedHistoryEmbeddings,
-#if BUILDFLAG(ENABLE_MIRROR)
-      &kVerifyRequestInitiatorForMirrorHeaders,
-#endif
       &lens::features::kLensOverlay,
       &lens::features::kLensStandalone,
       &manta::features::kMantaService,
       &media::kLiveCaption,
-      &metrics::structured::kEnabledStructuredMetricsService,
       &metrics::structured::kPhoneHubStructuredMetrics,
       &net::features::kEnableWebTransportDraft07,
       &net::features::kTopLevelTpcdOriginTrial,
@@ -225,10 +217,7 @@ TEST(FeatureDefaultsTest, DisabledFeatures) {
           kRemoteOptimizationGuideFetchingAnonymousDataConsent,
       &page_image_service::kImageService,
       &page_image_service::kImageServiceSuggestPoweredImages,
-#if BUILDFLAG(IS_ANDROID)
-      &password_manager::features::
-          kUnifiedPasswordManagerLocalPasswordsMigrationWarning,
-#endif
+      &permissions::features::kCpssUseTfliteSignatureRunner,
 #if !BUILDFLAG(IS_ANDROID)
       &permissions::features::kPermissionsPromptSurvey,
 #endif
@@ -237,9 +226,9 @@ TEST(FeatureDefaultsTest, DisabledFeatures) {
       &permissions::features::kShowRelatedWebsiteSetsPermissionGrants,
       &plus_addresses::features::kPlusAddressesEnabled,
       &privacy_sandbox::kEnforcePrivacySandboxAttestations,
+      &privacy_sandbox::kFingerprintingProtectionUx,
       &privacy_sandbox::kOverridePrivacySandboxSettingsLocalTesting,
       &privacy_sandbox::kPrivacySandboxSettings4,
-      &privacy_sandbox::kTrackingProtectionContentSettingUbControl,
       &safe_browsing::kDownloadsPageReferrerUrl,
       &safe_browsing::kExtensionTelemetryForEnterprise,
       &safe_browsing::kGooglePlayProtectInApkTelemetry,

@@ -5,10 +5,11 @@
 
 #include "brave/components/brave_wallet/browser/internal/hd_key_ed25519.h"
 
+#include <array>
 #include <memory>
 #include <utility>
 
-#include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/span.h"
 #include "base/containers/span_writer.h"
 #include "base/containers/to_vector.h"

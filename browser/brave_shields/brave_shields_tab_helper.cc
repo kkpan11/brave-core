@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/metrics/histogram_macros.h"
+#include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "brave/browser/brave_shields/brave_shields_web_contents_observer.h"
@@ -178,13 +179,8 @@ bool BraveShieldsTabHelper::GetBraveShieldsEnabled() {
 
 void BraveShieldsTabHelper::SetBraveShieldsEnabled(bool is_enabled) {
   auto* map = GetHostContentSettingsMap(web_contents());
-  if (map->GetDefaultContentSetting(ContentSettingsType::BRAVE_SHIELDS,
-                                    nullptr) == is_enabled) {
-    brave_shields::ResetBraveShieldsEnabled(map, GetCurrentSiteURL());
-  } else {
-    brave_shields::SetBraveShieldsEnabled(map, is_enabled, GetCurrentSiteURL(),
-                                          g_browser_process->local_state());
-  }
+  brave_shields::SetBraveShieldsEnabled(map, is_enabled, GetCurrentSiteURL(),
+                                        g_browser_process->local_state());
   ReloadWebContents();
 }
 

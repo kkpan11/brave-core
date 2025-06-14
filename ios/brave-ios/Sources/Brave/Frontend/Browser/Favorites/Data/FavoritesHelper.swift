@@ -11,12 +11,12 @@ import UIKit
 
 /// A set of methods related to managing favorites. Most are just wrappers over Bookmark model.
 struct FavoritesHelper {
-  // Indicates if favorites have been initialized.
-  static let initPrefsKey = "FavoritesHelperInitPrefsKey"
-
   // MARK: - Favorites initialization
   static func addDefaultFavorites() {
-    Favorite.addDefaults(from: FavoritesPreloadedData.getList())
+    Task { @MainActor in
+      let list = await FavoritesPreloadedData.getList()
+      Favorite.addDefaults(from: list)
+    }
   }
 
   static func add(url: URL, title: String?) {

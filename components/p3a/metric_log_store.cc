@@ -9,12 +9,12 @@
 #include <string_view>
 #include <vector>
 
-#include "base/check_op.h"
+#include "base/check.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/notreached.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "brave/components/p3a/metric_log_type.h"
 #include "brave/components/p3a/uploader.h"
 #include "components/prefs/pref_registry_simple.h"
