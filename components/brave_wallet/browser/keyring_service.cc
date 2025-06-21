@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_wallet/browser/keyring_service.h"
 
+#include <array>
 #include <optional>
 #include <set>
 #include <string>
@@ -12,6 +13,7 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/check_op.h"
 #include "base/command_line.h"

@@ -36,6 +36,7 @@
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/themes/theme_syncable_service.h"
 #include "chrome/browser/ui/webui/sanitized_image_source.h"
+#include "chrome/common/pref_names.h"
 #include "components/country_codes/country_codes.h"
 #include "components/grit/brave_components_resources.h"
 #include "components/prefs/pref_service.h"
@@ -60,11 +61,11 @@ using ntp_background_images::NTPCustomImagesSource;
 
 namespace {
 
-std::string GetSearchWidgetDefaultHost(
-    regional_capabilities::RegionalCapabilitiesService* regional_capabilities) {
-  constexpr char kBraveSearchHost[] = "search.brave.com";
-  constexpr char kYahooSearchHost[] = "search.yahoo.co.jp";
+constexpr char kBraveSearchHost[] = "search.brave.com";
+constexpr char kYahooSearchHost[] = "search.yahoo.co.jp";
 
+std::string_view GetSearchWidgetDefaultHost(
+    regional_capabilities::RegionalCapabilitiesService* regional_capabilities) {
   regional_capabilities::CountryIdHolder country_id =
       regional_capabilities->GetCountryId();
   regional_capabilities::CountryIdHolder japan_country_id(
@@ -127,10 +128,9 @@ BraveNewTabUI::BraveNewTabUI(
       "trusted-types static-types lottie-worker-script-loader lit-html-desktop "
       "default; ");
 
-  source->AddBoolean(
-      "featureCustomBackgroundEnabled",
-      !profile->GetPrefs()->IsManagedPreference(GetThemePrefNameInMigration(
-          ThemePrefInMigration::kNtpCustomBackgroundDict)));
+  source->AddBoolean("featureCustomBackgroundEnabled",
+                     !profile->GetPrefs()->IsManagedPreference(
+                         prefs::kNtpCustomBackgroundDict));
 
   // Let frontend know about feature flags
   source->AddBoolean("featureFlagBraveNewsPromptEnabled",

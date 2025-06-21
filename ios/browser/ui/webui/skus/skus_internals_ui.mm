@@ -9,11 +9,12 @@
 #include <string_view>
 #include <utility>
 
+#include "base/check.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
-#include "base/notreached.h"
+#include "base/notimplemented.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
@@ -95,7 +96,10 @@ SkusInternalsUI::SkusInternalsUI(web::WebUIIOS* web_ui, const GURL& url)
                           base::Unretained(this)));
 }
 
-SkusInternalsUI::~SkusInternalsUI() {}
+SkusInternalsUI::~SkusInternalsUI() {
+  web_ui()->GetWebState()->GetInterfaceBinderForMainFrame()->RemoveInterface(
+      skus::mojom::SkusInternals::Name_);
+}
 
 void SkusInternalsUI::BindInterface(
     mojo::PendingReceiver<skus::mojom::SkusInternals> pending_receiver) {

@@ -11,6 +11,7 @@ import("//brave/components/brave_education/buildflags.gni")
 import("//brave/components/brave_vpn/common/buildflags/buildflags.gni")
 import("//brave/components/brave_wayback_machine/buildflags/buildflags.gni")
 import("//brave/components/commander/common/buildflags/buildflags.gni")
+import("//brave/components/containers/buildflags/buildflags.gni")
 import("//brave/components/ntp_background_images/buildflags/buildflags.gni")
 import("//brave/components/playlist/common/buildflags/buildflags.gni")
 import("//brave/components/request_otr/common/buildflags/buildflags.gni")
@@ -22,7 +23,6 @@ import("//build/config/features.gni")
 import("//chrome/common/features.gni")
 import("//components/gcm_driver/config.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
-import("//printing/buildflags/buildflags.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 
 # See //chrome/browser/ui:ui_public_dependencies.
@@ -32,7 +32,6 @@ group("ui_public_dependencies") {
     "//chrome/browser/ui:ui_public_dependencies",
   ]
   public_deps = [
-    ":brave_rewards_source",
     ":brave_tab_features",
     ":brave_tab_prefs",
     "//brave/components/brave_wayback_machine/buildflags",
@@ -122,24 +121,6 @@ source_set("ui") {
     ]
   }
 
-  if (enable_print_preview) {
-    sources += [
-      "ai_chat/print_preview_extractor.cc",
-      "ai_chat/print_preview_extractor.h",
-    ]
-    deps += [
-      "//chrome/browser/pdf",
-      "//chrome/browser/pdf:pdf_pref_names",
-      "//chrome/services/printing/public/mojom",
-      "//components/pdf/browser",
-      "//components/printing/browser",
-      "//components/printing/common:mojo_interfaces",
-      "//components/services/print_compositor/public/mojom",
-      "//pdf:buildflags",
-      "//pdf:features",
-    ]
-  }
-
   if (is_android) {
     sources += [
       "android/ai_chat/brave_leo_settings_launcher_helper.cc",
@@ -151,6 +132,7 @@ source_set("ui") {
     deps += [
       "//brave/browser/ui/webui/new_tab_takeover/android:new_tab_takeover",
       "//brave/build/android:jni_headers",
+      "//chrome/browser/ui/android/tab_model",
     ]
   }
 
@@ -183,8 +165,6 @@ source_set("ui") {
       "bookmark/bookmark_prefs_service_factory.h",
       "bookmark/brave_bookmark_prefs.cc",
       "bookmark/brave_bookmark_prefs.h",
-      "bookmark/brave_bookmark_tab_helper.cc",
-      "bookmark/brave_bookmark_tab_helper.h",
       "brave_browser.cc",
       "brave_browser.h",
       "brave_browser_actions.cc",
@@ -429,6 +409,7 @@ source_set("ui") {
       ]
 
       deps += [
+        "//brave/browser/extensions/manifest_v2",
         "//chrome/browser/extensions",
         "//extensions/browser",
         "//extensions/common",
@@ -817,6 +798,7 @@ source_set("ui") {
     "//brave/components/brave_wallet_ui/nft:nft_display_generated",
     "//brave/components/brave_wallet_ui/page:brave_wallet_page_generated",
     "//brave/components/constants",
+    "//brave/components/containers/buildflags",
     "//brave/components/cosmetic_filters/resources/data:generated_resources",
     "//brave/components/de_amp/common",
     "//brave/components/debounce/core/browser",
@@ -828,7 +810,6 @@ source_set("ui") {
     "//brave/components/misc_metrics",
     "//brave/components/ntp_background_images/browser",
     "//brave/components/ntp_background_images/common",
-    "//brave/components/ntp_widget_utils/browser",
     "//brave/components/p3a",
     "//brave/components/p3a:buildflags",
     "//brave/components/p3a_utils",
@@ -855,6 +836,7 @@ source_set("ui") {
     "//chrome/browser/search_engines",
     "//chrome/browser/ui/color:color_headers",
     "//chrome/browser/ui/color:mixers",
+    "//chrome/browser/ui/search_engines",
     "//chrome/browser/ui/webui",
     "//chrome/common",
     "//components/bookmarks/common",
@@ -1378,6 +1360,14 @@ source_set("ui") {
       "//ui/views",
     ]
   }
+
+  if (enable_containers) {
+    deps += [
+      "//brave/components/containers/core/browser",
+      "//brave/components/containers/core/common",
+      "//brave/components/containers/core/mojom",
+    ]
+  }
 }
 
 source_set("brave_tab_prefs") {
@@ -1399,23 +1389,6 @@ source_set("brave_tab_features") {
   deps = [
     "//base",
     "//chrome/browser/ui:ui_features",
-  ]
-}
-
-source_set("brave_rewards_source") {
-  sources = [
-    "webui/brave_rewards_source.cc",
-    "webui/brave_rewards_source.h",
-  ]
-
-  deps = [
-    "//base",
-    "//chrome/browser/bitmap_fetcher",
-    "//chrome/browser/profiles",
-    "//content/public/browser",
-    "//skia",
-    "//ui/gfx/codec",
-    "//url",
   ]
 }
 

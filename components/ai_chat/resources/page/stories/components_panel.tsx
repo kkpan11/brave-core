@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+import '../../common/strings'
+
 import * as React from 'react'
 import { useArgs } from '@storybook/preview-api'
 import { Meta, StoryObj } from '@storybook/react'
@@ -19,7 +21,6 @@ import FeedbackForm from '../components/feedback_form'
 import FullPage from '../components/full_page'
 import Loading from '../components/loading'
 import Main from '../components/main'
-import './story_utils/locale'
 import ACTIONS_LIST from './story_utils/actions'
 import styles from './style.module.scss'
 import StorybookConversationEntries from './story_utils/ConversationEntries'
@@ -41,7 +42,8 @@ const eventTemplate: Mojom.ConversationEntryEvent = {
   selectedLanguageEvent: undefined,
   conversationTitleEvent: undefined,
   sourcesEvent: undefined,
-  contentReceiptEvent: undefined
+  contentReceiptEvent: undefined,
+  toolUseEvent: undefined,
 }
 
 function getCompletionEvent(text: string): Mojom.ConversationEntryEvent {
@@ -683,6 +685,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
   }
 
   const [showSidebar, setShowSidebar] = React.useState(isSmall)
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = React.useState(false)
 
   let conversations: typeof CONVERSATIONS = []
 
@@ -709,7 +712,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     isMobile: options.args.isMobile,
     isHistoryFeatureEnabled: options.args.isHistoryEnabled,
     isStandalone: options.args.isStandalone,
-    allActions: ACTIONS_LIST,
+    actionList: ACTIONS_LIST,
     tabs: [{
       id: 1,
       contentId: 1,
@@ -775,9 +778,8 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     shouldShowLongConversationInfo: options.args.shouldShowLongConversationInfo,
     shouldSendPageContents: !!associatedContent,
     inputText,
-    actionList: ACTIONS_LIST,
     selectedActionType: undefined,
-    isToolsMenuOpen: false,
+    isToolsMenuOpen,
     isCurrentModelLeo: true,
     isCharLimitApproaching: inputText.length > 64,
     isCharLimitExceeded: inputText.length > 70,
@@ -799,7 +801,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     submitInputTextToAPI: () => { },
     resetSelectedActionType: () => { },
     handleActionTypeClick: () => { },
-    setIsToolsMenuOpen: () => { },
+    setIsToolsMenuOpen,
     handleFeedbackFormCancel: () => { },
     handleFeedbackFormSubmit: () => Promise.resolve(),
     setShowAttachments: (show: boolean) => setArgs({ showAttachments: show }),

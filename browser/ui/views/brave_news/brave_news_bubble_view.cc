@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/check.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
@@ -167,7 +168,7 @@ void BraveNewsBubbleView::OnThemeChanged() {
 
   auto is_dark = dark_mode::GetActiveBraveDarkModeType() ==
                  dark_mode::BraveDarkModeType::BRAVE_DARK_MODE_TYPE_DARK;
-  set_background_color(is_dark ? kBackgroundColorDark : kBackgroundColorLight);
+  SetBackgroundColor(is_dark ? kBackgroundColorDark : kBackgroundColorLight);
   subtitle_label_->SetEnabledColor(is_dark ? kSubtitleColorDark
                                            : kSubtitleColorLight);
 }

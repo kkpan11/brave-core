@@ -10,12 +10,13 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
 #include "brave/common/importer/chrome_importer_utils.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/webstore_install_with_prompt.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/value_store/value_store.h"
@@ -23,6 +24,7 @@
 #include "components/value_store/value_store_factory_impl.h"
 #include "extensions/browser/api/storage/value_store_util.h"
 #include "extensions/browser/extension_file_task_runner.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/constants.h"
@@ -211,8 +213,16 @@ void ExtensionsImporter::Prepare(OnReady on_ready) {
 bool ExtensionsImporter::Import(OnExtensionImported on_extension) {
   CHECK(!IsImportInProgress());
 
+  if (extensions_.empty()) {
+    return false;
+  }
+
+  in_progress_count_ = extensions_.size();
   for (auto& extension : extensions_) {
     if (extension.is_installed) {
+      // Force tests to fail if |this| is deleted while enumerating extensions.
+      DCHECK(weak_factory_.GetWeakPtr());
+      --in_progress_count_;
       on_extension.Run(extension.id, ExtensionImportStatus::kOk);
       continue;
     }
@@ -227,7 +237,6 @@ bool ExtensionsImporter::Import(OnExtensionImported on_extension) {
         },
         weak_factory_.GetWeakPtr(), on_extension);
 
-    ++in_progress_count_;
     auto& installer = GetExtensionInstallerForTesting();  // IN-TEST
     if (installer) {
       const auto status = installer.Run(extension.id);
@@ -248,7 +257,7 @@ bool ExtensionsImporter::Import(OnExtensionImported on_extension) {
     }
   }
 
-  return IsImportInProgress();
+  return true;
 }
 
 const ImportingExtension* ExtensionsImporter::GetExtension(
@@ -312,10 +321,9 @@ void ExtensionsImporter::OnExtensionInstalled(
     return std::move(on_extension)
         .Run(extension->id, ExtensionImportStatus::kOk);
   }
-  auto* service =
-      extensions::ExtensionSystem::Get(target_profile_)->extension_service();
-  service->DisableExtension(extension->id,
-                            extensions::disable_reason::DISABLE_RELOAD);
+  extensions::ExtensionRegistrar::Get(target_profile_)
+      ->DisableExtension(extension->id,
+                         {extensions::disable_reason::DISABLE_RELOAD});
   ImportExtensionSettings(extension->id, std::move(on_extension));
 }
 
@@ -346,9 +354,8 @@ void ExtensionsImporter::OnExtensionSettingsImported(
     return std::move(on_extension)
         .Run(extension->id, ExtensionImportStatus::kFailedToImportSettings);
   }
-  auto* service =
-      extensions::ExtensionSystem::Get(target_profile_)->extension_service();
-  service->EnableExtension(extension->id);
+  extensions::ExtensionRegistrar::Get(target_profile_)
+      ->EnableExtension(extension->id);
 
   if (!success) {
     return std::move(on_extension)

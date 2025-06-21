@@ -7,7 +7,6 @@
 
 #include <initializer_list>
 
-#include "base/strings/string_util.h"
 #include "brave/browser/brave_browser_features.h"
 #include "brave/browser/brave_features_internal_names.h"
 #include "brave/browser/ui/brave_ui_features.h"
@@ -282,16 +281,16 @@ const flags_ui::FeatureEntry::FeatureVariation kZCashFeatureVariations[] = {
 #define BRAVE_COMMANDS_FEATURE_ENTRIES
 #endif
 
-#define BRAVE_CONTAINERS_FEATURE_ENTRIES                                       \
+#define CONTAINERS_FEATURE_ENTRIES                                             \
   IF_BUILDFLAG(                                                                \
       ENABLE_CONTAINERS,                                                       \
       EXPAND_FEATURE_ENTRIES({                                                 \
-          "brave-containers",                                                  \
+          "containers",                                                        \
           "Enable Containers",                                                 \
           "Allows websites to be opened in contained tabs, keeping different " \
           "identities separate within the same browser profile",               \
           kOsAll,                                                              \
-          FEATURE_VALUE_TYPE(containers::features::kBraveContainers),          \
+          FEATURE_VALUE_TYPE(containers::features::kContainers),               \
       }))
 
 #if BUILDFLAG(IS_LINUX)
@@ -940,13 +939,6 @@ const flags_ui::FeatureEntry::FeatureVariation kZCashFeatureVariations[] = {
           FEATURE_VALUE_TYPE(blink::features::kBraveRoundTimeStamps),          \
       },                                                                       \
       {                                                                        \
-          "translate",                                                         \
-          "Enable Chromium Translate feature",                                 \
-          "Should be used with brave-translate-go, see the description here.", \
-          kOsDesktop | kOsAndroid,                                             \
-          FEATURE_VALUE_TYPE(translate::kTranslate),                           \
-      },                                                                       \
-      {                                                                        \
           "restrict-event-source-pool",                                        \
           "Restrict Event Source Pool",                                        \
           "Limits simultaneous active WebSockets connections per eTLD+1",      \
@@ -1028,7 +1020,7 @@ const flags_ui::FeatureEntry::FeatureVariation kZCashFeatureVariations[] = {
   BRAVE_MODULE_FILENAME_PATCH                                                  \
   PLAYLIST_FEATURE_ENTRIES                                                     \
   BRAVE_COMMANDS_FEATURE_ENTRIES                                               \
-  BRAVE_CONTAINERS_FEATURE_ENTRIES                                             \
+  CONTAINERS_FEATURE_ENTRIES                                                   \
   BRAVE_BACKGROUND_VIDEO_PLAYBACK_ANDROID                                      \
   BRAVE_SAFE_BROWSING_ANDROID                                                  \
   BRAVE_CHANGE_ACTIVE_TAB_ON_SCROLL_EVENT_FEATURE_ENTRIES                      \

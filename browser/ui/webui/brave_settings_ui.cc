@@ -38,6 +38,7 @@
 #include "brave/components/commands/common/commands.mojom.h"
 #include "brave/components/commands/common/features.h"
 #include "brave/components/email_aliases/features.h"
+#include "brave/components/ntp_background_images/browser/features.h"
 #include "brave/components/ntp_background_images/browser/view_counter_service.h"
 #include "brave/components/playlist/common/buildflags/buildflags.h"
 #include "brave/components/speedreader/common/buildflags/buildflags.h"
@@ -47,10 +48,12 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/settings/metrics_reporting_handler.h"
 #include "components/sync/base/command_line_switches.h"
+#include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/common/content_features.h"
 #include "extensions/buildflags/buildflags.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/base/features.h"
 
 #if BUILDFLAG(ENABLE_PIN_SHORTCUT)
@@ -81,6 +84,11 @@
 
 #if BUILDFLAG(ENABLE_PLAYLIST)
 #include "brave/components/playlist/common/features.h"
+#endif
+
+#if BUILDFLAG(ENABLE_CONTAINERS)
+#include "brave/components/containers/core/browser/containers_settings_handler.h"
+#include "brave/components/containers/core/common/features.h"
 #endif
 
 using ntp_background_images::ViewCounterServiceFactory;
@@ -178,6 +186,11 @@ void BraveSettingsUI::AddResources(content::WebUIDataSource* html_source,
   html_source->AddBoolean("isLeoAssistantHistoryAllowed",
                           ai_chat::features::IsAIChatHistoryEnabled());
 
+  html_source->AddBoolean("isSurveyPanelistAllowed",
+                          base::FeatureList::IsEnabled(
+                              ntp_background_images::features::
+                                  kBraveNTPBrandedWallpaperSurveyPanelist));
+
 #if BUILDFLAG(ENABLE_PLAYLIST)
   html_source->AddBoolean(
       "isPlaylistAllowed",
@@ -194,6 +207,11 @@ void BraveSettingsUI::AddResources(content::WebUIDataSource* html_source,
   html_source->AddBoolean(
       "isEmailAliasesFeatureEnabled",
       base::FeatureList::IsEnabled(email_aliases::kEmailAliases));
+#if BUILDFLAG(ENABLE_CONTAINERS)
+  html_source->AddBoolean(
+      "isContainersEnabled",
+      base::FeatureList::IsEnabled(containers::features::kContainers));
+#endif
 }
 
 // static
@@ -225,3 +243,17 @@ void BraveSettingsUI::BindInterface(
   brave_account_handler_ = std::make_unique<brave_account::BraveAccountHandler>(
       std::move(pending_receiver));
 }
+
+#if BUILDFLAG(ENABLE_CONTAINERS)
+void BraveSettingsUI::BindInterface(
+    mojo::PendingReceiver<containers::mojom::ContainersSettingsHandler>
+        pending_receiver) {
+  if (!base::FeatureList::IsEnabled(containers::features::kContainers)) {
+    return;
+  }
+  auto handler = std::make_unique<containers::ContainersSettingsHandler>(
+      user_prefs::UserPrefs::Get(
+          web_ui()->GetWebContents()->GetBrowserContext()));
+  mojo::MakeSelfOwnedReceiver(std::move(handler), std::move(pending_receiver));
+}
+#endif  // BUILDFLAG(ENABLE_CONTAINERS)

@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/strings/strcat.h"
@@ -82,6 +84,7 @@
 #include "brave/components/brave_webtorrent/browser/buildflags/buildflags.h"
 #include "brave/components/constants/pref_names.h"
 #include "brave/components/constants/webui_url_constants.h"
+#include "brave/components/containers/buildflags/buildflags.h"
 #include "brave/components/cosmetic_filters/browser/cosmetic_filters_resources.h"
 #include "brave/components/cosmetic_filters/common/cosmetic_filters.mojom.h"
 #include "brave/components/de_amp/browser/de_amp_body_handler.h"
@@ -128,6 +131,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/storage_partition.h"
@@ -262,6 +266,11 @@ using extensions::ChromeContentBrowserClientExtensionsPart;
 
 #if BUILDFLAG(ENABLE_BRAVE_EDUCATION)
 #include "brave/browser/ui/webui/brave_education/brave_education_page_ui.h"
+#endif
+
+#if BUILDFLAG(ENABLE_CONTAINERS)
+#include "brave/components/containers/core/common/features.h"
+#include "brave/components/containers/core/mojom/containers.mojom.h"
 #endif
 
 namespace {
@@ -793,6 +802,10 @@ void BraveContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
           &brave_wallet::BraveWalletTabHelper::BindEthereumProvider));
       map->Add<brave_wallet::mojom::SolanaProvider>(base::BindRepeating(
           &brave_wallet::BraveWalletTabHelper::BindSolanaProvider));
+      if (brave_wallet::IsCardanoDAppSupportEnabled()) {
+        map->Add<brave_wallet::mojom::CardanoProvider>(base::BindRepeating(
+            &brave_wallet::BraveWalletTabHelper::BindCardanoProvider));
+      }
     }
   }
 
@@ -865,6 +878,13 @@ void BraveContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
   content::RegisterWebUIControllerInterfaceBinder<
       brave_browser_command::mojom::BraveBrowserCommandHandlerFactory,
       BraveEducationPageUI>(map);
+#endif
+
+#if BUILDFLAG(ENABLE_CONTAINERS)
+  if (base::FeatureList::IsEnabled(containers::features::kContainers)) {
+    content::RegisterWebUIControllerInterfaceBinder<
+        containers::mojom::ContainersSettingsHandler, BraveSettingsUI>(map);
+  }
 #endif
 }
 
@@ -1135,125 +1155,78 @@ bool BraveContentBrowserClient::HandleURLOverrideRewrite(
   return false;
 }
 
-std::vector<std::unique_ptr<content::NavigationThrottle>>
-BraveContentBrowserClient::CreateThrottlesForNavigation(
-    content::NavigationHandle* handle) {
-  std::vector<std::unique_ptr<content::NavigationThrottle>> throttles =
-      ChromeContentBrowserClient::CreateThrottlesForNavigation(handle);
-
+void BraveContentBrowserClient::CreateThrottlesForNavigation(
+    content::NavigationThrottleRegistry& registry) {
   // inserting the navigation throttle at the fist position before any java
   // navigation happens
+  brave_rewards::RewardsProtocolNavigationThrottle::MaybeCreateAndAdd(registry);
+
+  ChromeContentBrowserClient::CreateThrottlesForNavigation(registry);
+
+  content::NavigationHandle& navigation_handle = registry.GetNavigationHandle();
   content::BrowserContext* context =
-      handle->GetWebContents()->GetBrowserContext();
-
-  if (auto rewards_throttle = brave_rewards::RewardsProtocolNavigationThrottle::
-          MaybeCreateThrottleFor(handle)) {
-    throttles.insert(throttles.begin(), std::move(rewards_throttle));
-  }
-
+      navigation_handle.GetWebContents()->GetBrowserContext();
 #if !BUILDFLAG(IS_ANDROID)
-  std::unique_ptr<content::NavigationThrottle> ntp_shows_navigation_throttle =
-      NewTabShowsNavigationThrottle::MaybeCreateThrottleFor(handle);
-  if (ntp_shows_navigation_throttle) {
-    throttles.push_back(std::move(ntp_shows_navigation_throttle));
-  }
+  NewTabShowsNavigationThrottle::MaybeCreateAndAdd(registry);
 #endif
 
 #if BUILDFLAG(ENABLE_BRAVE_WEBTORRENT)
-  throttles.push_back(
-      std::make_unique<extensions::BraveWebTorrentNavigationThrottle>(handle));
+  registry.AddThrottle(
+      std::make_unique<extensions::BraveWebTorrentNavigationThrottle>(
+          registry));
 #endif
 
 #if BUILDFLAG(ENABLE_TOR)
-  std::unique_ptr<content::NavigationThrottle> tor_navigation_throttle =
-      tor::TorNavigationThrottle::MaybeCreateThrottleFor(handle,
-                                                         context->IsTor());
-  if (tor_navigation_throttle) {
-    throttles.push_back(std::move(tor_navigation_throttle));
-  }
-  std::unique_ptr<content::NavigationThrottle>
-      onion_location_navigation_throttle =
-          tor::OnionLocationNavigationThrottle::MaybeCreateThrottleFor(
-              handle, TorProfileServiceFactory::IsTorDisabled(context),
-              context->IsTor());
-  if (onion_location_navigation_throttle) {
-    throttles.push_back(std::move(onion_location_navigation_throttle));
-  }
+  tor::TorNavigationThrottle::MaybeCreateAndAdd(registry, context->IsTor());
+  tor::OnionLocationNavigationThrottle::MaybeCreateAndAdd(
+      registry, TorProfileServiceFactory::IsTorDisabled(context),
+      context->IsTor());
 #endif
 
-  std::unique_ptr<content::NavigationThrottle>
-      decentralized_dns_navigation_throttle =
-          decentralized_dns::DecentralizedDnsNavigationThrottle::
-              MaybeCreateThrottleFor(handle, g_browser_process->local_state(),
-                                     g_browser_process->GetApplicationLocale());
-  if (decentralized_dns_navigation_throttle) {
-    throttles.push_back(std::move(decentralized_dns_navigation_throttle));
-  }
+  decentralized_dns::DecentralizedDnsNavigationThrottle::MaybeCreateAndAdd(
+      registry, user_prefs::UserPrefs::Get(context),
+      g_browser_process->local_state(),
+      g_browser_process->GetApplicationLocale());
 
   // Debounce
-  if (auto debounce_throttle =
-          debounce::DebounceNavigationThrottle::MaybeCreateThrottleFor(
-              handle, debounce::DebounceServiceFactory::GetForBrowserContext(
-                          context))) {
-    throttles.push_back(std::move(debounce_throttle));
-  }
+  debounce::DebounceNavigationThrottle::MaybeCreateAndAdd(
+      registry,
+      debounce::DebounceServiceFactory::GetForBrowserContext(context));
 
   // The HostContentSettingsMap might be null for some irregular profiles, e.g.
   // the System Profile.
   auto* host_content_settings_map =
       HostContentSettingsMapFactory::GetForProfile(context);
   if (host_content_settings_map) {
-    if (std::unique_ptr<content::NavigationThrottle>
-            domain_block_navigation_throttle = brave_shields::
-                DomainBlockNavigationThrottle::MaybeCreateThrottleFor(
-                    handle, g_brave_browser_process->ad_block_service(),
-                    g_brave_browser_process->ad_block_service()
-                        ->custom_filters_provider(),
-                    EphemeralStorageServiceFactory::GetForContext(context),
-                    host_content_settings_map,
-                    g_browser_process->GetApplicationLocale())) {
-      throttles.push_back(std::move(domain_block_navigation_throttle));
-    }
+    brave_shields::DomainBlockNavigationThrottle::MaybeCreateAndAdd(
+        registry, g_brave_browser_process->ad_block_service(),
+        g_brave_browser_process->ad_block_service()->custom_filters_provider(),
+        EphemeralStorageServiceFactory::GetForContext(context),
+        host_content_settings_map, g_browser_process->GetApplicationLocale());
   }
 
 #if BUILDFLAG(ENABLE_REQUEST_OTR)
   // Request Off-The-Record
-  if (auto request_otr_throttle =
-          request_otr::RequestOTRNavigationThrottle::MaybeCreateThrottleFor(
-              handle,
-              request_otr::RequestOTRServiceFactory::GetForBrowserContext(
-                  context),
-              EphemeralStorageServiceFactory::GetForContext(context),
-              Profile::FromBrowserContext(context)->GetPrefs(),
-              g_browser_process->GetApplicationLocale())) {
-    throttles.push_back(std::move(request_otr_throttle));
-  }
+  request_otr::RequestOTRNavigationThrottle::MaybeCreateAndAdd(
+      registry,
+      request_otr::RequestOTRServiceFactory::GetForBrowserContext(context),
+      EphemeralStorageServiceFactory::GetForContext(context),
+      Profile::FromBrowserContext(context)->GetPrefs(),
+      g_browser_process->GetApplicationLocale());
 #endif
 
   if (Profile::FromBrowserContext(context)->IsRegularProfile()) {
-    if (auto ai_chat_throttle =
-            ai_chat::AIChatThrottle::MaybeCreateThrottleFor(handle)) {
-      throttles.push_back(std::move(ai_chat_throttle));
-    }
+    ai_chat::AIChatThrottle::MaybeCreateAndAdd(registry);
   }
 
 #if !BUILDFLAG(IS_ANDROID)
-  if (auto ai_chat_brave_search_throttle =
-          ai_chat::AIChatBraveSearchThrottle::MaybeCreateThrottleFor(
-              base::BindOnce(&ai_chat::OpenAIChatForTab), handle,
-              ai_chat::AIChatServiceFactory::GetForBrowserContext(context),
-              user_prefs::UserPrefs::Get(context))) {
-    throttles.push_back(std::move(ai_chat_brave_search_throttle));
-  }
+  ai_chat::AIChatBraveSearchThrottle::MaybeCreateAndAdd(
+      base::BindOnce(&ai_chat::OpenAIChatForTab), registry,
+      ai_chat::AIChatServiceFactory::GetForBrowserContext(context),
+      user_prefs::UserPrefs::Get(context));
 #endif
 
-  if (auto backup_results_throttle =
-          brave_search::BackupResultsNavigationThrottle::MaybeCreateThrottleFor(
-              handle)) {
-    throttles.push_back(std::move(backup_results_throttle));
-  }
-
-  return throttles;
+  brave_search::BackupResultsNavigationThrottle::MaybeCreateAndAdd(registry);
 }
 
 bool PreventDarkModeFingerprinting(WebContents* web_contents,

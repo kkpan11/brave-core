@@ -37,12 +37,13 @@ import PremiumSuggestion from '../premium_suggestion'
 import PrivacyMessage from '../privacy_message'
 import SiteTitle from '../site_title'
 import { GenerateSuggestionsButton, SuggestedQuestion } from '../suggested_question'
-import ToolsButtonMenu from '../tools_button_menu'
+import ToolsMenu from '../filter_menu/tools_menu'
 import WelcomeGuide from '../welcome_guide'
 import styles from './style.module.scss'
 import Attachments from '../attachments'
 import { useIsElementSmall } from '../../hooks/useIsElementSmall'
 import useHasConversationStarted from '../../hooks/useHasConversationStarted'
+import { useExtractedQuery } from '../filter_menu/query'
 
 // Amount of pixels user has to scroll up to break out of
 // automatic scroll to bottom when new response lines are generated.
@@ -189,6 +190,11 @@ function Main() {
     return false
   }
 
+  const extractedQuery = useExtractedQuery(conversationContext.inputText, {
+    onlyAtStart: false,
+    triggerCharacter: '/',
+  })
+
   return (
     <main className={styles.main} ref={setMainElement}>
       {isConversationListOpen && !aiChatContext.isStandalone && (
@@ -289,13 +295,13 @@ function Main() {
             {shouldShowPremiumSuggestionForModel && (
               <div className={styles.promptContainer}>
                 <PremiumSuggestion
-                  title={getLocale('unlockPremiumTitle')}
+                  title={getLocale(S.CHAT_UI_UNLOCK_PREMIUM_TITLE)}
                   secondaryActionButton={
                     <Button
                       kind='plain-faint'
                       onClick={() => conversationContext.switchToBasicModel()}
                     >
-                      {getLocale('switchToBasicModelButtonLabel')}
+                      {getLocale(S.CHAT_UI_SWITCH_TO_BASIC_MODEL_BUTTON_LABEL)}
                     </Button>
                   }
                 />
@@ -304,13 +310,13 @@ function Main() {
             {shouldShowPremiumSuggestionStandalone && (
               <div className={styles.promptContainer}>
                 <PremiumSuggestion
-                  title={getLocale('unlockPremiumTitle')}
+                  title={getLocale(S.CHAT_UI_UNLOCK_PREMIUM_TITLE)}
                   secondaryActionButton={
                     <Button
                       kind='plain-faint'
                       onClick={() => aiChatContext.dismissPremiumPrompt()}
                     >
-                      {getLocale('dismissButtonLabel')}
+                      {getLocale(S.CHAT_UI_DISMISS_BUTTON_LABEL)}
                     </Button>
                   }
                 />
@@ -344,7 +350,13 @@ function Main() {
               <PageContextToggle />
             </div>
           )}
-          <ToolsButtonMenu {...conversationContext} />
+          <ToolsMenu
+            isOpen={conversationContext.isToolsMenuOpen}
+            setIsOpen={conversationContext.setIsToolsMenuOpen}
+            query={extractedQuery}
+            categories={aiChatContext.actionList}
+            handleClick={conversationContext.handleActionTypeClick}
+          />
           <InputBox
             conversationStarted={hasConversationStarted}
             context={{ ...conversationContext, ...aiChatContext }}

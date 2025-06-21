@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/span.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
@@ -773,6 +774,10 @@ std::string WalletInternalErrorMessage() {
 
 std::string WalletParsingErrorMessage() {
   return l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR);
+}
+
+std::string WalletInsufficientBalanceErrorMessage() {
+  return l10n_util::GetStringUTF8(IDS_BRAVE_WALLET_INSUFFICIENT_BALANCE);
 }
 
 mojom::BlockchainTokenPtr GetBitcoinNativeToken(std::string_view chain_id) {

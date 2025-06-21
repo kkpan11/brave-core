@@ -14,9 +14,12 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/check_op.h"
+#include "base/logging.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/types/cxx23_to_underlying.h"
 #include "brave/components/ai_chat/core/common/mojom/ai_chat.mojom.h"
 #include "brave/components/ai_chat/core/proto/store.pb.h"
 #include "components/os_crypt/async/common/encryptor.h"
@@ -74,6 +77,18 @@ bool MigrateFrom2To3(sql::Database* db) {
 }
 
 bool MigrateFrom3to4(sql::Database* db) {
+  // Check if column exists first
+  static constexpr char kCheckColumnQuery[] =
+      "PRAGMA table_info(conversation_entry_uploaded_files)";
+  sql::Statement check_statement(db->GetUniqueStatement(kCheckColumnQuery));
+
+  while (check_statement.Step()) {
+    if (check_statement.ColumnString(1) == "type") {
+      // Column already exists, no need to migrate
+      return true;
+    }
+  }
+
   static constexpr char kAddTypeColumnQuery[] =
       "ALTER TABLE conversation_entry_uploaded_files ADD COLUMN type INTEGER "
       "DEFAULT 0";

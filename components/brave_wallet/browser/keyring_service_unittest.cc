@@ -6,11 +6,13 @@
 #include "brave/components/brave_wallet/browser/keyring_service.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <string_view>
 #include <utility>
 
 #include "base/base64.h"
+#include "base/check.h"
 #include "base/containers/span.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/callback_helpers.h"

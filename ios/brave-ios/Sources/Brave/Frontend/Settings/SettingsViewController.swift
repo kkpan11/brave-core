@@ -480,7 +480,6 @@ class SettingsViewController: TableViewController {
 
               let syncSettingsViewController = SyncSettingsTableViewController(
                 braveCoreMain: braveCore,
-                tabManager: tabManager,
                 windowProtection: windowProtection
               )
 
@@ -489,7 +488,6 @@ class SettingsViewController: TableViewController {
             } else {
               let syncWelcomeViewController = SyncWelcomeViewController(
                 braveCore: braveCore,
-                tabManager: tabManager,
                 windowProtection: windowProtection
               )
 
@@ -535,6 +533,7 @@ class SettingsViewController: TableViewController {
         Row(
           text: Strings.alwaysRequestDesktopSite,
           image: UIImage(braveSystemNamed: "leo.window.cursor"),
+          accessory: .view(defaultPageModeSwitch),
           cellClass: MultilineSubtitleCell.self
         )
       )
@@ -1465,6 +1464,10 @@ class SettingsViewController: TableViewController {
       openVPNAuthenticationInNewTab: { [weak self] in
         guard let self = self else { return }
         self.settingsDelegate?.settingsOpenURLInNewTab(.brave.braveVPNRefreshCredentials)
+      },
+      openDirectCheckoutInNewTab: { [weak self] in
+        guard let self else { return }
+        self.settingsDelegate?.settingsOpenURLInNewTab(.brave.braveVPNCheckoutURL)
       },
       installVPNProfile: { [weak self] in
         guard let self = self else { return }

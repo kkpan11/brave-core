@@ -11,6 +11,9 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
+#include "base/dcheck_is_on.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_split.h"
 #include "brave/app/vector_icons/vector_icons.h"
@@ -34,11 +37,13 @@
 #include "chrome/browser/ui/frame/window_frame_util.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_scroll_container.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -175,6 +180,28 @@ class VerticalTabSearchButton : public BraveTabSearchButton {
     SetImageModel(views::Button::STATE_HOVERED, icon_image_model);
     SetImageModel(views::Button::STATE_PRESSED, icon_image_model);
     SetBackground(nullptr);
+  }
+
+  void UpdateBackground() override {
+    // Copied comment from BraveTabStrip::GetCustomBackgroundId() as
+    // this method overriding has same purpose.
+    // When vertical tab strip mode is enabled, the tab strip could be
+    // reattached to the original parent during destruction. In this case, theme
+    // changing could occur. But unfortunately, some of native widget's
+    // implementation doesn't check the validity of pointer, which causes crash.
+    // e.g. DesktopNativeWidgetAura's many methods desktop_tree_host without
+    //      checking it's validity.
+    // In order to avoid accessing invalid pointer, filters here.
+
+    // TabStripControlButton::UpdateBackground() tries to access theme provider
+    // by calling BrowserTabStripController::GetCustomBackgroundId() and
+    // crash could happen there.
+    if (auto* widget = GetWidget();
+        !widget || widget->IsClosed() || !widget->native_widget()) {
+      return;
+    }
+
+    return BraveTabSearchButton::UpdateBackground();
   }
 
   void OnThemeChanged() override {
@@ -1140,8 +1167,11 @@ void VerticalTabStripRegionView::OnResize(int resize_amount,
       (*vertical_tab_on_right_ ? bounds_in_screen.right() - cursor_position
                                : cursor_position - bounds_in_screen.x()) -
       *resize_offset_ - GetInsets().width();
-  dest_width = std::clamp(dest_width, tab_style_->GetPinnedWidth() * 3,
-                          tab_style_->GetStandardWidth() * 2);
+  // Passed |true| but it doesn't have any meaning becuase we always use same
+  // width.
+  dest_width =
+      std::clamp(dest_width, tab_style_->GetPinnedWidth(/*is_split*/ true) * 3,
+                 tab_style_->GetStandardWidth(/*is_split*/ true) * 2);
   if (done_resizing) {
     resize_offset_ = std::nullopt;
   }
@@ -1203,7 +1233,13 @@ void VerticalTabStripRegionView::UpdateOriginalTabSearchButtonVisibility() {
   const bool is_vertical_tabs = tabs::utils::ShouldShowVerticalTabs(browser_);
   const bool use_search_button =
       browser_->profile()->GetPrefs()->GetBoolean(kTabsSearchShow);
-  if (auto* tab_search_button = original_region_view_->GetTabSearchButton()) {
+  if (features::HasTabSearchToolbarButton()) {
+    if (auto* tab_search_button =
+            browser_view_->toolbar()->tab_search_button()) {
+      tab_search_button->SetVisible(!is_vertical_tabs && use_search_button);
+    }
+  } else if (auto* tab_search_button =
+                 browser_view_->tab_strip_region_view()->GetTabSearchButton()) {
     tab_search_button->SetVisible(!is_vertical_tabs && use_search_button);
   }
 }

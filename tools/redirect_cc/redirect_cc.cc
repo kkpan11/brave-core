@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
@@ -15,7 +16,6 @@
 #include "base/process/launch.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 

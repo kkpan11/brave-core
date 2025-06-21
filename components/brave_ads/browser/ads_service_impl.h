@@ -89,7 +89,7 @@ class AdsServiceImpl final : public AdsService,
       std::unique_ptr<AdsTooltipsDelegate> ads_tooltips_delegate,
       std::unique_ptr<DeviceId> device_id,
       std::unique_ptr<BatAdsServiceFactory> bat_ads_service_factory,
-      brave_ads::ResourceComponent* resource_component,
+      ResourceComponent* resource_component,
       history::HistoryService* history_service,
       brave_rewards::RewardsService* rewards_service,
       HostContentSettingsMap* host_content_settings);
@@ -176,7 +176,7 @@ class AdsServiceImpl final : public AdsService,
   void InitializeNotificationAdsPrefChangeRegistrar();
   void InitializeSearchResultAdsPrefChangeRegistrar();
   void OnOptedInToAdsPrefChanged(const std::string& path);
-  void OnCountryCodePrefChanged(const std::string& path);
+  void OnVariationsCountryPrefChanged();
   void NotifyPrefChanged(const std::string& path) const;
 
   void GetRewardsWallet();
@@ -377,10 +377,6 @@ class AdsServiceImpl final : public AdsService,
   void ShowScheduledCaptcha(const std::string& payment_id,
                             const std::string& captcha_id) override;
 
-  // TODO(https://github.com/brave/brave-browser/issues/14666) Decouple P2A
-  // business logic.
-  void RecordP2AEvents(const std::vector<std::string>& events) override;
-
   void FindProfilePref(const std::string& path,
                        FindProfilePrefCallback callback) override;
   void GetProfilePref(const std::string& path,
@@ -463,9 +459,9 @@ class AdsServiceImpl final : public AdsService,
 
   SimpleURLLoaderList url_loaders_;
 
-  const raw_ptr<PrefService> prefs_ = nullptr;  // Not owned.
+  const raw_ptr<PrefService> prefs_;  // Not owned.
 
-  const raw_ptr<PrefService> local_state_ = nullptr;  // Not owned.
+  const raw_ptr<PrefService> local_state_;  // Not owned.
 
   const std::unique_ptr<VirtualPrefProvider> virtual_pref_provider_;
 
@@ -473,15 +469,13 @@ class AdsServiceImpl final : public AdsService,
 
   const std::string channel_name_;
 
-  base::ScopedObservation<brave_ads::ResourceComponent,
-                          ResourceComponentObserver>
+  base::ScopedObservation<ResourceComponent, ResourceComponentObserver>
       resource_component_observation_{this};
 
-  const raw_ptr<history::HistoryService> history_service_ =
-      nullptr;  // Not owned.
+  const raw_ptr<history::HistoryService> history_service_;  // Not owned.
 
-  const raw_ptr<HostContentSettingsMap> host_content_settings_map_ =
-      nullptr;  // Not owned.
+  const raw_ptr<HostContentSettingsMap>
+      host_content_settings_map_;  // Not owned.
   base::ScopedObservation<HostContentSettingsMap, content_settings::Observer>
       host_content_settings_map_observation_{this};
 

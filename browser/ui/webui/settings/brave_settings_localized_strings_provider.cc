@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "brave/browser/shell_integrations/buildflags/buildflags.h"
 #include "brave/browser/ui/webui/brave_settings_ui.h"
@@ -19,11 +20,13 @@
 #include "brave/components/brave_wallet/browser/pref_names.h"
 #include "brave/components/constants/url_constants.h"
 #include "brave/components/constants/webui_url_constants.h"
+#include "brave/components/containers/buildflags/buildflags.h"
 #include "brave/components/email_aliases/features.h"
 #include "brave/components/playlist/common/buildflags/buildflags.h"
 #include "brave/components/request_otr/common/buildflags/buildflags.h"
 #include "brave/components/version_info/version_info.h"
 #include "brave/grit/brave_generated_resources.h"
+#include "brave/grit/brave_generated_resources_webui_strings.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
@@ -64,6 +67,11 @@ constexpr char16_t kBraveBuildInstructionsUrl[] =
 constexpr char16_t kBraveLicenseUrl[] = u"https://mozilla.org/MPL/2.0/";
 constexpr char16_t kBraveReleaseTagPrefix[] =
     u"https://github.com/brave/brave-browser/releases/tag/v";
+#if BUILDFLAG(ENABLE_CONTAINERS)
+constexpr char16_t kContainersLearnMoreURL[] =
+    u"https://github.com/brave/brave-browser/wiki/"
+    u"Containers";
+#endif
 constexpr char16_t kGoogleLoginLearnMoreURL[] =
     u"https://github.com/brave/brave-browser/wiki/"
     u"Allow-Google-login---Third-Parties-and-Extensions";
@@ -94,6 +102,12 @@ constexpr char16_t kTabOrganizationLearnMoreURL[] =
 
 constexpr char16_t kLeoPrivacyPolicyURL[] =
     u"https://brave.com/privacy/browser/#brave-leo";
+
+constexpr char16_t kSurveyPanelistLearnMoreURL[] =
+    u"https://support.brave.com/hc/en-us/articles/36550092449165";
+
+constexpr char16_t kExtensionsV2LearnMoreURL[] =
+    u"https://brave.com/blog/brave-shields-manifest-v3/";
 
 void BraveAddCommonStrings(content::WebUIDataSource* html_source,
                            Profile* profile) {
@@ -638,6 +652,11 @@ void BraveAddCommonStrings(content::WebUIDataSource* html_source,
        IDS_SETTINGS_LEO_ASSISTANT_MODEL_SYSTEM_PROMPT_DESC},
       {"braveLeoAssistantTokensCount", IDS_SETTINGS_LEO_ASSISTANT_TOKENS_COUNT},
 
+      // Survey Panelist Page
+      {"surveyPanelist", IDS_SETTINGS_SURVEY_PANELIST},
+      {"braveSurveyPanelistLabel", IDS_SETTINGS_SURVEY_PANELIST_LABEL},
+      {"braveSurveyPanelistDesc", IDS_SETTINGS_SURVEY_PANELIST_DESC},
+
       // New Tab Page
       {"braveNewTab", IDS_SETTINGS_NEW_TAB},
       {"braveNewTabBraveRewards", IDS_SETTINGS_NEW_TAB_BRAVE_REWARDS},
@@ -1020,6 +1039,10 @@ void BraveAddCommonStrings(content::WebUIDataSource* html_source,
                              IDS_SETTINGS_RESOLVE_UNSTOPPABLE_DOMAINS_SUB_DESC,
                              kUnstoppableDomainsLearnMoreURL));
 
+#if BUILDFLAG(ENABLE_CONTAINERS)
+  html_source->AddLocalizedStrings(webui::kContainersStrings);
+  html_source->AddString("containersLearnMoreURL", kContainersLearnMoreURL);
+#endif  // BUILDFLAG(ENABLE_CONTAINERS)
   html_source->AddString(
       "ensOffchainLookupDesc",
       l10n_util::GetStringFUTF16(IDS_SETTINGS_ENABLE_ENS_OFFCHAIN_LOOKUP_DESC,
@@ -1040,6 +1063,18 @@ void BraveAddCommonStrings(content::WebUIDataSource* html_source,
       "braveLeoAssistantAboutLeoDesc2",
       l10n_util::GetStringFUTF16(IDS_SETTINGS_LEO_ASSISTANT_ABOUT_LEO_DESC_2,
                                  kLeoPrivacyPolicyURL));
+
+  html_source->AddString("braveSurveyPanelistLearnMoreURL",
+                         kSurveyPanelistLearnMoreURL);
+
+  html_source->AddString(
+      "braveSurveyPanelistDesc",
+      l10n_util::GetStringFUTF16(IDS_SETTINGS_SURVEY_PANELIST_DESC,
+                                 kSurveyPanelistLearnMoreURL));
+  html_source->AddString(
+      "extensionsV2Warn",
+      l10n_util::GetStringFUTF16(IDS_SETTINGS_MANAGE_EXTENSIONS_V2_WARN,
+                                 kExtensionsV2LearnMoreURL));
 }  // NOLINT(readability/fn_size)
 
 void BraveAddResources(content::WebUIDataSource* html_source,
@@ -1118,6 +1153,15 @@ void BraveAddEmailAliasesStrings(content::WebUIDataSource* html_source) {
        IDS_SETTINGS_EMAIL_ALIASES_UPDATE_ALIAS_ERROR},
       {"emailAliasesSaveAliasButton",
        IDS_SETTINGS_EMAIL_ALIASES_SAVE_ALIAS_BUTTON},
+      {"emailAliasesDeleteAliasTitle",
+       IDS_SETTINGS_EMAIL_ALIASES_DELETE_ALIAS_TITLE},
+      {"emailAliasesDeleteAliasDescription",
+       IDS_SETTINGS_EMAIL_ALIASES_DELETE_ALIAS_DESCRIPTION},
+      {"emailAliasesDeleteAliasButton",
+       IDS_SETTINGS_EMAIL_ALIASES_DELETE_ALIAS_BUTTON},
+      {"emailAliasesDeleteAliasError",
+       IDS_SETTINGS_EMAIL_ALIASES_DELETE_ALIAS_ERROR},
+      {"emailAliasesDeleteWarning", IDS_SETTINGS_EMAIL_ALIASES_DELETE_WARNING},
       {"emailAliasesSignInOrCreateAccount",
        IDS_SETTINGS_EMAIL_ALIASES_SIGN_IN_OR_CREATE_ACCOUNT},
       {"emailAliasesEnterEmailToGetLoginLink",
@@ -1133,6 +1177,9 @@ void BraveAddEmailAliasesStrings(content::WebUIDataSource* html_source) {
       {"emailAliasesClickOnSecureLogin",
        IDS_SETTINGS_EMAIL_ALIASES_CLICK_ON_SECURE_LOGIN},
       {"emailAliasesDontSeeEmail", IDS_SETTINGS_EMAIL_ALIASES_DONT_SEE_EMAIL},
+      {"emailAliasesAuthError", IDS_SETTINGS_EMAIL_ALIASES_AUTH_ERROR},
+      {"emailAliasesAuthTryAgainButton",
+       IDS_SETTINGS_EMAIL_ALIASES_AUTH_TRY_AGAIN_BUTTON},
   };
   html_source->AddLocalizedStrings(localized_strings);
 }

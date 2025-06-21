@@ -5,6 +5,8 @@
     <output filename="grit/brave_generated_resources.h" type="rc_header">
       <emit emit_type='prepend'></emit>
     </output>
+    <output filename="grit/brave_generated_resources_webui_strings.h" type="webui_header" />
+    <output filename="grit/brave_generated_resources_webui_strings.ts" type="webui_ts" />
     <output filename="brave_generated_resources.pak" type="data_package" />
     <output filename="brave_generated_resources_af.pak" type="data_package" lang="af" />
     <output filename="brave_generated_resources_am.pak" type="data_package" lang="am" />
@@ -235,7 +237,7 @@
         Wallet
       </message>
       <message name="IDS_TOGGLE_AI_CHAT" desc="The show Brave Leo AI Chat menu item (app menu)">
-        Leo
+        Leo AI
       </message>
       <message name="IDS_OPEN_MORE_OTHER_DEVICES_SESSIONS" desc="The history sub-menu item to show sessions from other devices">
         More…
@@ -464,12 +466,33 @@ Or change later at <ph name="SETTINGS_EXTENIONS_LINK">$2<ex>brave://settings/ext
         <message name="IDS_HIDE_BRAVE_AI_CHAT_ICON_ON_TOOLBAR" desc="The description for hiding the Brave AI Chat icon on the toolbar">
           Hide Leo AI Icon
         </message>
+        <message name="IDS_OPEN_BRAVE_AI_CHAT_FULL_PAGE" desc="The description for opening the Brave AI Chat in a new tab">
+          Open Leo AI in a New Tab
+        </message>
+        <message name="IDS_OPEN_BRAVE_AI_CHAT_SIDE_PANEL" desc="The description for opening the Brave AI Chat in the sidebar">
+          Open Leo AI in the Sidebar
+        </message>
+        <message name="IDS_MANAGE_BRAVE_AI_CHAT" desc="The description for opening the Brave AI Chat settings">
+          Manage Leo AI Settings
+        </message>
       </if>
       <if expr="not use_titlecase">
         <message name="IDS_HIDE_BRAVE_AI_CHAT_ICON_ON_TOOLBAR" desc="The description for hiding the Brave AI Chat icon on the toolbar">
           Hide Leo AI icon
         </message>
+        <message name="IDS_OPEN_BRAVE_AI_CHAT_FULL_PAGE" desc="The description for opening the Brave AI Chat in a new tab">
+          Open Leo AI in a new tab
+        </message>
+        <message name="IDS_OPEN_BRAVE_AI_CHAT_SIDE_PANEL" desc="The description for opening the Brave AI Chat in the sidebar">
+          Open Leo AI in the sidebar
+        </message>
+        <message name="IDS_MANAGE_BRAVE_AI_CHAT" desc="The description for opening the Brave AI Chat settings">
+          Manage Leo AI settings
+        </message>
       </if>
+      <message name="IDS_ABOUT_BRAVE_AI_CHAT" desc="The description for loading the Brave AI Chat about page">
+        About Leo AI
+      </message>
       <message name="IDS_TOOLTIP_AI_CHAT_TOOLBAR_BUTTON" desc="Text for Leo toolbar button for toggling Leo side panel">
         Leo AI
       </message>
@@ -1424,6 +1447,11 @@ Or change later at <ph name="SETTINGS_EXTENIONS_LINK">$2<ex>brave://settings/ext
       </message>
       <message name="IDS_BRAVE_ORGANIZE_TAB_ENABLE_BUTTON_LABEL" desc="Text of enable tab focus button">
         Enable
+      </message>
+
+      <!--Customize Chrome Panel -->
+      <message name="IDS_BRAVE_CUSTOMIZE_MENU_TOOLBAR_LABEL" desc="The label for the option to customize toolbar icons in the customization menu on the New Tab Page. This is a button which opens a panel for customizing toolbar icons when clicked.">
+        Customize toolbar
       </message>
       <!--Add new items to the appropriate sections above -->
     </messages>
