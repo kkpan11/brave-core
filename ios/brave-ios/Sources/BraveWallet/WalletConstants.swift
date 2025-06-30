@@ -28,7 +28,7 @@ public struct WalletConstants {
 
   /// The url to Brave Help Center for Wallet.
   static let braveWalletSupportURL = URL(
-    string: "https://support.brave.com/hc/en-us/categories/360001059151-Brave-Wallet"
+    string: "https://support.brave.com/hc/categories/360001062531-Wallet"
   )!
 
   // TODO: update wiki link
@@ -133,8 +133,9 @@ public struct WalletConstants {
   /// All of currently supported `OnRampProvider`s.
   /// Use `OnRampProvider.allSupportedOnRampProviders` to get providers available for current device locale.
   /// Exclude `.ramp` due to #44542
+  /// Exclude `.transak` due to #46567
   static let supportedOnRampProviders: OrderedSet<BraveWallet.OnRampProvider> = [
-    .sardine, .transak, .stripe, .coinbase,
+    .sardine, .stripe, .coinbase,
   ]
 
   /// The supported Ethereum Name Service (ENS) extensions

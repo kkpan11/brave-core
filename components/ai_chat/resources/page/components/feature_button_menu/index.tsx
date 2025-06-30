@@ -17,6 +17,19 @@ import { useConversation } from '../../state/conversation_context'
 import styles from './style.module.scss'
 import useHasConversationStarted from '../../hooks/useHasConversationStarted'
 
+const modelIcons = {
+  'chat-automatic': 'product-brave-leo',
+  'chat-deepseek-r1': 'deepseek-color',
+  'chat-claude-instant': 'anthropic-color',
+  'chat-claude-haiku': 'anthropic-color',
+  'chat-claude-sonnet': 'anthropic-color',
+  'chat-qwen': 'qwen-color',
+  'chat-basic': 'meta-color',
+  'chat-vision-basic': 'meta-color',
+}
+
+const fallbackModelIcon = 'product-brave-leo'
+
 export interface Props {
   setIsConversationsListOpen?: (value: boolean) => unknown
 }
@@ -49,14 +62,14 @@ export default function FeatureMenu(props: Props) {
     <ButtonMenu className={styles.buttonMenu}>
       <Button
         slot='anchor-content'
-        title={getLocale('leoSettingsTooltipLabel')}
+        title={getLocale(S.CHAT_UI_LEO_SETTINGS_TOOLTIP_LABEL)}
         fab
         kind='plain-faint'
       >
         <Icon name='more-vertical' />
       </Button>
       <div className={styles.menuSectionTitle}>
-        {getLocale('menuTitleModels')}
+        {getLocale(S.CHAT_UI_MENU_TITLE_MODELS)}
       </div>
       {leoModels.map((model) => {
         return (
@@ -68,10 +81,13 @@ export default function FeatureMenu(props: Props) {
             onClick={() => conversationContext.setCurrentModel(model)}
           >
             <div className={styles.menuItemWithIcon}>
+              <div className={styles.modelIcon} data-key={model.key}>
+                <Icon name={modelIcons[model.key as keyof typeof modelIcons] ?? fallbackModelIcon} />
+              </div>
               <div className={styles.menuText}>
                 <div>{model.displayName}</div>
                 <p className={styles.modelSubtitle}>
-                  {getLocale(`braveLeoModelSubtitle-${model.key}`)}
+                  {getLocale(`CHAT_UI_${model.key.toUpperCase().replaceAll('-', '_')}_SUBTITLE`)}
                 </p>
               </div>
               {model.options.leoModelOptions?.access ===
@@ -82,7 +98,7 @@ export default function FeatureMenu(props: Props) {
                     mode={'outline'}
                     color='blue'
                   >
-                    {getLocale('modelPremiumLabelNonPremium')}
+                    {getLocale(S.CHAT_UI_MODEL_PREMIUM_LABEL_NON_PREMIUM)}
                   </Label>
                 )}
             </div>
@@ -93,7 +109,7 @@ export default function FeatureMenu(props: Props) {
         <>
           <div className={styles.menuSeparator} />
           <div className={styles.menuSectionCustomModel}>
-            {getLocale('menuTitleCustomModels')}
+            {getLocale(S.AI_CHAT_MENU_TITLE_CUSTOM_MODELS)}
           </div>
         </>
       )}
@@ -120,14 +136,17 @@ export default function FeatureMenu(props: Props) {
       <div className={styles.menuSeparator} />
 
       {!hasConversationStarted && (
-        <leo-menu-item>
+        <leo-menu-item
+          data-is-interactive="true"
+          onClick={() => handleTemporaryChatToggle({ checked: !conversationContext.isTemporaryChat })}
+        >
           <div className={classnames(
             styles.menuItemWithIcon,
             styles.menuItemMainItem
           )}>
             <Icon name='message-bubble-temporary' />
             <span className={styles.menuText}>
-              {getLocale('temporaryChatLabel')}
+              {getLocale(S.AI_CHAT_TEMPORARY_CHAT_LABEL)}
             </span>
             <Toggle
               size='small'
@@ -147,7 +166,7 @@ export default function FeatureMenu(props: Props) {
           )}>
             <Icon name='edit-pencil' />
             <div className={styles.menuText}>
-              <div>{getLocale('menuRenameConversation')}</div>
+              <div>{getLocale(S.CHAT_UI_MENU_RENAME_CONVERSATION)}</div>
             </div>
           </div>
         </leo-menu-item>
@@ -158,7 +177,7 @@ export default function FeatureMenu(props: Props) {
           )}>
             <Icon name='trash' />
             <div className={styles.menuText}>
-              <div>{getLocale('menuDeleteConversation')}</div>
+              <div>{getLocale(S.CHAT_UI_MENU_DELETE_CONVERSATION)}</div>
             </div>
           </div>
         </leo-menu-item>
@@ -175,7 +194,7 @@ export default function FeatureMenu(props: Props) {
           >
             <Icon name='lock-open' />
             <span className={styles.menuText}>
-              {getLocale('menuGoPremium')}
+              {getLocale(S.AI_CHAT_MENU_GO_PREMIUM)}
             </span>
           </div>
         </leo-menu-item>
@@ -191,7 +210,7 @@ export default function FeatureMenu(props: Props) {
           >
             <Icon name='lock-open' />
             <span className={styles.menuText}>
-              {getLocale('menuManageSubscription')}
+              {getLocale(S.CHAT_UI_MENU_MANAGE_SUBSCRIPTION)}
             </span>
           </div>
         </leo-menu-item>
@@ -208,7 +227,7 @@ export default function FeatureMenu(props: Props) {
               )}
             >
               <Icon name='history' />
-              <span className={styles.menuText}>{getLocale('menuConversationHistory')}</span>
+              <span className={styles.menuText}>{getLocale(S.CHAT_UI_MENU_CONVERSATION_HISTORY)}</span>
             </div>
           </leo-menu-item>
         </>
@@ -221,7 +240,7 @@ export default function FeatureMenu(props: Props) {
           )}
         >
           <Icon name='settings' />
-          <span className={styles.menuText}>{getLocale('menuSettings')}</span>
+          <span className={styles.menuText}>{getLocale(S.CHAT_UI_MENU_SETTINGS)}</span>
         </div>
       </leo-menu-item>
     </ButtonMenu>

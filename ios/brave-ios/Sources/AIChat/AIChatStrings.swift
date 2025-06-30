@@ -585,13 +585,6 @@ extension Strings {
       value: "None",
       comment: "Title showing the user has no subscription."
     )
-    public static let advancedSettingsAutocompleteTitle = NSLocalizedString(
-      "aichat.advancedSettingsAutocompleteTitle",
-      tableName: "BraveLeo",
-      bundle: .module,
-      value: "Show In Address Bar",
-      comment: "The title for the settings to show search suggestions from Leo in url-address bar"
-    )
     public static let advancedSettingsAutocompleteDescription = NSLocalizedString(
       "aichat.advancedSettingsAutocompleteDescription",
       tableName: "BraveLeo",
@@ -1098,6 +1091,24 @@ extension Strings {
         "Leo is currently disabled via feature flags. To re-enable Leo, please visit brave://flags and enable it.",
       comment:
         "The message that shows in an alert, to let the user know the 'Leo' feature is disabled, and explains how to re-enable the feature."
+    )
+    public static let leoDisabledPrivateBrowsingMessageTitle = NSLocalizedString(
+      "aichat.leoDisabledPrivateBrowsingMessageTitle",
+      tableName: "BraveLeo",
+      bundle: .module,
+      value:
+        "Leo Not Available",
+      comment:
+        "The title that shows in an alert when the Leo/AI-Chat is disabled due to the user being in private browsing mode."
+    )
+    public static let leoDisabledPrivateBrowsingMessageDescription = NSLocalizedString(
+      "aichat.leoDisabledPrivateBrowsingMessageDescription",
+      tableName: "BraveLeo",
+      bundle: .module,
+      value:
+        "Leo is currently not available in Private Browsing Mode. To use Leo, please exit Private Browsing Mode and try again.",
+      comment:
+        "The message that shows in an alert, to let the user know the 'Leo' feature is disabled in private browsing mode."
     )
   }
 }

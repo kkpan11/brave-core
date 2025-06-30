@@ -12,12 +12,14 @@
 #include "base/apple/bundle_locations.h"
 #include "base/apple/foundation_util.h"
 #include "base/at_exit.h"
+#include "base/check.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
+#include "base/logging/log_severity.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/path_service.h"
@@ -25,6 +27,7 @@
 #include "base/threading/thread_restrictions.h"
 #include "brave/components/brave_user_agent/browser/brave_user_agent_exceptions.h"
 #include "brave/components/p3a/buildflags.h"
+#include "brave/components/p3a/component_installer.h"
 #include "brave/components/p3a/histograms_braveizer.h"
 #include "brave/components/p3a/p3a_config.h"
 #include "brave/components/p3a/p3a_service.h"
@@ -46,6 +49,7 @@
 #include "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #include "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #include "ios/chrome/browser/shared/model/profile/profile_manager_ios.h"
+#include "ios/chrome/browser/shared/model/profile/scoped_profile_keep_alive_ios.h"
 #include "ios/chrome/browser/webui/ui_bundled/chrome_web_ui_ios_controller_factory.h"
 #include "ios/public/provider/chrome/browser/overrides/overrides_api.h"
 #include "ios/public/provider/chrome/browser/ui_utils/ui_utils_api.h"
@@ -122,7 +126,7 @@ const BraveCoreLogSeverity BraveCoreLogSeverityVerbose =
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC) && !BUILDFLAG(USE_BLINK)
 
     NSBundle* baseBundle = base::apple::OuterBundle();
-    base::apple::SetBaseBundleID(
+    base::apple::SetBaseBundleIDOverride(
         base::SysNSStringToUTF8([baseBundle bundleIdentifier]).c_str());
 
     // Register all providers before calling any Chromium code.
@@ -263,16 +267,17 @@ static bool CustomLogHandler(int severity,
   // state before creating the profile
   localState->SetString(prefs::kLastUsedProfile, profileName);
   profileManager->CreateProfileAsync(
-      profileName, base::BindOnce(^(ProfileIOS* profile) {
-        [self profileLoaded:profile completionHandler:completionHandler];
+      profileName, base::BindOnce(^(ScopedProfileKeepAliveIOS keep_alive) {
+        [self profileLoaded:std::move(keep_alive)
+            completionHandler:completionHandler];
       }));
 }
 
-- (void)profileLoaded:(ProfileIOS*)profile
+- (void)profileLoaded:(ScopedProfileKeepAliveIOS)profileKeepAlive
     completionHandler:(void (^)(BraveProfileController*))completionHandler {
-  CHECK(profile) << "A default profile must be loaded.";
-  self.profileController =
-      [[BraveProfileController alloc] initWithProfile:profile];
+  CHECK(profileKeepAlive.profile()) << "A default profile must be loaded.";
+  self.profileController = [[BraveProfileController alloc]
+      initWithProfileKeepAlive:std::move(profileKeepAlive)];
   completionHandler(self.profileController);
 }
 
@@ -309,6 +314,13 @@ static bool CustomLogHandler(int severity,
   _p3a_service->InitCallbacks();
   _p3a_service->Init(GetApplicationContext()->GetSharedURLLoaderFactory());
   _histogram_braveizer = p3a::HistogramsBraveizer::Create();
+  // Typically we'd register this component in RegisterComponentsForUpdate, but
+  // because iOS needs to pass in the install date from the Swift side we don't
+  // initialize the P3A service until after WebMain is started. If this changes
+  // in the future, move this call there.
+  p3a::RegisterP3AComponent(
+      GetApplicationContext()->GetComponentUpdateService(),
+      _p3a_service->remote_config_manager()->GetWeakPtr());
 #endif  // BUILDFLAG(BRAVE_P3A_ENABLED)
 }
 
@@ -340,7 +352,7 @@ static bool CustomLogHandler(int severity,
   [BraveCoreMain initializeICUForTesting];
 
   NSBundle* baseBundle = base::apple::OuterBundle();
-  base::apple::SetBaseBundleID(
+  base::apple::SetBaseBundleIDOverride(
       base::SysNSStringToUTF8([baseBundle bundleIdentifier]).c_str());
 
   // Register all providers before calling any Chromium code.

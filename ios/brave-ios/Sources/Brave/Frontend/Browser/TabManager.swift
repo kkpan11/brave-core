@@ -82,7 +82,6 @@ class TabManager: NSObject {
   private(set) var isRestoring = false
   private(set) var isBulkDeleting = false
 
-  fileprivate let prefs: Prefs
   var selectedIndex: Int {
     return _selectedIndex
   }
@@ -116,7 +115,6 @@ class TabManager: NSObject {
 
   init(
     windowId: UUID,
-    prefs: Prefs,
     rewards: BraveRewards?,
     braveCore: BraveProfileController?,
     privateBrowsingManager: PrivateBrowsingManager
@@ -124,7 +122,6 @@ class TabManager: NSObject {
     assert(Thread.isMainThread)
 
     self.windowId = windowId
-    self.prefs = prefs
     self.rewards = rewards
     self.braveCore = braveCore
     self.tabGeneratorAPI = braveCore?.tabGeneratorAPI
@@ -132,8 +129,8 @@ class TabManager: NSObject {
     self.privateBrowsingManager = privateBrowsingManager
     super.init()
 
-    Preferences.Shields.blockImages.observe(from: self)
     Preferences.General.nightModeEnabled.observe(from: self)
+    Preferences.Chromium.syncOpenTabsEnabled.observe(from: self)
 
     domainFrc.delegate = self
     do {
@@ -699,7 +696,7 @@ class TabManager: NSObject {
     }
   }
 
-  func saveAllTabs() {
+  func saveAllTabs(synchronously: Bool = false) {
     if Preferences.Privacy.privateBrowsingOnly.value
       || (privateBrowsingManager.isPrivateBrowsing
         && !Preferences.Privacy.persistentPrivateBrowsing.value)
@@ -710,6 +707,7 @@ class TabManager: NSObject {
     let tabs =
       Preferences.Privacy.persistentPrivateBrowsing.value ? allTabs : tabs(isPrivate: false)
     SessionTab.updateAll(
+      synchronously: synchronously,
       tabs: tabs.compactMap({
         if let sessionData = $0.sessionData {
           return ($0.id, sessionData, $0.title ?? "", $0.visibleURL ?? TabManager.ntpInteralURL)
@@ -1531,6 +1529,10 @@ extension TabManager: PreferencesObserver {
         tabManager: self,
         enabled: Preferences.General.nightModeEnabled.value
       )
+    case Preferences.Chromium.syncOpenTabsEnabled.key:
+      if Preferences.Chromium.syncOpenTabsEnabled.value {
+        addRegularTabsToSyncChain()
+      }
     default:
       break
     }

@@ -8,6 +8,7 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
 #include "brave/components/brave_ads/core/internal/account/deposits/deposit_util.h"
 #include "brave/components/brave_ads/core/internal/account/user_data/fixed/conversion_user_data.h"
 #include "brave/components/brave_ads/core/internal/account/user_data/fixed/page_land_user_data.h"
@@ -37,12 +38,10 @@ AdHandler::AdHandler()
       search_result_ad_handler_(site_visit_) {
   conversions_observation_.Observe(&conversions_);
   site_visit_observation_.Observe(&site_visit_);
-  subdivision_.AddObserver(&country_code_);
   subdivision_.AddObserver(&subdivision_targeting_);
 }
 
 AdHandler::~AdHandler() {
-  subdivision_.RemoveObserver(&country_code_);
   subdivision_.RemoveObserver(&subdivision_targeting_);
 }
 

@@ -9,10 +9,12 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/check.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_writer.h"
+#include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/numerics/byte_conversions.h"
 #include "base/path_service.h"
@@ -27,6 +29,7 @@
 #include "brave/components/constants/webui_url_constants.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/os_crypt/sync/os_crypt.h"
@@ -201,7 +204,7 @@ class RewardsPageBrowserTest : public InProcessBrowserTest {
   void OpenRewardsPanel() {
     content::CreateAndLoadWebContentsObserver popup_observer;
 
-    auto* coordinator = RewardsPanelCoordinator::FromBrowser(browser());
+    auto* coordinator = browser()->GetFeatures().rewards_panel_coordinator();
     ASSERT_TRUE(coordinator);
     ASSERT_TRUE(coordinator->OpenRewardsPanel());
 

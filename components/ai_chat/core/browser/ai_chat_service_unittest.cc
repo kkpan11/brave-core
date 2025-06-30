@@ -5,6 +5,7 @@
 
 #include "brave/components/ai_chat/core/browser/ai_chat_service.h"
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -14,15 +15,18 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
-#include "base/functional/overloaded.h"
+#include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
@@ -36,12 +40,14 @@
 #include "brave/components/ai_chat/core/browser/associated_content_manager.h"
 #include "brave/components/ai_chat/core/browser/constants.h"
 #include "brave/components/ai_chat/core/browser/conversation_handler.h"
+#include "brave/components/ai_chat/core/browser/engine/engine_consumer.h"
 #include "brave/components/ai_chat/core/browser/engine/mock_engine_consumer.h"
 #include "brave/components/ai_chat/core/browser/mock_conversation_handler_observer.h"
 #include "brave/components/ai_chat/core/browser/model_service.h"
 #include "brave/components/ai_chat/core/browser/tab_tracker_service.h"
 #include "brave/components/ai_chat/core/browser/test/mock_associated_content.h"
 #include "brave/components/ai_chat/core/browser/test_utils.h"
+#include "brave/components/ai_chat/core/browser/tools/tool.h"
 #include "brave/components/ai_chat/core/browser/utils.h"
 #include "brave/components/ai_chat/core/common/features.h"
 #include "brave/components/ai_chat/core/common/mojom/ai_chat.mojom.h"
@@ -170,7 +176,6 @@ class MockAIChatDatabase : public AIChatDatabase {
               AddConversationEntry,
               (std::string_view,
                mojom::ConversationTurnPtr,
-               std::optional<std::string_view>,
                std::optional<std::string>),
               (override));
 
@@ -184,6 +189,11 @@ class MockAIChatDatabase : public AIChatDatabase {
   MOCK_METHOD(bool,
               UpdateConversationTitle,
               (std::string_view, std::string_view),
+              (override));
+
+  MOCK_METHOD(bool,
+              UpdateConversationModelKey,
+              (std::string_view, std::optional<std::string>),
               (override));
 
   MOCK_METHOD(bool,
@@ -425,6 +435,69 @@ TEST_P(AIChatServiceUnitTest, ConversationLifecycle_NoMessages) {
 
   testing::Mock::VerifyAndClearExpectations(client_.get());
   task_environment_.RunUntilIdle();
+}
+
+TEST_P(AIChatServiceUnitTest,
+       ConversationLifecycle_ShouldNotUnloadInProgressConversations) {
+  ConversationHandler* conversation = CreateConversation();
+
+  // Store a weak pointer to the conversation, so we can check if its been
+  // destroyed.
+  auto weak_ptr = conversation->GetWeakPtr();
+
+  // Set up the engine so we can submit a turn.
+  conversation->SetEngineForTesting(std::make_unique<MockEngineConsumer>());
+  auto* engine =
+      static_cast<MockEngineConsumer*>(conversation->GetEngineForTesting());
+
+  // Function to call to finish generating the response.
+  base::OnceClosure resolve;
+  EXPECT_CALL(*engine, GenerateAssistantResponse)
+      .WillOnce(
+          [&resolve](const bool& is_video, const std::string& page_contents,
+                     const std::vector<mojom::ConversationTurnPtr>& history,
+                     const std::string& selected_language,
+                     const std::vector<base::WeakPtr<Tool>>& tools,
+                     std::optional<std::string_view> preferred_tool_name,
+                     base::RepeatingCallback<void(
+                         EngineConsumer::GenerationResultData)> callback,
+                     base::OnceCallback<void(
+                         base::expected<EngineConsumer::GenerationResultData,
+                                        mojom::APIError>)> done_callback) {
+            resolve = base::BindOnce(
+                [](base::OnceCallback<void(
+                       base::expected<EngineConsumer::GenerationResultData,
+                                      mojom::APIError>)> done_callback) {
+                  std::move(done_callback)
+                      .Run(base::ok(EngineConsumer::GenerationResultData(
+                          mojom::ConversationEntryEvent::NewCompletionEvent(
+                              mojom::CompletionEvent::New("")),
+                          std::nullopt /* model_key */)));
+                },
+                std::move(done_callback));
+          });
+
+  // Conversation should exist in memory.
+  EXPECT_EQ(ai_chat_service_->GetInMemoryConversationCountForTesting(), 1u);
+
+  conversation->SubmitHumanConversationEntry(
+      ai_chat::mojom::ConversationTurn::New());
+  EXPECT_TRUE(conversation->IsRequestInProgress());
+
+  // Conversation should not be unloaded
+  EXPECT_EQ(ai_chat_service_->GetInMemoryConversationCountForTesting(), 1u);
+
+  // Weak pointer should still be valid
+  EXPECT_TRUE(weak_ptr);
+
+  // Let the engine complete the request
+  std::move(resolve).Run();
+
+  // Conversation should be unloaded
+  EXPECT_EQ(ai_chat_service_->GetInMemoryConversationCountForTesting(), 0u);
+
+  // Weak pointer should be invalid
+  EXPECT_FALSE(weak_ptr);
 }
 
 TEST_P(AIChatServiceUnitTest, ConversationLifecycle_WithMessages) {
@@ -760,11 +833,10 @@ TEST_P(AIChatServiceUnitTest, OpenConversationWithStagedEntries_NoPermission) {
 TEST_P(AIChatServiceUnitTest, OpenConversationWithStagedEntries) {
   NiceMock<MockAssociatedContent> associated_content{};
   ON_CALL(associated_content, GetStagedEntriesFromContent)
-      .WillByDefault(
-          [](GetStagedEntriesCallback callback) {
-            std::move(callback).Run(std::vector<SearchQuerySummary>{
-                SearchQuerySummary("query", "summary")});
-          });
+      .WillByDefault([](GetStagedEntriesCallback callback) {
+        std::move(callback).Run(std::vector<SearchQuerySummary>{
+            SearchQuerySummary("query", "summary")});
+      });
   ON_CALL(associated_content, HasOpenAIChatPermission)
       .WillByDefault(testing::Return(true));
 
@@ -1200,9 +1272,10 @@ TEST_P(AIChatServiceUnitTest, TemporaryConversation_NoDatabaseInteraction) {
 
   // Set up expectations - no database calls should be made
   EXPECT_CALL(*mock_db_ptr, AddConversation(_, _, _)).Times(0);
-  EXPECT_CALL(*mock_db_ptr, AddConversationEntry(_, _, _, _)).Times(0);
+  EXPECT_CALL(*mock_db_ptr, AddConversationEntry(_, _, _)).Times(0);
   EXPECT_CALL(*mock_db_ptr, AddOrUpdateAssociatedContent(_, _, _)).Times(0);
   EXPECT_CALL(*mock_db_ptr, UpdateConversationTitle(_, _)).Times(0);
+  EXPECT_CALL(*mock_db_ptr, UpdateConversationModelKey).Times(0);
   EXPECT_CALL(*mock_db_ptr, UpdateConversationTokenInfo(_, _, _)).Times(0);
   EXPECT_CALL(*mock_db_ptr, DeleteConversationEntry(_)).Times(0);
   EXPECT_CALL(*mock_db_ptr, DeleteConversation(_)).Times(0);
@@ -1242,7 +1315,8 @@ TEST_P(AIChatServiceUnitTest, TemporaryConversation_NoDatabaseInteraction) {
   ASSERT_FALSE(permanent_conversation->GetIsTemporary());
   permanent_conversation->SetChatHistoryForTesting(CreateSampleChatHistory(1u));
   EXPECT_CALL(*mock_db_ptr, AddConversation(_, _, _)).Times(1);
-  EXPECT_CALL(*mock_db_ptr, AddConversationEntry(_, _, _, _)).Times(1);
+  EXPECT_CALL(*mock_db_ptr, AddConversationEntry(_, _, _)).Times(1);
+  EXPECT_CALL(*mock_db_ptr, UpdateConversationModelKey).Times(1);
   DisconnectConversationClient(client2.get());
   testing::Mock::VerifyAndClearExpectations(mock_db_ptr);
 }

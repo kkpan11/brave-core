@@ -20,6 +20,7 @@
 #include "base/debug/dump_without_crashing.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/numerics/safe_math.h"
 #include "base/rand_util.h"
@@ -176,9 +177,14 @@ void ConversationHandler::BindUntrustedConversationUI(
     mojo::PendingRemote<mojom::UntrustedConversationUI>
         untrusted_conversation_ui_handler,
     BindUntrustedConversationUICallback callback) {
-  untrusted_conversation_ui_handlers_.Add(
+  auto id = untrusted_conversation_ui_handlers_.Add(
       std::move(untrusted_conversation_ui_handler));
   std::move(callback).Run(GetStateForConversationEntries());
+
+  if (associated_content_manager_->should_send()) {
+    untrusted_conversation_ui_handlers_.Get(id)->AssociatedContentChanged(
+        associated_content_manager_->GetAssociatedContent());
+  }
 }
 
 void ConversationHandler::OnArchiveContentUpdated(
@@ -194,6 +200,15 @@ void ConversationHandler::OnAssociatedContentUpdated() {
     client->OnAssociatedContentInfoChanged(
         associated_content_manager_->GetAssociatedContent(),
         associated_content_manager_->should_send());
+  }
+
+  for (const auto& client : untrusted_conversation_ui_handlers_) {
+    if (associated_content_manager_->should_send()) {
+      client->AssociatedContentChanged(
+          associated_content_manager_->GetAssociatedContent());
+    } else {
+      client->AssociatedContentChanged({});
+    }
   }
 
   OnStateForConversationEntriesChanged();
@@ -1013,7 +1028,8 @@ void ConversationHandler::PerformAssistantGeneration(
   }
 
   engine_->GenerateAssistantResponse(
-      is_video, page_content, chat_history_, selected_language_,
+      is_video, page_content, chat_history_, selected_language_, {} /* tools */,
+      std::nullopt /* preferred_tool_name */,
       base::BindRepeating(&ConversationHandler::OnEngineCompletionDataReceived,
                           weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&ConversationHandler::OnEngineCompletionComplete,

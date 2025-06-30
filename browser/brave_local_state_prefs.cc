@@ -34,8 +34,9 @@
 #include "brave/components/misc_metrics/privacy_hub_metrics.h"
 #include "brave/components/ntp_background_images/browser/ntp_background_images_service.h"
 #include "brave/components/ntp_background_images/common/view_counter_pref_registry.h"
+#include "brave/components/p3a/metric_log_store.h"
 #include "brave/components/p3a/p3a_service.h"
-#include "brave/components/p3a/star_randomness_meta.h"
+#include "brave/components/p3a/rotation_scheduler.h"
 #include "brave/components/skus/browser/skus_utils.h"
 #include "brave/components/speedreader/common/buildflags/buildflags.h"
 #include "brave/components/tor/buildflags/buildflags.h"
@@ -44,6 +45,7 @@
 #include "chrome/common/pref_names.h"
 #include "components/metrics/metrics_pref_names.h"
 #include "components/prefs/pref_registry_simple.h"
+#include "components/webui/chrome_urls/pref_names.h"
 #include "third_party/widevine/cdm/buildflags.h"
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
@@ -84,6 +86,10 @@
 #include "brave/components/speedreader/speedreader_service.h"
 #endif
 
+#if BUILDFLAG(IS_WIN)
+#include "brave/components/windows_recall/windows_recall.h"
+#endif
+
 namespace brave {
 
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
@@ -96,7 +102,10 @@ void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
   brave_wallet::RegisterLocalStatePrefsForMigration(registry);
   brave_search_conversion::p3a::RegisterLocalStatePrefsForMigration(registry);
   brave_stats::RegisterLocalStatePrefsForMigration(registry);
-  p3a::StarRandomnessMeta::RegisterPrefsForMigration(registry);
+  p3a::MetricLogStore::RegisterLocalStatePrefsForMigration(registry);
+  p3a::RotationScheduler::RegisterLocalStatePrefsForMigration(registry);
+  ntp_background_images::NTPP3AHelperImpl::RegisterLocalStatePrefsForMigration(
+      registry);
 }
 
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
@@ -106,7 +115,7 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
       registry);
   ntp_background_images::RegisterLocalStatePrefs(registry);
   RegisterPrefsForBraveReferralsService(registry);
-  brave_l10n::RegisterL10nLocalStatePrefs(registry);
+  brave_l10n::RegisterLocalStatePrefsForMigration(registry);
 #if BUILDFLAG(IS_MAC)
   // Turn off super annoying 'Hold to quit'
   registry->SetDefaultPrefValue(prefs::kConfirmToQuitEnabled,
@@ -188,6 +197,15 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
 #endif
 #if BUILDFLAG(ENABLE_SPEEDREADER)
   speedreader::SpeedreaderService::RegisterLocalStatePrefs(registry);
+#endif
+
+  // Enable seeing internal pages by default (without going to chrome-urls page
+  // and clicking "Enable internal debugging pages" button).
+  registry->SetDefaultPrefValue(chrome_urls::kInternalOnlyUisEnabled,
+                                base::Value(true));
+
+#if BUILDFLAG(IS_WIN)
+  windows_recall::RegisterLocalStatePrefs(registry);
 #endif
 }
 

@@ -1,5 +1,8 @@
 include_rules = [
   "+brave/components/version_info",
+  "+components/cbor",
+  "+components/component_updater",
+  "+components/prefs",
   "+content/public/browser",
   "+content/public/test",
   "+crypto",

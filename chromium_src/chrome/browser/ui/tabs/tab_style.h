@@ -15,9 +15,13 @@
 #define GetTopCornerRadius virtual GetTopCornerRadius
 #define GetBottomCornerRadius virtual GetBottomCornerRadius
 #define GetContentsInsets virtual GetContentsInsets
+#define GetMinimumActiveWidth virtual GetMinimumActiveWidth
+#define GetStandardWidth virtual GetStandardWidth
 
 #include "src/chrome/browser/ui/tabs/tab_style.h"  // IWYU pragma: export
 
+#undef GetStandardWidth
+#undef GetMinimumActiveWidth
 #undef GetPinnedWidth
 #undef GetTabOverlap
 #undef GetSeparatorSize

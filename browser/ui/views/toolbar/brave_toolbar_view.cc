@@ -9,6 +9,8 @@
 #include <memory>
 #include <utility>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "brave/app/brave_command_ids.h"
 #include "brave/browser/ai_chat/ai_chat_utils.h"
@@ -147,6 +149,12 @@ void BraveToolbarView::Init() {
   if (display_mode_ != DisplayMode::NORMAL) {
     brave_initialized_ = true;
     return;
+  }
+
+  // We don't use chromium's split tabs button in toolbar.
+  if (split_tabs_) {
+    auto split_tabs = container_view->RemoveChildViewT(split_tabs_);
+    split_tabs_ = nullptr;
   }
 
   Profile* profile = browser()->profile();
