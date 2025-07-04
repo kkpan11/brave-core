@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/functional/callback.h"
 #include "brave/browser/ui/sidebar/sidebar_controller.h"
@@ -52,9 +53,10 @@ PlaylistSidePanelCoordinator::~PlaylistSidePanelCoordinator() = default;
 void PlaylistSidePanelCoordinator::CreateAndRegisterEntry(
     SidePanelRegistry* global_registry) {
   global_registry->Register(std::make_unique<SidePanelEntry>(
-      SidePanelEntry::Id::kPlaylist,
+      SidePanelEntry::Key(SidePanelEntry::Id::kPlaylist),
       base::BindRepeating(&PlaylistSidePanelCoordinator::CreateWebView,
-                          base::Unretained(this))));
+                          base::Unretained(this)),
+      SidePanelEntry::kSidePanelDefaultContentWidth));
 }
 
 void PlaylistSidePanelCoordinator::ActivatePanel() {

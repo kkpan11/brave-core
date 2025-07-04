@@ -5,7 +5,6 @@
 
 #import "brave/ios/browser/web/brave_web_client.h"
 
-#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/ios/ns_error_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -97,6 +96,12 @@ bool BraveWebClient::EnableWebInspector(
 
 void BraveWebClient::SetLegacyUserAgent(const std::string& user_agent) {
   legacy_user_agent_ = user_agent;
+}
+
+bool BraveWebClient::IsInsecureFormWarningEnabled(
+    web::BrowserState* browser_state) const {
+  // TODO: Remove when brave/brave-browser#46667 is implemented
+  return false;
 }
 
 void BraveWebClient::BuildEditMenu(web::WebState* web_state,

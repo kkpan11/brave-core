@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_wallet/browser/zcash/zcash_wallet_service.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,7 +13,6 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
@@ -1084,6 +1084,24 @@ TEST_F(ZCashWalletServiceUnitTest, ValidateShielding) {
     EXPECT_CALL(callback, Run(Eq(mojom::ZCashTxType::kShielding),
                               Eq(mojom::ZCashAddressError::kNoError)));
     auto account_info = keyring_service_->GetZCashAccountInfo(account_id_1);
+    zcash_wallet_service_->GetTransactionType(
+        mojom::kZCashMainnet, account_id_1.Clone(), false,
+        account_info->orchard_internal_address.value(), callback.Get());
+  }
+
+  {
+    auto account_id_2 = MakeIndexBasedAccountId(
+        mojom::CoinType::ZEC, mojom::KeyringId::kZCashMainnet,
+        mojom::AccountKind::kDerived, 0);
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeatureWithParameters(
+        features::kBraveWalletZCashFeature,
+        {{"zcash_shielded_transactions_enabled", "true"}});
+
+    base::MockCallback<ZCashWalletService::GetTransactionTypeCallback> callback;
+    EXPECT_CALL(callback, Run(Eq(mojom::ZCashTxType::kShielding),
+                              Eq(mojom::ZCashAddressError::kNoError)));
+    auto account_info = keyring_service_->GetZCashAccountInfo(account_id_2);
     zcash_wallet_service_->GetTransactionType(
         mojom::kZCashMainnet, account_id_1.Clone(), false,
         account_info->orchard_internal_address.value(), callback.Get());

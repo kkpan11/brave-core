@@ -15,6 +15,7 @@ import getAPI from '../../api'
 import { useConversation } from '../../state/conversation_context'
 import Alert from '@brave/leo/react/alert'
 import Button from '@brave/leo/react/button'
+import { Link } from '$web-common/useRoute'
 
 interface SimpleInputProps {
   text?: string
@@ -66,7 +67,7 @@ function ConversationItem(props: ConversationItemProps) {
   const conversationContext = useConversation()
 
   const { uuid } = props.conversation
-  const title = props.conversation.title || getLocale('conversationListUntitled')
+  const title = props.conversation.title || getLocale(S.AI_CHAT_CONVERSATION_LIST_UNTITLED)
 
   const handleButtonMenuChange = (e: { isOpen: boolean }) => {
     setIsOptionsMenuOpen(e.isOpen)
@@ -87,7 +88,7 @@ function ConversationItem(props: ConversationItemProps) {
 
   return (
     <li>
-      <a
+      <Link
         className={classnames(
           styles.navItem,
           isActive && styles.navItemActive,
@@ -127,13 +128,13 @@ function ConversationItem(props: ConversationItemProps) {
             <leo-menu-item onClick={handleEditTitle}>
               <div className={styles.optionsMenuItemWithIcon}>
                 <Icon name='edit-pencil' />
-                <div>{getLocale('menuRenameConversation')}</div>
+                <div>{getLocale(S.CHAT_UI_MENU_RENAME_CONVERSATION)}</div>
               </div>
             </leo-menu-item>
             <leo-menu-item onClick={handleDelete}>
               <div className={styles.optionsMenuItemWithIcon}>
                 <Icon name='trash' />
-                <div>{getLocale('menuDeleteConversation')}</div>
+                <div>{getLocale(S.CHAT_UI_MENU_DELETE_CONVERSATION)}</div>
               </div>
             </leo-menu-item>
           </ButtonMenu>
@@ -150,7 +151,7 @@ function ConversationItem(props: ConversationItemProps) {
             />
           </div>
         )}
-      </a>
+      </Link>
     </li>
   )
 }
@@ -173,13 +174,13 @@ export default function ConversationsList(props: ConversationsListProps) {
             <Alert type='notice'>
               <Icon name='history' slot='icon' />
               <div slot='title'>
-                {getLocale('noticeConversationHistoryTitleDisabledPref')}
+                {getLocale(S.CHAT_UI_NOTICE_CONVERSATION_HISTORY_TITLE_DISABLED_PREF)}
               </div>
-              {getLocale('noticeConversationHistoryDisabledPref')}
+              {getLocale(S.CHAT_UI_NOTICE_CONVERSATION_HISTORY_DISABLED_PREF)}
               <div slot='actions'>
                 <Button kind='outline'
                         onClick={aiChatContext.enableStoragePref}>
-                  {getLocale('noticeConversationHistoryDisabledPrefButton')}
+                  {getLocale(S.CHAT_UI_NOTICE_CONVERSATION_HISTORY_DISABLED_PREF_BUTTON)}
                 </Button>
               </div>
             </Alert>
@@ -189,9 +190,9 @@ export default function ConversationsList(props: ConversationsListProps) {
             <Alert type='notice'>
               <Icon name='history' slot='icon' />
               <div slot='title'>
-                {getLocale('menuConversationHistory')}
+                {getLocale(S.CHAT_UI_MENU_CONVERSATION_HISTORY)}
               </div>
-              {getLocale('noticeConversationHistoryEmpty')}
+              {getLocale(S.CHAT_UI_NOTICE_CONVERSATION_HISTORY_EMPTY)}
             </Alert>
           )}
           {startedNonTemporaryConversations.length > 0 && (

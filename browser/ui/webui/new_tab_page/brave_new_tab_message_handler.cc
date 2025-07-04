@@ -10,8 +10,10 @@
 #include <string>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
+#include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
@@ -178,7 +180,7 @@ void BraveNewTabMessageHandler::RegisterMessages() {
   // - Preferences
   // - PrivatePage properties
   auto plural_string_handler = std::make_unique<PluralStringHandler>();
-  plural_string_handler->AddLocalizedString("braveNewsSourceCount",
+  plural_string_handler->AddLocalizedString("BRAVE_NEWS_SOURCE_COUNT",
                                             IDS_BRAVE_NEWS_SOURCE_COUNT);
   plural_string_handler->AddLocalizedString("rewardsPublisherCountText",
                                             IDS_REWARDS_PUBLISHER_COUNT_TEXT);

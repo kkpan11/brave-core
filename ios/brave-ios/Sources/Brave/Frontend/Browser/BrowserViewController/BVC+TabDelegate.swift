@@ -180,6 +180,15 @@ extension BrowserViewController: TabDelegate {
 
   public func tab(
     _ tab: some TabState,
+    contextMenuWithLinkURL linkURL: URL?,
+    willCommitWithAnimator animator: (any UIContextMenuInteractionCommitAnimating)?
+  ) {
+    guard let linkURL else { return }
+    tab.loadRequest(URLRequest(url: linkURL))
+  }
+
+  public func tab(
+    _ tab: some TabState,
     requestMediaCapturePermissionsFor type: WebMediaCaptureType
   ) async -> WebPermissionDecision {
     guard let origin = tab.lastCommittedURL?.origin, tab === tabManager.selectedTab else {
@@ -533,7 +542,10 @@ extension BrowserViewController {
     // The challenge may come from a background tab, so ensure it's the one visible.
     tabManager.selectTab(tab)
     tab.isDisplayingBasicAuthPrompt = true
-    defer { tab.isDisplayingBasicAuthPrompt = false }
+    defer {
+      tab.isDisplayingBasicAuthPrompt = false
+      updateToolbarCurrentURL(tab.visibleURL)
+    }
 
     let isHidden = tab.view.isHidden
     defer { tab.view.isHidden = isHidden }

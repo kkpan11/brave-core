@@ -27,7 +27,8 @@ class VirtualPrefProvider final {
     virtual std::string GetDefaultSearchEngineName() const = 0;
   };
 
-  VirtualPrefProvider(PrefService* local_state,
+  VirtualPrefProvider(PrefService* prefs,
+                      PrefService* local_state,
                       std::unique_ptr<Delegate> delegate);
 
   VirtualPrefProvider(const VirtualPrefProvider&) = delete;
@@ -35,10 +36,12 @@ class VirtualPrefProvider final {
 
   ~VirtualPrefProvider();
 
-  base::Value::Dict GetPrefs();
+  base::Value::Dict GetPrefs() const;
 
  private:
-  const raw_ptr<PrefService> local_state_ = nullptr;  // Not owned.
+  const raw_ptr<PrefService> prefs_;        // Not owned.
+  const raw_ptr<PrefService> local_state_;  // Not owned.
+
   const std::unique_ptr<Delegate> delegate_;
 };
 

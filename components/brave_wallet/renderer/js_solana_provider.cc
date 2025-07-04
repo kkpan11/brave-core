@@ -9,7 +9,9 @@
 #include <tuple>
 #include <utility>
 
+#include "base/check.h"
 #include "base/no_destructor.h"
+#include "base/notreached.h"
 #include "brave/components/brave_wallet/common/brave_wallet_constants.h"
 #include "brave/components/brave_wallet/common/brave_wallet_response_helpers.h"
 #include "brave/components/brave_wallet/common/encoding_utils.h"
@@ -86,6 +88,8 @@ constexpr char kSolanaProxyHandlerScript[] = R"((function() {
   };
   return handler;
 })())";
+
+constexpr char kSolanaAccountChangedEvent[] = "accountChanged";
 
 }  // namespace
 
@@ -227,7 +231,7 @@ void JSSolanaProvider::AccountChangedEvent(
     v8::Local<v8::Value> v8_public_key = CreatePublicKey(context, *account);
     args.push_back(std::move(v8_public_key));
   }
-  FireEvent(solana::kAccountChangedEvent, std::move(args));
+  FireEvent(kSolanaAccountChangedEvent, std::move(args));
 }
 
 void JSSolanaProvider::DisconnectEvent() {

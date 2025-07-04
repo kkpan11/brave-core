@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/url_util.h"
@@ -23,6 +24,8 @@ constexpr char kSyncHostName[] = "sync";
 constexpr char kWalletHostName[] = "wallet";
 
 constexpr char kSettingsHostName[] = "settings";
+
+constexpr char kSurveyPanelistPath[] = "/surveyPanelist";
 
 constexpr char kSearchEnginesPath[] = "/searchEngines";
 constexpr char kSearchPath[] = "/search";
@@ -65,6 +68,11 @@ bool ShouldSupportInternalUrl(const GURL& url) {
   if (host_name != kSettingsHostName) {
     // Do not support hosts other than chrome://settings.
     return false;
+  }
+
+  if (url.path() == kSurveyPanelistPath) {
+    // Support chrome://settings/surveyPanelist.
+    return true;
   }
 
   if (url.path() == kSearchEnginesPath || url.path() == kSearchPath ||

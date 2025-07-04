@@ -43,6 +43,9 @@ extension URL {
     public static let braveVPNRefreshCredentials = URL(
       string: "https://account.brave.com/?intent=recover&product=vpn&ux=mobile"
     )!
+    public static let braveVPNCheckoutURL = URL(
+      string: "https://account.brave.com/?intent=checkout&product=vpn"
+    )!
     public static let safeBrowsingHelp = URL(
       string: "https://support.brave.com/hc/en-us/articles/15222663599629-Safe-Browsing-in-Brave"
     )!
@@ -57,6 +60,9 @@ extension URL {
     )!
     public static let braveLeoManageSubscriptionDev = URL(
       string: "https://account.brave.software/plans"
+    )!
+    public static let braveLeoCheckoutURL = URL(
+      string: "https://account.brave.com/?intent=checkout&product=leo"
     )!
     public static let braveLeoLinkReceiptProd = URL(
       string: "https://account.brave.com/?intent=link-order&product=leo"
@@ -89,6 +95,10 @@ extension URL {
     public static let newTabTakeoverLearnMoreLinkUrl = URL(
       string:
         "https://support.brave.com/hc/en-us/articles/35182999599501"
+    )!
+    public static let surveyPanelistLearnMoreLinkUrl = URL(
+      string:
+        "https://support.brave.com/hc/en-us/articles/36550092449165"
     )!
   }
   public enum Apple {

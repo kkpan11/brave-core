@@ -6,6 +6,7 @@
 #ifndef BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_KEYRING_SERVICE_H_
 #define BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_KEYRING_SERVICE_H_
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -269,6 +270,7 @@ class KeyringService : public mojom::KeyringService {
   mojom::AccountInfoPtr GetSelectedWalletAccount();
   mojom::AccountInfoPtr GetSelectedEthereumDappAccount();
   mojom::AccountInfoPtr GetSelectedSolanaDappAccount();
+  mojom::AccountInfoPtr GetSelectedCardanoDappAccount();
   void MaybeFixAccountSelection();
 
  private:

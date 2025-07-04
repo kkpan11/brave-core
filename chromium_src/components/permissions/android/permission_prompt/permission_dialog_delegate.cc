@@ -8,6 +8,9 @@
       JNIEnv* env, const base::android::JavaRef<jobject>& obj); \
   virtual void CreateJavaDelegate
 #include "components/permissions/android/permission_prompt/permission_dialog_delegate.h"
+
+#include "base/check.h"
+#include "base/notreached.h"
 #undef CreateJavaDelegate
 
 #include "base/android/jni_array.h"
@@ -78,8 +81,7 @@ void ApplyDontAskAgainOption(JNIEnv* env,
 
   const bool dont_ask_again =
       Java_BravePermissionDialogDelegate_getDontAskAgain(env, obj);
-  PermissionRequest* request =
-      permission_prompt->delegate_public()->Requests()[0];
+  const auto& request = permission_prompt->delegate_public()->Requests()[0];
   request->set_dont_ask_again(dont_ask_again);
 }
 

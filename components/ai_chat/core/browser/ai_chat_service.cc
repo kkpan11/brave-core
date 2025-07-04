@@ -6,7 +6,6 @@
 #include "brave/components/ai_chat/core/browser/ai_chat_service.h"
 
 #include <algorithm>
-#include <array>
 #include <compare>
 #include <functional>
 #include <ios>
@@ -25,7 +24,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
-#include "base/notreached.h"
 #include "base/numerics/clamped_math.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -676,6 +674,29 @@ void AIChatService::MaybeUnloadConversation(
     return;
   }
 
+  // Don't unload conversations that are in the middle of a request (they will
+  // be unloaded when the request completes).
+  //
+  // Note: We wait for the request to complete even when history is disabled, as
+  // it gives the UI a chance to connect before the conversation is unloaded.
+  // This prevents a conversation from being unloaded synchronously when
+  // submitting a conversation entry (as we won't delete it until the request
+  // resolves), making the below possible:
+  //
+  // auto conversation = CreateConversation();
+  // conversation->SubmitHumanConversationEntry(...);
+  // auto id = conversation->get_conversation_uuid();
+  //
+  // There is still a risk the the will be unloaded before the UI connects, if
+  // the request to the backend completes before the UI connects and in that
+  // case if:
+  // 1. History is enabled: We'll reload the conversation from storage.
+  // 2. History is disabled: We'll show a blank conversation.
+
+  if (conversation_handler->IsRequestInProgress()) {
+    return;
+  }
+
   auto uuid = conversation_handler->get_conversation_uuid();
   conversation_observations_.RemoveObservation(conversation_handler);
   conversation_handlers_.erase(uuid);
@@ -819,7 +840,13 @@ void AIChatService::HandleNewEntry(
     ai_chat_db_
         .AsyncCall(base::IgnoreResult(&AIChatDatabase::AddConversationEntry))
         .WithArgs(handler->get_conversation_uuid(), entry.Clone(),
-                  conversation->model_key, std::nullopt);
+                  std::nullopt);
+
+    // update the model name if it changed for this entry
+    ai_chat_db_
+        .AsyncCall(
+            base::IgnoreResult(&AIChatDatabase::UpdateConversationModelKey))
+        .WithArgs(handler->get_conversation_uuid(), conversation->model_key);
 
     if (maybe_associated_content.has_value() &&
         !conversation->associated_content.empty()) {
