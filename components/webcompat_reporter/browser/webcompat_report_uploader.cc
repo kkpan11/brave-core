@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/json/json_writer.h"
+#include "base/logging.h"
 #include "base/values.h"
 #include "brave/components/brave_stats/browser/brave_stats_updater_util.h"
 #include "brave/components/version_info/version_info.h"
@@ -84,6 +85,10 @@ void WebcompatReportUploader::SubmitReport(mojom::ReportInfoPtr report_info) {
     report_details_dict.Set(kDomainField, url::Origin::Create(url).Serialize());
     report_details_dict.Set(kSiteURLField,
                             GURL(report_info->report_url.value()).spec());
+  }
+
+  if (report_info->category) {
+    report_details_dict.Set(kCategoryField, report_info->category.value());
   }
 
   if (report_info->details) {

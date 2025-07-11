@@ -110,8 +110,7 @@ class TabTrayController: AuthenticationController {
   var isTabTrayBeingSearched = false
   var tabTraySearchQuery: String?
   var tabTrayMode: TabTrayMode = .local
-  // The tab tray is presented by an action outside the application like shortcuts
-  private var isExternallyPresented: Bool
+
   private var privateModeCancellable: AnyCancellable?
   private var initialScrollCompleted = false
   private var localAuthObservers = Set<AnyCancellable>()
@@ -216,12 +215,10 @@ class TabTrayController: AuthenticationController {
   // MARK: Lifecycle
 
   init(
-    isExternallyPresented: Bool = false,
     tabManager: TabManager,
     braveCore: BraveProfileController,
     windowProtection: WindowProtection?
   ) {
-    self.isExternallyPresented = isExternallyPresented
     self.tabManager = tabManager
     self.braveCore = braveCore
 
@@ -253,9 +250,11 @@ class TabTrayController: AuthenticationController {
     syncServicStateListener = braveCore.syncAPI.addServiceStateObserver { [weak self] in
       guard let self = self else { return }
 
-      if self.braveCore.syncAPI.shouldLeaveSyncGroup {
-        self.tabSyncView.do {
-          $0.updateSyncStatusPanel(for: self.emptyPanelState)
+      DispatchQueue.main.async {
+        if self.braveCore.syncAPI.shouldLeaveSyncGroup {
+          self.tabSyncView.do {
+            $0.updateSyncStatusPanel(for: self.emptyPanelState)
+          }
         }
       }
     }
@@ -386,16 +385,6 @@ class TabTrayController: AuthenticationController {
         name: UIScene.didActivateNotification,
         object: nil
       )
-    }
-  }
-
-  override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated)
-
-    // Navigate tabs from other devices
-    if isExternallyPresented {
-      tabTypeSelector.selectedSegmentIndex = 1
-      tabTypeSelector.sendActions(for: UIControl.Event.valueChanged)
     }
   }
 
@@ -925,7 +914,6 @@ class TabTrayController: AuthenticationController {
       openInsideSettingsNavigation(
         with: SyncWelcomeViewController(
           braveCore: braveCore,
-          tabManager: tabManager,
           windowProtection: windowProtection,
           isModallyPresented: true
         )
@@ -939,7 +927,6 @@ class TabTrayController: AuthenticationController {
       let syncSettingsScreen = SyncSettingsTableViewController(
         isModallyPresented: true,
         braveCoreMain: braveCore,
-        tabManager: tabManager,
         windowProtection: windowProtection
       )
 

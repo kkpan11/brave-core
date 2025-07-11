@@ -46,13 +46,11 @@ extension BrowserViewController: TabObserver {
       YoutubeQualityScriptHandler(tab: tab),
       BraveLeoScriptHandler(),
       BraveSkusScriptHandler(),
+      RequestBlockingContentScriptHandler(),
     ]
 
     if let contentBlocker = tab.contentBlocker {
       injectedScripts.append(contentBlocker)
-    }
-    if let requestBlockingContentHelper = tab.requestBlockingContentHelper {
-      injectedScripts.append(requestBlockingContentHelper)
     }
 
     #if canImport(BraveTalk)
@@ -326,6 +324,16 @@ extension BrowserViewController: TabObserver {
         ErrorPageHelper(certStore: profile.certStore).loadPage(error, forUrl: url, inTab: tab)
       }
     }
+  }
+
+  public func tabRenderProcessDidTerminate(_ tab: some TabState) {
+    guard let url = tab.lastCommittedURL else { return }
+    if InternalURL.isValid(url: url) {
+      // No need to refresh an internal url
+      return
+    }
+    // For now just reload the page when the process crashes
+    tab.reload()
   }
 
   public func tabDidUpdateURL(_ tab: some TabState) {

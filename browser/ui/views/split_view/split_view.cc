@@ -7,6 +7,8 @@
 
 #include <utility>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/types/to_address.h"
 #include "brave/browser/ui/brave_browser.h"
 #include "brave/browser/ui/color/brave_color_id.h"
@@ -99,7 +101,7 @@ SplitView::SplitView(Browser& browser,
 
   secondary_devtools_web_view_ = secondary_contents_container_->AddChildView(
       std::make_unique<views::WebView>(browser_->profile()));
-  secondary_contents_scrim_view_ = secondary_contents_container_->AddChildView(
+  secondary_devtools_scrim_view_ = secondary_contents_container_->AddChildView(
       std::make_unique<ScrimView>());
   secondary_contents_web_view_ = secondary_contents_container_->AddChildView(
       std::make_unique<ActivatableContentsWebView>(browser_->profile()));
@@ -124,7 +126,7 @@ SplitView::SplitView(Browser& browser,
 
   secondary_contents_container_->SetLayoutManager(
       std::make_unique<BraveContentsLayoutManager>(
-          secondary_devtools_web_view_, secondary_contents_scrim_view_,
+          secondary_devtools_web_view_, secondary_devtools_scrim_view_,
           secondary_contents_web_view_, secondary_lens_overlay_view_,
           secondary_contents_scrim_view_, /*border_view*/ nullptr,
           /*watermark_view*/ nullptr, secondary_reader_mode_toolbar_));

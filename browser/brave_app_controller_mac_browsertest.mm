@@ -15,6 +15,7 @@
 
 #include "base/apple/foundation_util.h"
 #include "base/apple/scoped_objc_class_swizzler.h"
+#include "base/check.h"
 #include "base/test/scoped_feature_list.h"
 #include "brave/app/brave_command_ids.h"
 #include "brave/browser/brave_browser_features.h"
@@ -209,7 +210,7 @@ IN_PROC_BROWSER_TEST_F(BraveAppControllerBrowserTest,
   [ac mainMenuCreated];
   [ac setLastProfile:browser()->profile()];
 
-  // Added one bookmark item.
+  // Add one bookmark item.
   constexpr char kPersistBookmarkURL[] = "http://www.cnn.com/";
   constexpr char16_t kPersistBookmarkTitle[] = u"CNN";
   BookmarkModel* bookmark_model = WaitForBookmarkModel(browser()->profile());
@@ -220,9 +221,9 @@ IN_PROC_BROWSER_TEST_F(BraveAppControllerBrowserTest,
   NSMenu* normal_window_submenu = [ac bookmarkMenuBridge]->BookmarkMenu();
   [[normal_window_submenu delegate] menuNeedsUpdate:normal_window_submenu];
 
-  // Total 5 items - basic 3 items(Bookmark Manager, Bookmark This Tab... and
-  // Bookmark All Tabs..), separator and bookmark item. and check last item is
-  // bookmark item.
+  // Total 5 items - basic 3 items (Bookmark Manager, Bookmark This Tab... and
+  // Bookmark All Tabs..), separator, and "Bookmarks" (which contains the new
+  // bookmark item).
   EXPECT_EQ(5, [normal_window_submenu numberOfItems]);
   EXPECT_EQ(
       std::u16string(kPersistBookmarkTitle),

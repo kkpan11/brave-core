@@ -5,9 +5,10 @@
 
 import * as React from 'react'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { Root, Element as HastElement } from 'hast'
 import { Url } from 'gen/url/mojom/url.mojom.m.js'
-
+import Label from '@brave/leo/react/label'
 import { visit } from 'unist-util-visit'
 
 import styles from './style.module.scss'
@@ -15,10 +16,6 @@ import CaretSVG from '../svg/caret'
 import {
   useUntrustedConversationContext //
 } from '../../untrusted_conversation_context'
-
-const removeReasoning = (text: string) => {
-  return text.includes('<think>') ? text.split('</think>')[1] : text
-}
 
 const CodeBlock = React.lazy(async () => ({
   default: (await import('../code_block')).default.Block
@@ -59,7 +56,15 @@ const allowedElements = [
   'hr',
 
   // Hyperlinks
-  'a'
+  'a',
+
+  // Tables
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td'
 ]
 
 interface CursorDecoratorProps {
@@ -115,14 +120,31 @@ export function RenderLink(props: RenderLinkProps) {
 
   const isCitation = typeof children === 'string' && /^\d+$/.test(children)
 
+  if (isCitation) {
+    return (
+      <Label>
+        <a
+          // While we preventDefault, we still need to pass the href
+          // here so we can continue to show link previews.
+          href={href}
+          className={styles.citation}
+          onClick={(e) => {
+            e.preventDefault()
+            handleLinkClicked()
+          }}
+        >
+          {children}
+        </a>
+      </Label>
+    )
+  }
+
   return (
     <a
       // While we preventDefault, we still need to pass the href
       // here so we can continue to show link previews.
       href={href}
-      className={`${styles.conversationLink}${
-        isCitation ? ` ${styles.citation}` : ''
-      }`}
+      className={styles.conversationLink}
       onClick={(e) => {
         e.preventDefault()
         handleLinkClicked()
@@ -131,6 +153,55 @@ export function RenderLink(props: RenderLinkProps) {
       {children}
     </a>
   )
+}
+
+function buildTableRenderer() {
+  // For table header tracking
+  const tableHeaders: string[] = []
+  let columnIndex = 0
+
+  return {
+    table: (props: { children: React.ReactNode }) => {
+      // Reset headers for each table
+      tableHeaders.length = 0
+      return (
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>{props.children}</table>
+        </div>
+      )
+    },
+    thead: (props: { children: React.ReactNode }) => (
+      <thead className={styles.tableHead}>{props.children}</thead>
+    ),
+    tbody: (props: { children: React.ReactNode }) => {
+      // Reset row index for each tbody
+      columnIndex = 0
+      return <tbody className={styles.tableBody}>{props.children}</tbody>
+    },
+    tr: (props: { children: React.ReactNode }) => {
+      // Reset row index for each tr
+      columnIndex = 0
+      return <tr className={styles.tableRow}>{props.children}</tr>
+    },
+    th: (props: { children: React.ReactNode }) => {
+      // Store header text
+      const text = React.Children.map(props.children, (child) =>
+        typeof child === 'string' ? child : '',
+      )?.join(' ')
+      if (text) tableHeaders.push(text)
+      return <th className={styles.tableHeader}>{props.children}</th>
+    },
+    td: (props: { children: React.ReactNode }) => {
+      // Assign data-label from headers
+      const label = tableHeaders[columnIndex] || ''
+      columnIndex++
+      return (
+        <td className={styles.tableCell} data-label={label}>
+          {props.children}
+        </td>
+      )
+    }
+  }
 }
 
 interface MarkdownRendererProps {
@@ -168,8 +239,9 @@ export default function MarkdownRenderer(mainProps: MarkdownRendererProps) {
         // We only read the total lines value from AST
         // if the component is allowed to show the text cursor.
         rehypePlugins={mainProps.shouldShowTextCursor ? [plugin] : undefined}
+        remarkPlugins={[remarkGfm]}
         unwrapDisallowed={true}
-        children={removeReasoning(mainProps.text)}
+        children={mainProps.text}
         components={{
           p: (props) => (
             <CursorDecorator
@@ -211,7 +283,8 @@ export default function MarkdownRenderer(mainProps: MarkdownRendererProps) {
               allowedLinks={mainProps.allowedLinks}
               disableLinkRestrictions={mainProps.disableLinkRestrictions}
             />
-          )
+          ),
+          ...buildTableRenderer()
         }}
       />
     </div>

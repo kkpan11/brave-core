@@ -7,9 +7,15 @@ import * as React from 'react'
 import './locale'
 import WalletPageStory from './wrappers/wallet-page-story-wrapper'
 import Container from '../page/container'
+import {
+  mockAccount,
+  mockNativeBalanceRegistry,
+  mockTokenBalanceRegistry,
+} from '../common/constants/mocks'
 
 type StorybookWalletConceptArgs = {
   isPanel: boolean
+  isAndroid: boolean
 }
 
 const panelViewport = {
@@ -17,9 +23,16 @@ const panelViewport = {
     name: 'Wallet Panel',
     styles: {
       width: '390px',
-      height: '650px'
-    }
-  }
+      height: '650px',
+    },
+  },
+  android: {
+    name: 'Android',
+    styles: {
+      width: '360px',
+      height: '740px',
+    },
+  },
 }
 
 export default {
@@ -27,38 +40,45 @@ export default {
   argTypes: {
     isPanel: { control: { type: 'boolean', onboard: false } },
     onboarding: { control: { type: 'boolean', onboard: false } },
-    locked: { control: { type: 'boolean', lock: false } }
+    locked: { control: { type: 'boolean', lock: false } },
+    isAndroid: { control: { type: 'boolean', android: false } },
   },
   parameters: {
     viewport: {
       viewports: {
-        ...panelViewport
-      }
-    }
-  }
+        ...panelViewport,
+      },
+    },
+  },
 }
 
 export const _DesktopWalletConcept = {
   render: (args: StorybookWalletConceptArgs) => {
     // Props
-    const { isPanel } = args
+    const { isPanel, isAndroid } = args
 
     return (
       <WalletPageStory
         walletStateOverride={{
-          isWalletCreated: true
+          isWalletCreated: true,
         }}
         pageStateOverride={{
-          hasInitialized: true
+          hasInitialized: true,
         }}
         uiStateOverride={{
-          isPanel: isPanel
+          isPanel: isPanel,
+          isAndroid: isAndroid,
+        }}
+        apiOverrides={{
+          selectedAccountId: mockAccount.accountId,
+          nativeBalanceRegistry: mockNativeBalanceRegistry,
+          tokenBalanceRegistry: mockTokenBalanceRegistry,
         }}
       >
         <Container />
       </WalletPageStory>
     )
-  }
+  },
 }
 
 export const _WalletOnboardingConcept = {
@@ -66,14 +86,14 @@ export const _WalletOnboardingConcept = {
     return (
       <WalletPageStory
         walletStateOverride={{
-          isWalletCreated: false
+          isWalletCreated: false,
         }}
         pageStateOverride={{
-          setupStillInProgress: true
+          setupStillInProgress: true,
         }}
       >
         <Container />
       </WalletPageStory>
     )
-  }
+  },
 }

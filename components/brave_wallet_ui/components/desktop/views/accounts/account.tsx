@@ -55,7 +55,6 @@ import {
   selectAllVisibleUserAssetsFromQueryResult, //
 } from '../../../../common/slices/entities/blockchain-token.entity'
 import { getAssetIdKey, isTokenWatchOnly } from '../../../../utils/asset-utils'
-import { loadTimeData } from '../../../../../common/loadTimeData'
 
 // Styled Components
 import {
@@ -104,6 +103,7 @@ import {
   ViewOnBlockExplorerModal, //
 } from '../../popup-modals/view_on_block_explorer_modal/view_on_block_explorer_modal'
 import { ZCashSyncModal } from '../../popup-modals/zcash_sync_modal/zcash_sync_modal'
+import { ShieldAccountAlert } from './shield_account_alert/shield_account_alert'
 
 // options
 import { AccountDetailsOptions } from '../../../../options/nav-options'
@@ -123,6 +123,7 @@ import {
   useStopShieldSyncMutation,
   useGetZCashBalanceQuery,
   useClearChainTipStatusCacheMutation,
+  useGetIsShieldingAvailableQuery,
 } from '../../../../common/slices/api.slice'
 import {
   querySubscriptionOptions60s, //
@@ -167,7 +168,7 @@ export const Account = () => {
     WalletSelectors.isZCashShieldedTransactionsEnabled,
   )
   const isPanel = useSafeUISelector(UISelectors.isPanel)
-  const isAndroid = loadTimeData.getBoolean('isAndroid') || false
+
   // mutations
   const [startShieldSync] = useStartShieldSyncMutation()
   const [stopShieldSync] = useStopShieldSyncMutation()
@@ -245,6 +246,16 @@ export const Account = () => {
       : skipToken,
   )
 
+  const zcashAccountIds = accounts
+    .filter((account) => account.accountId.coin === BraveWallet.CoinType.ZEC)
+    .map((account) => account.accountId)
+
+  const { data: isShieldingAvailable } = useGetIsShieldingAvailableQuery(
+    isZCashShieldedTransactionsEnabled && zcashAccountIds
+      ? zcashAccountIds
+      : skipToken,
+  )
+
   // state
   const [showAddNftModal, setShowAddNftModal] = React.useState<boolean>(false)
   const [showViewOnBlockExplorerModal, setShowViewOnBlockExplorerModal] =
@@ -265,6 +276,13 @@ export const Account = () => {
 
   const enableSyncButton =
     !isAccountSyncing && showSyncWarning && blocksBehind > 0
+
+  const canShieldAccount =
+    isZCashShieldedTransactionsEnabled
+    && selectedAccount?.accountId.coin === BraveWallet.CoinType.ZEC
+    && isShieldingAvailable
+    && zcashAccountInfo
+    && !zcashAccountInfo.accountShieldBirthday
 
   // custom hooks & memos
   const scrollIntoView = useScrollIntoView()
@@ -610,8 +628,6 @@ export const Account = () => {
           account={selectedAccount}
           onClickMenuOption={onClickMenuOption}
           tokenBalancesRegistry={tokenBalancesRegistry}
-          isAndroid={isAndroid}
-          isPanel={isPanel}
         />
       }
     >
@@ -683,6 +699,7 @@ export const Account = () => {
           </SyncAlert>
         </SyncAlertWrapper>
       )}
+      {canShieldAccount && <ShieldAccountAlert account={selectedAccount} />}
       <ControlsWrapper fullWidth={true}>
         <SegmentedControl navOptions={routeOptions} />
       </ControlsWrapper>

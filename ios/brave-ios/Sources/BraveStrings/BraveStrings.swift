@@ -1141,6 +1141,14 @@ extension Strings {
     comment:
       "Action title for Switching to an existing tab for the suggestion item shown on the table list"
   )
+  public static let searchSuggestionOpenPlaylistActionTitle = NSLocalizedString(
+    "searchSuggestionOpenPlaylistActionTitle",
+    tableName: "BraveShared",
+    bundle: .module,
+    value: "Open in Playlist",
+    comment:
+      "Action title for open a playlist item in Playlist."
+  )
   public static let tabToolbarNotSecureTitle = NSLocalizedString(
     "tabToolbarNotSecureTitle",
     tableName: "BraveShared",
@@ -2313,6 +2321,60 @@ extension Strings {
         comment: "Title for the quality settings view"
       )
 
+    public static let blockYoutubeRecommendationsTitle =
+      NSLocalizedString(
+        "settings.blockYoutubeRecommendationsTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Block YouTube Recommended Content",
+        comment: "Title beside the toggle for blocking YouTube recommendations"
+      )
+
+    public static let blockYoutubeRecommendationsDesc =
+      NSLocalizedString(
+        "settings.blockYoutubeRecommendationsDesc",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Blocks the up next and end card elements on youtube.com",
+        comment: "Description beside the toggle for blocking YouTube recommendations"
+      )
+
+    public static let blockYouTubeDistractingElementsTitle =
+      NSLocalizedString(
+        "settings.blockYouTubeDistractingElementsTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Block YouTube Distracting Elements",
+        comment: "Title beside the toggle for blocking YouTube distracting elements"
+      )
+
+    public static let blockYouTubeDistractingElementsDesc =
+      NSLocalizedString(
+        "settings.blockYouTubeDistractingElementsDesc",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Block YouTube Distracting Elements",
+        comment: "Description beside the toggle for blocking YouTube distracting elements"
+      )
+
+    public static let blockYouTubeShortsTitle =
+      NSLocalizedString(
+        "settings.blockYouTubeShortsTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Block YouTube Shorts",
+        comment: "Title beside the toggle for blocking YouTube shorts"
+      )
+
+    public static let blockYouTubeShortsDesc =
+      NSLocalizedString(
+        "settings.blockYouTubeShortsDesc",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Blocks Shorts from the home page, trending page and search results on youtube.com",
+        comment: "Description beside the toggle for blocking YouTube shorts"
+      )
+
     public static let sendUsagePingTitle =
       NSLocalizedString(
         "settings.sendUsagePingTitle",
@@ -2329,6 +2391,24 @@ extension Strings {
         bundle: .module,
         value: "This private ping lets Brave estimate active users.",
         comment: "Description to explain the daily usage ping toggle"
+      )
+
+    public static let surveyPanelistTitle =
+      NSLocalizedString(
+        "settings.surveyPanelistTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Allow Brave surveys",
+        comment: "Title to explain the survey panelist toggle"
+      )
+
+    public static let surveyPanelistDescription =
+      NSLocalizedString(
+        "settings.surveyPanelistDescription",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Allows Brave to show links to private surveys in the new tab page. Surveys help us build better features and measure the effectiveness of browser-based ad campaigns. [Learn more](%@)",
+        comment: "Description to explain the survey panelist toggle"
       )
   }
 }
@@ -7184,6 +7264,14 @@ extension Strings {
         value: "Start a sync chain",
         comment: "The button which navigates to screen starting a new sync chain"
       )
+    public static let openSyncSettingsButtonTitle =
+      NSLocalizedString(
+        "opentabs.openSyncSettingsButtonTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Open Sync Settings",
+        comment: "The button which open the sync settings screen"
+      )
     public static let tabSyncEnableButtonTitle =
       NSLocalizedString(
         "opentabs.tabSyncEnableButtonTitle",
@@ -7264,6 +7352,30 @@ extension Strings {
         bundle: .module,
         value: "Hide for now",
         comment: "The title for the action to hide open session with all tabs"
+      )
+    public static let openTabsNoSyncedTabsTitle =
+      NSLocalizedString(
+        "opentabs.openTabsNoSyncedTabsTitle",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "No Synced Tabs",
+        comment: "A title shown when there are no synced open tabs to show in the list"
+      )
+    public static let openTabsYourTabsAppearHere =
+      NSLocalizedString(
+        "opentabs.openTabsYourTabsAppearHere",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Your synced tabs appear here",
+        comment: "A description shown when there are no synced open tabs to show in the list"
+      )
+    public static let openTabsOnOtherDevices =
+      NSLocalizedString(
+        "opentabs.openTabsOnOtherDevices",
+        tableName: "BraveShared",
+        bundle: .module,
+        value: "Tabs on Other Devices",
+        comment: "The title shown on the screen that shows tabs synced from other devices"
       )
   }
 }
@@ -9619,6 +9731,42 @@ extension Strings {
       bundle: .module,
       value: "Redeem Promo Code",
       comment: "Button action text for redeem promo code"
+    )
+    public static let startTrialTitle = NSLocalizedString(
+      "paywall.startTrialTitle",
+      bundle: .module,
+      value: "Start your free 7-day trial",
+      comment: "Text shown above buttons that give the user the option to start a trial"
+    )
+    public static let startTrialSubtitle = NSLocalizedString(
+      "paywall.startTrialSubtitle",
+      bundle: .module,
+      value: "Choose the checkout method that works for you:",
+      comment: "Text shown above buttons that give the user the option to choose a checkout option"
+    )
+    public static let appStoreCheckoutOptionTitle = NSLocalizedString(
+      "paywall.appStoreCheckoutOptionTitle",
+      bundle: .module,
+      value: "App Store",
+      comment: "The checkout option that lets the user use Apple's standard App Store puchase flow"
+    )
+    public static let appStoreCheckoutOptionSubtitle = NSLocalizedString(
+      "paywall.appStoreCheckoutOptionSubtitle",
+      bundle: .module,
+      value: "Full Price",
+      comment: "A subtitle shown on the checkout button that denotes that this checkout option is full price"
+    )
+    public static let braveAccountCheckoutOptionTitle = NSLocalizedString(
+      "paywall.braveAccountCheckoutOptionTitle",
+      bundle: .module,
+      value: "Brave Account",
+      comment: "The checkout option that lets the user use Brave's own purchase flow"
+    )
+    public static let braveAccountCheckoutOptionSubtitle = NSLocalizedString(
+      "paywall.braveAccountCheckoutOptionSubtitle",
+      bundle: .module,
+      value: "Code **%@** for %@ off",
+      comment: "A subtitle shown on the checkout button that denotes that this checkout option is discounted. The first `%@` is replaced with a promo code, the second `%@` is replaced by the discount percentage"
     )
   }
 }

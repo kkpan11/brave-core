@@ -10,14 +10,8 @@
 namespace switches {
 
 OVERRIDE_FEATURE_DEFAULT_STATES({{
+    {kEnableImprovedGuestProfileMenu, base::FEATURE_DISABLED_BY_DEFAULT},
     {kSyncEnableBookmarksInTransportMode, base::FEATURE_DISABLED_BY_DEFAULT},
 }});
 
 }  // namespace switches
-
-OVERRIDE_FEATURE_DEFAULT_STATES({{
-#if BUILDFLAG(ENABLE_MIRROR) && !BUILDFLAG(IS_IOS)
-    {kVerifyRequestInitiatorForMirrorHeaders,
-     base::FEATURE_DISABLED_BY_DEFAULT},
-#endif  // BUILDFLAG(ENABLE_MIRROR) && !BUILDFLAG(IS_IOS)
-}});

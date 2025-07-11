@@ -48,7 +48,7 @@ public class BrowserViewController: UIViewController {
   private(set) lazy var topToolbar: TopToolbarView = {
     // Setup the URL bar, wrapped in a view to get transparency effect
     let topToolbar = TopToolbarView(
-      voiceSearchSupported: speechRecognizer.isVoiceSearchAvailable,
+      speechRecognizer: speechRecognizer,
       privateBrowsingManager: privateBrowsingManager
     )
     topToolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -315,16 +315,10 @@ public class BrowserViewController: UIViewController {
     // Initialize TabManager
     self.tabManager = TabManager(
       windowId: windowId,
-      prefs: profile.prefs,
       rewards: rewards,
       braveCore: profileController,
       privateBrowsingManager: privateBrowsingManager
     )
-
-    // Add Regular tabs to Sync Chain
-    if Preferences.Chromium.syncOpenTabsEnabled.value {
-      tabManager.addRegularTabsToSyncChain()
-    }
 
     // Remove outdated Recently Closed tabs
     tabManager.deleteOutdatedRecentlyClosed()
@@ -359,13 +353,10 @@ public class BrowserViewController: UIViewController {
     }
 
     rewards.ads.captchaHandler = self
-    if rewards.shouldStartAds {
-      // Only start rewards service automatically if ads is enabled
-      if rewards.isEnabled {
-        rewards.startRewardsService(nil)
-      } else {
-        rewards.ads.initialize { _ in }
-      }
+    if rewards.isEnabled {
+      rewards.startRewardsService(nil)
+    } else {
+      rewards.ads.initialize { _ in }
     }
 
     self.feedDataSource.getAdsAPI = {
@@ -386,13 +377,19 @@ public class BrowserViewController: UIViewController {
       }
     )
 
+    // Update the preference based on the underlying Chromium prefs
+    // Remove this when the pref is deleted: https://github.com/brave/brave-browser/issues/47487
+    Preferences.Chromium.syncEnabled.value = profileController.syncAPI.isInSyncGroup
+
     // Observer watching state change in sync chain
     syncServiceStateListener = profileController.syncAPI.addServiceStateObserver { [weak self] in
       guard let self = self else { return }
-      // Observe Sync State in order to determine if the sync chain is deleted
-      // from another device - Clean local sync chain
-      if self.profileController.syncAPI.shouldLeaveSyncGroup {
-        self.profileController.syncAPI.leaveSyncGroup()
+      DispatchQueue.main.async {
+        // Observe Sync State in order to determine if the sync chain is deleted
+        // from another device - Clean local sync chain
+        if self.profileController.syncAPI.shouldLeaveSyncGroup {
+          self.profileController.syncAPI.leaveSyncGroup()
+        }
       }
     }
 
@@ -539,8 +536,8 @@ public class BrowserViewController: UIViewController {
 
       guard let sites = sites, !sites.isEmpty else { return }
 
-      DispatchQueue.main.async {
-        let defaultFavorites = FavoritesPreloadedData.getList()
+      Task { @MainActor in
+        let defaultFavorites = await FavoritesPreloadedData.getList()
         let currentFavorites = Favorite.allFavorites
 
         if defaultFavorites.count != currentFavorites.count {
@@ -744,7 +741,7 @@ public class BrowserViewController: UIViewController {
   }
 
   @objc func appWillTerminateNotification() {
-    tabManager.saveAllTabs()
+    tabManager.saveAllTabs(synchronously: true)
   }
 
   @objc private func tappedCollapsedURLBar() {
@@ -762,6 +759,12 @@ public class BrowserViewController: UIViewController {
   @objc func sceneWillResignActiveNotification(_ notification: NSNotification) {
     guard let scene = notification.object as? UIScene, scene == currentScene else {
       return
+    }
+
+    // TODO: brave/brave-browser/issues/46565
+    // Remove when all direct mutations on CoreData types are replaced
+    DataController.performOnMainContext { context in
+      try? context.save()
     }
 
     tabManager.saveAllTabs()
@@ -884,6 +887,13 @@ public class BrowserViewController: UIViewController {
 
     // Adding Screenshot Service Delegate to browser to fetch full screen webview screenshots
     currentScene?.screenshotService?.delegate = self
+
+    // Add Regular tabs to Sync Chain
+    executeAfterSetup {
+      if Preferences.Chromium.syncOpenTabsEnabled.value {
+        self.tabManager.addRegularTabsToSyncChain()
+      }
+    }
 
     self.setupInteractions()
   }
@@ -2166,20 +2176,10 @@ public class BrowserViewController: UIViewController {
       // VoiceOver will sometimes be stuck on the element, not allowing user to move
       // forward/backward. Strange, but LayoutChanged fixes that.
       UIAccessibility.post(notification: .layoutChanged, argument: nil)
+    }
 
-      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
-        self.screenshotHelper.takeScreenshot(tab)
-      }
-    } else if tab.isWebViewCreated {
-      // To Screenshot a tab that is hidden we must add the webView,
-      // then wait enough time for the webview to render.
-      view.insertSubview(tab.view, at: 0)
-      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
-        self.screenshotHelper.takeScreenshot(tab)
-        if tab.view.superview == self.view {
-          tab.view.removeFromSuperview()
-        }
-      }
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+      self.screenshotHelper.takeScreenshot(tab)
     }
   }
 
@@ -2568,6 +2568,16 @@ extension BrowserViewController: SearchViewControllerDelegate {
     didSelectOpenTab tabInfo: (id: UUID?, url: URL)
   ) {
     switchToTabOrOpen(id: tabInfo.id, url: tabInfo.url)
+  }
+
+  func searchViewController(
+    _ searchViewController: SearchViewController,
+    didSelectPlaylistItem item: PlaylistItem
+  ) {
+    guard let tab = tabManager.selectedTab else { return }
+    popToBVC(isAnimated: true) { [weak self] in
+      self?.openPlaylist(tab: tab, item: PlaylistInfo(item: item))
+    }
   }
 
   func searchViewController(
@@ -3312,7 +3322,19 @@ extension BrowserViewController {
         message: Strings.AIChat.leoDisabledMessageDescription,
         preferredStyle: .alert
       )
-      let action = UIAlertAction(title: Strings.OKString, style: .default)
+      let action = UIAlertAction(title: Strings.OBErrorOkay, style: .default)
+      alert.addAction(action)
+      present(alert, animated: true)
+      return
+    }
+
+    if privateBrowsingManager.isPrivateBrowsing {
+      let alert = UIAlertController(
+        title: Strings.AIChat.leoDisabledPrivateBrowsingMessageTitle,
+        message: Strings.AIChat.leoDisabledPrivateBrowsingMessageDescription,
+        preferredStyle: .alert
+      )
+      let action = UIAlertAction(title: Strings.OBErrorOkay, style: .default)
       alert.addAction(action)
       present(alert, animated: true)
       return

@@ -17,7 +17,6 @@
 #include "brave/components/brave_rewards/core/mojom/rewards_engine.mojom.h"
 #include "build/build_config.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/sessions/core/session_id.h"
 
 namespace brave_rewards {
 
@@ -151,13 +150,11 @@ class RewardsService : public KeyedService {
   virtual void GetBalanceReport(const uint32_t month,
                                 const uint32_t year,
                                 GetBalanceReportCallback callback) = 0;
-  virtual void GetPublisherActivityFromVisitData(
-      mojom::VisitDataPtr visit_data) = 0;
-  virtual void GetPublisherActivityFromUrl(
-      uint64_t tab_id,
-      const std::string& url,
-      const std::string& favicon_url,
-      const std::string& publisher_blob) = 0;
+  virtual void NotifyPublisherPageVisit(mojom::VisitDataPtr visit_data) = 0;
+  virtual void NotifyPublisherPageVisit(uint64_t tab_id,
+                                        const std::string& url,
+                                        const std::string& favicon_url,
+                                        const std::string& publisher_blob) = 0;
   virtual void GetPublisherBanner(const std::string& publisher_id,
                                   GetPublisherBannerCallback callback) = 0;
 

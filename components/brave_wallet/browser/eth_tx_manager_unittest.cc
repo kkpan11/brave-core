@@ -15,7 +15,9 @@
 
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/callback_helpers.h"
+#include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -520,7 +522,7 @@ TEST_F(EthTxManagerUnitTest, AddUnapprovedEvmTransaction) {
         mojom::kMainnetChainId, from(),
         "0xbe862ad9abfe6f22bcb087716c7d89a26051f74c", "0x016345785d8a0000",
         "0x0974", data_);
-    EXPECT_TRUE(*network_manager_->IsEip1559Chain(params->chain_id));
+    EXPECT_TRUE(network_manager_->IsEip1559Chain(params->chain_id));
 
     bool callback_called = false;
     std::string tx_meta_id;
@@ -544,7 +546,7 @@ TEST_F(EthTxManagerUnitTest, AddUnapprovedEvmTransaction) {
         mojom::kBnbSmartChainMainnetChainId, from(),
         "0xbe862ad9abfe6f22bcb087716c7d89a26051f74c", "0x016345785d8a0000",
         "0x0974", data_);
-    EXPECT_FALSE(*network_manager_->IsEip1559Chain(params->chain_id));
+    EXPECT_FALSE(network_manager_->IsEip1559Chain(params->chain_id));
 
     bool callback_called = false;
     std::string tx_meta_id;
@@ -567,8 +569,7 @@ TEST_F(EthTxManagerUnitTest, AddUnapprovedEvmTransaction) {
     auto params = mojom::NewEvmTransactionParams::New(
         "0x1234", from(), "0xbe862ad9abfe6f22bcb087716c7d89a26051f74c",
         "0x016345785d8a0000", "0x0974", data_);
-    EXPECT_FALSE(
-        network_manager_->IsEip1559Chain(params->chain_id).has_value());
+    EXPECT_FALSE(network_manager_->IsEip1559Chain(params->chain_id));
 
     bool callback_called = false;
     std::string tx_meta_id;

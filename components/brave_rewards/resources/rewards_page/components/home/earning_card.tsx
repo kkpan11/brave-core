@@ -6,6 +6,7 @@
 import * as React from 'react'
 import Button from '@brave/leo/react/button'
 import Icon from '@brave/leo/react/icon'
+import Tooltip from '@brave/leo/react/tooltip'
 
 import { formatMessage } from '../../../shared/lib/locale_context'
 import { useAppState } from '../../lib/app_model_context'
@@ -33,13 +34,19 @@ export function EarningCard() {
   const [showAdsSettingsModal, setShowAdsSettingsModal] = React.useState(false)
   const [showAdsHistoryModal, setShowAdsHistoryModal] = React.useState(false)
 
+  let adsReceivedThisMonth = 0
+  if (adsInfo) {
+    adsReceivedThisMonth = Object.values(adsInfo.adTypesReceivedThisMonth)
+      .reduce((prev, current) => prev + current, 0)
+  }
+
   const unconnectedAdsViewedString = usePluralString(
     'unconnectedAdsViewedText',
-    adsInfo?.adsReceivedThisMonth)
+    adsReceivedThisMonth)
 
   const connectedAdsViewedString = usePluralString(
     'connectedAdsViewedText',
-    adsInfo?.adsReceivedThisMonth)
+    adsReceivedThisMonth)
 
   function toggleAdDetails() {
     setShowAdDetails(!showAdDetails)
@@ -78,6 +85,7 @@ export function EarningCard() {
                   $1: (content) => (
                     <div key='value' className='counter-value'>
                       {content}
+                      {renderAdsViewedTooltip()}
                     </div>
                   )
                 }
@@ -109,6 +117,15 @@ export function EarningCard() {
     )
   }
 
+  function renderAdsViewedTooltip() {
+    return (
+      <Tooltip mode='default' className='info'>
+        <Icon name='info-outline' />
+        <div slot='content'>{getString('adsViewedTooltip')}</div>
+      </Tooltip>
+    )
+  }
+
   function renderEarningsCounter() {
     if (!adsInfo) {
       return
@@ -118,6 +135,7 @@ export function EarningCard() {
         $1: (content) => (
           <div key='value' className='counter-value'>
             {content}
+            {renderAdsViewedTooltip()}
           </div>
         )
       }
@@ -154,7 +172,7 @@ export function EarningCard() {
             {
               adsInfo && formatMessage(getString('earningsAdsReceivedText'), [
                 <span key='value' className='value'>
-                  {adsInfo.adsReceivedThisMonth}
+                  {adsReceivedThisMonth}
                 </span>
               ])
             }

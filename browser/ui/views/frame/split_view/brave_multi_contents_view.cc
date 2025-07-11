@@ -5,15 +5,20 @@
 
 #include "brave/browser/ui/views/frame/split_view/brave_multi_contents_view.h"
 
+#include "base/check.h"
 #include "brave/browser/ui/brave_browser.h"
 #include "brave/browser/ui/color/brave_color_id.h"
+#include "brave/browser/ui/views/frame/brave_browser_view.h"
 #include "brave/browser/ui/views/frame/brave_contents_view_util.h"
 #include "brave/browser/ui/views/split_view/split_view_location_bar.h"
 #include "brave/browser/ui/views/split_view/split_view_separator.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_resize_area.h"
+#include "chrome/browser/ui/views/frame/multi_contents_view_mini_toolbar.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
@@ -23,6 +28,12 @@
 namespace {
 constexpr auto kSpacingBetweenContentsWebViews = 4;
 }  // namespace
+
+// static
+BraveMultiContentsView* BraveMultiContentsView::From(MultiContentsView* view) {
+  CHECK(view);
+  return static_cast<BraveMultiContentsView*>(view);
+}
 
 BraveMultiContentsView::BraveMultiContentsView(
     BrowserView* browser_view,
@@ -48,23 +59,19 @@ BraveMultiContentsView::BraveMultiContentsView(
 
 BraveMultiContentsView::~BraveMultiContentsView() = default;
 
-void BraveMultiContentsView::UpdateContentsBorder() {
+void BraveMultiContentsView::UpdateContentsBorderAndOverlay() {
   if (!IsInSplitView()) {
-    MultiContentsView::UpdateContentsBorder();
+    MultiContentsView::UpdateContentsBorderAndOverlay();
     return;
   }
 
-  auto* cp = GetColorProvider();
-  if (!cp) {
-    return;
-  }
-
-  // Draw active/inactive outlines around the contents areas.
-  const auto set_contents_border =
-      [this, cp](ContentsContainerView* contents_container_view) {
+  // Draw active/inactive outlines around the contents areas and updates mini
+  // toolbar visibility.
+  const auto set_contents_border_and_mini_toolbar =
+      [this](ContentsContainerView* contents_container_view) {
         const bool is_active = contents_container_view->GetContentsView() ==
                                GetActiveContentsView();
-        const float corner_radius = GetCornerRadius();
+        const float corner_radius = GetCornerRadius(true);
         if (is_active) {
           contents_container_view->SetBorder(views::CreateRoundedRectBorder(
               kBorderThickness, corner_radius,
@@ -72,15 +79,20 @@ void BraveMultiContentsView::UpdateContentsBorder() {
         } else {
           contents_container_view->SetBorder(views::CreateBorderPainter(
               views::Painter::CreateRoundRectWith1PxBorderPainter(
-                  cp->GetColor(kColorBraveSplitViewInactiveWebViewBorder),
-                  cp->GetColor(kColorToolbar), corner_radius, SkBlendMode::kSrc,
+                  GetColorProvider()->GetColor(
+                      kColorBraveSplitViewInactiveWebViewBorder),
+                  GetColorProvider()->GetColor(kColorToolbar), corner_radius,
+                  SkBlendMode::kSrc,
                   /*anti_alias*/ true,
                   /*should_border_scale*/ true),
               gfx::Insets(kBorderThickness)));
         }
+        // Chromium's Mini toolbar should be hidden always as we have our own
+        // mini urlbar.
+        contents_container_view->GetMiniToolbar()->SetVisible(false);
       };
   for (auto* contents_container_view : contents_container_views_) {
-    set_contents_border(contents_container_view);
+    set_contents_border_and_mini_toolbar(contents_container_view);
   }
 }
 
@@ -96,7 +108,7 @@ void BraveMultiContentsView::Layout(PassKey) {
       gfx::Size(widths.resize_width, available_space.height()));
   gfx::Rect end_rect(resize_rect.top_right(),
                      gfx::Size(widths.end_width, available_space.height()));
-  gfx::RoundedCornersF corners(GetCornerRadius());
+  gfx::RoundedCornersF corners(GetCornerRadius(false));
   for (auto* contents_container_view : contents_container_views_) {
     auto* contents_web_view = contents_container_view->GetContentsView();
     contents_web_view->layer()->SetRoundedCornerRadius(corners);
@@ -107,18 +119,22 @@ void BraveMultiContentsView::Layout(PassKey) {
   contents_container_views_[0]->SetBoundsRect(start_rect);
   resize_area_->SetBoundsRect(resize_rect);
   contents_container_views_[1]->SetBoundsRect(end_rect);
+
+  BraveBrowserView::From(browser_view_)->NotifyDialogPositionRequiresUpdate();
 }
 
-void BraveMultiContentsView::SetActiveIndex(int index) {
-  MultiContentsView::SetActiveIndex(index);
+float BraveMultiContentsView::GetCornerRadius(bool for_border) const {
+  auto* exclusive_access_manager =
+      browser_view_->browser()->exclusive_access_manager();
+  if (exclusive_access_manager &&
+      exclusive_access_manager->fullscreen_controller()->IsTabFullscreen()) {
+    return 0;
+  }
 
-  UpdateSecondaryLocationBar();
-}
-
-float BraveMultiContentsView::GetCornerRadius() const {
   return BraveBrowser::ShouldUseBraveWebViewRoundedCorners(
              browser_view_->browser())
-             ? BraveContentsViewUtil::kBorderRadius + kBorderThickness
+             ? BraveContentsViewUtil::kBorderRadius +
+                   (for_border ? kBorderThickness : 0)
              : 0;
 }
 
@@ -142,9 +158,15 @@ void BraveMultiContentsView::UpdateSecondaryLocationBar() {
   // as it's attached to inactive contents view.
   int inactive_index = active_index_ == 0 ? 1 : 0;
   secondary_location_bar_->SetWebContents(
-      GetInactiveContentsView()->GetWebContents());
+      GetInactiveContentsView()->web_contents());
   secondary_location_bar_->SetParentWebView(
       contents_container_views_[inactive_index]);
+
+  // Set separator's menu widget visibility after setting location bar's to make
+  // separator's menu widget locate above the location bar.
+  auto* separator = static_cast<SplitViewSeparator*>(resize_area_);
+  CHECK(separator);
+  separator->ShowMenuButtonWidget();
 }
 
 BEGIN_METADATA(BraveMultiContentsView)
