@@ -13,9 +13,9 @@
 #include "brave/components/commander/common/buildflags/buildflags.h"
 #include "brave/components/playlist/common/buildflags/buildflags.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
+#include "url/gurl.h"
 
 class Browser;
-class GURL;
 class Profile;
 
 namespace brave {
@@ -128,6 +128,25 @@ void BreakTiles(Browser* browser, const std::vector<int>& indices = {});
 bool IsTabsTiled(Browser* browser, const std::vector<int>& indices = {});
 bool CanTileTabs(Browser* browser, const std::vector<int>& indices = {});
 void SwapTabsInTile(Browser* browser);
+
+// Split view API with SideBySide.
+// false if active tab is already split tab.
+bool CanOpenNewSplitTabsWithSideBySide(Browser* browser);
+
+// true if two tabs are selected and both are not in split tabs.
+bool CanSplitTabsWithSideBySide(Browser* browser);
+
+// Add to split with selected two tabs.
+void SplitTabsWithSideBySide(Browser* browser);
+
+// true if any selected tab is split tabs.
+bool IsSplitTabs(Browser* browser);
+
+// Remove split tabs of selected tabs.
+void RemoveSplitWithSideBySide(Browser* browser);
+
+// Swap tabs in active tab.
+void SwapTabsInSplitWithSideBySide(Browser* browser);
 
 }  // namespace brave
 

@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/check.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "brave/browser/ui/brave_browser.h"
@@ -115,7 +116,7 @@ views::Widget* SidebarAddItemBubbleDelegateView::Create(
   frame_view->SetDisplayVisibleArrow(true);
   delegate->set_adjust_if_offscreen(true);
   delegate->SizeToContents();
-  frame_view->SetCornerRadius(4);
+  frame_view->SetRoundedCorners(gfx::RoundedCornersF(4));
 
   return bubble;
 }
@@ -135,7 +136,7 @@ SidebarAddItemBubbleDelegateView::SidebarAddItemBubbleDelegateView(
 
   if (const ui::ColorProvider* color_provider =
           BrowserView::GetBrowserViewForBrowser(browser_)->GetColorProvider()) {
-    set_background_color(
+    SetBackgroundColor(
         color_provider->GetColor(kColorSidebarAddBubbleBackground));
   }
   AddChildViews();

@@ -58,12 +58,13 @@ class AdsServiceDelegate : public AdsService::Delegate {
   void CloseNotificationAd(const std::string& id, bool is_custom) override;
   void OpenNewTabWithUrl(const GURL& url) override;
   bool IsFullScreenMode() override;
+  std::string GetVariationsCountryCode() override;
 
  private:
   NotificationDisplayService* GetNotificationDisplayService();
 
   const raw_ref<Profile> profile_;
-  const raw_ptr<PrefService> local_state_ = nullptr;  // Not owned.
+  const raw_ptr<PrefService> local_state_;  // Not owned.
   const raw_ref<brave_adaptive_captcha::BraveAdaptiveCaptchaService>
       adaptive_captcha_service_;
   std::unique_ptr<NotificationAdPlatformBridge>

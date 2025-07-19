@@ -61,6 +61,10 @@ export default function addBraveRoutes(r: Partial<SettingsRoutes>) {
     }
     r.FONTS = r.BRAVE_CONTENT.createChild('/fonts')
   }
+  if (pageVisibility.surveyPanelist) {
+    r.BRAVE_SURVEY_PANELIST =
+      r.BASIC.createSection('/surveyPanelist', 'surveyPanelist')
+  }
   if (r.SEARCH) {
     r.DEFAULT_SEARCH = r.SEARCH.createChild('defaultSearch')
     r.DEFAULT_SEARCH.isNavigableDialog = true
@@ -89,9 +93,14 @@ export default function addBraveRoutes(r: Partial<SettingsRoutes>) {
     }
     const isNativeBraveWalletFeatureEnabled =
       loadTimeData.getBoolean('isNativeBraveWalletFeatureEnabled')
+    const isCardanoDappSupportFeatureEnabled =
+      loadTimeData.getBoolean('isCardanoDappSupportFeatureEnabled')
     if (isNativeBraveWalletFeatureEnabled) {
       r.SITE_SETTINGS_ETHEREUM = r.SITE_SETTINGS.createChild('ethereum')
       r.SITE_SETTINGS_SOLANA = r.SITE_SETTINGS.createChild('solana')
+      if (isCardanoDappSupportFeatureEnabled) {
+        r.SITE_SETTINGS_CARDANO = r.SITE_SETTINGS.createChild('cardano')
+      }
     }
     r.SITE_SETTINGS_SHIELDS_STATUS = r.SITE_SETTINGS.createChild('braveShields')
     if (r.SITE_SETTINGS_ADS) {
@@ -116,6 +125,9 @@ export default function addBraveRoutes(r: Partial<SettingsRoutes>) {
   } else if (!isGuest) {
     console.error(
       '[Settings] Could not move autofill route to advanced route', r)
+  }
+  if (loadTimeData.getBoolean('isEmailAliasesEnabled') && r.AUTOFILL) {
+    r.EMAIL_ALIASES = r.AUTOFILL.createChild('/email-aliases')
   }
   // Delete performance menu - system menu includes it instead.
   if (r.PERFORMANCE) {

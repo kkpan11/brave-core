@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "base/check_op.h"
 #include "base/containers/fixed_flat_set.h"
 #include "base/i18n/timezone.h"
 #include "base/json/values_util.h"
@@ -73,7 +74,7 @@ constexpr auto kNotableCountries = base::MakeFixedFlatSet<std::string_view>(
     {"US", "FR", "PH", "GB", "IN", "DE", "BR", "CA", "IT", "ES",
      "NL", "MX", "AU", "RU", "JP", "PL", "ID", "KR", "AR", "AT"});
 
-constexpr base::TimeDelta kDateOmissionThreshold = base::Days(30);
+constexpr base::TimeDelta kDateOmissionThreshold = base::Days(31);
 
 std::string FormatUTCDateFromExploded(const base::Time::Exploded& exploded) {
   return base::StringPrintf("%d-%02d-%02d", exploded.year, exploded.month,

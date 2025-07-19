@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "base/barrier_closure.h"
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/containers/fixed_flat_set.h"
 #include "base/feature_list.h"
@@ -25,6 +26,7 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
+#include "base/notreached.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -56,6 +58,7 @@
 #include "components/favicon/core/favicon_service.h"
 #include "components/os_crypt/sync/os_crypt.h"
 #include "components/prefs/pref_service.h"
+#include "components/regional_capabilities/regional_capabilities_prefs.h"
 #include "content/public/browser/service_process_host.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/url_data_source.h"
@@ -485,7 +488,10 @@ std::string RewardsServiceImpl::GetCountryCode() const {
   return !declared_geo.empty()
              ? declared_geo
              : std::string(
-                   country_codes::GetCountryIDFromPrefs(prefs_).CountryCode());
+                   country_codes::CountryId::Deserialize(
+                       prefs_->GetInteger(
+                           regional_capabilities::prefs::kCountryIDAtInstall))
+                       .CountryCode());
 }
 
 void RewardsServiceImpl::GetAvailableCountries(
@@ -1069,16 +1075,16 @@ void RewardsServiceImpl::GetBalanceReport(const uint32_t month,
                      std::move(callback)));
 }
 
-void RewardsServiceImpl::GetPublisherActivityFromVisitData(
+void RewardsServiceImpl::NotifyPublisherPageVisit(
     mojom::VisitDataPtr visit_data) {
   if (!Connected()) {
     return;
   }
   uint32_t tab_id = visit_data->tab_id;
-  engine_->GetPublisherActivityFromUrl(tab_id, std::move(visit_data), "");
+  engine_->NotifyPublisherPageVisit(tab_id, std::move(visit_data), "");
 }
 
-void RewardsServiceImpl::GetPublisherActivityFromUrl(
+void RewardsServiceImpl::NotifyPublisherPageVisit(
     uint64_t tab_id,
     const std::string& url,
     const std::string& favicon_url,
@@ -1113,8 +1119,8 @@ void RewardsServiceImpl::GetPublisherActivityFromUrl(
   visit_data->url = parsed_url.scheme() + "://" + *publisher_domain + "/";
   visit_data->favicon_url = favicon_url;
 
-  engine_->GetPublisherActivityFromUrl(tab_id, std::move(visit_data),
-                                       publisher_blob);
+  engine_->NotifyPublisherPageVisit(tab_id, std::move(visit_data),
+                                    publisher_blob);
 }
 
 void RewardsServiceImpl::OnPanelPublisherInfo(mojom::Result result,

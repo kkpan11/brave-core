@@ -6,6 +6,7 @@
 #ifndef BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_CARDANO_CARDANO_TEST_UTILS_H_
 #define BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_CARDANO_CARDANO_TEST_UTILS_H_
 
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
@@ -47,6 +48,16 @@ class CardanoTestRpcServer {
 
   std::string captured_raw_tx() const { return captured_raw_tx_; }
 
+  void set_fail_latest_epoch_parameters_request(bool value) {
+    fail_latest_epoch_parameters_request_ = value;
+  }
+  void set_fail_latest_block_request(bool value) {
+    fail_latest_block_request_ = value;
+  }
+  void set_fail_address_utxo_request(bool value) {
+    fail_address_utxo_request_ = value;
+  }
+
   scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory();
 
  private:
@@ -69,6 +80,10 @@ class CardanoTestRpcServer {
   bool fail_next_transaction_submission_ = false;
   std::vector<std::string> mempool_transactions_;
   std::vector<std::string> confirmed_transactions_;
+
+  bool fail_latest_epoch_parameters_request_ = false;
+  bool fail_latest_block_request_ = false;
+  bool fail_address_utxo_request_ = false;
 
   network::TestURLLoaderFactory url_loader_factory_;
   raw_ref<CardanoWalletService> cardano_wallet_service_;

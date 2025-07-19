@@ -10,7 +10,10 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "brave/browser/ui/brave_browser.h"
 #include "brave/browser/ui/color/brave_color_id.h"
@@ -199,8 +202,9 @@ bool SidebarContainerView::IsFullscreenForCurrentEntry() const {
 
   // TODO(sko) Do we have a more general way to get WebContents of the active
   // entry?
-  auto web_view = PlaylistSidePanelCoordinator::FromBrowser(browser_)
-                      ->side_panel_web_view();
+  auto* web_view = browser_->GetFeatures()
+                       .playlist_side_panel_coordinator()
+                       ->side_panel_web_view();
   if (!web_view) {
     return false;
   }
@@ -367,9 +371,12 @@ void SidebarContainerView::OnThemeChanged() {
 }
 
 bool SidebarContainerView::IsFullscreenByTab() const {
-  DCHECK(browser_->exclusive_access_manager() &&
-         browser_->exclusive_access_manager()->fullscreen_controller());
-  return browser_->exclusive_access_manager()
+  DCHECK(browser_->GetFeatures().exclusive_access_manager() &&
+         browser_->GetFeatures()
+             .exclusive_access_manager()
+             ->fullscreen_controller());
+  return browser_->GetFeatures()
+      .exclusive_access_manager()
       ->fullscreen_controller()
       ->IsWindowFullscreenForTabOrPending();
 }
@@ -451,8 +458,8 @@ void SidebarContainerView::OnActiveIndexChanged(
     std::optional<size_t> old_index,
     std::optional<size_t> new_index) {
   DVLOG(1) << "OnActiveIndexChanged: "
-           << (old_index ? std::to_string(*old_index) : "none") << " to "
-           << (new_index ? std::to_string(*new_index) : "none");
+           << (old_index ? base::NumberToString(*old_index) : "none") << " to "
+           << (new_index ? base::NumberToString(*new_index) : "none");
   if (new_index) {
     ShowSidebarAll();
   } else {

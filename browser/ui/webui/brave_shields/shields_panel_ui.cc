@@ -7,8 +7,9 @@
 
 #include <utility>
 
+#include "base/check.h"
 #include "brave/browser/ui/brave_browser_window.h"
-#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
+#include "brave/components/brave_shields/core/browser/brave_shields_utils.h"
 #include "brave/components/brave_shields/core/common/brave_shield_localized_strings.h"
 #include "brave/components/brave_shields/core/common/features.h"
 #include "brave/components/brave_shields/resources/panel/grit/brave_shields_panel_generated_map.h"
@@ -19,10 +20,12 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
+#include "chrome/browser/ui/webui/webui_embedding_context.h"
 #include "components/favicon_base/favicon_url_parser.h"
 #include "components/grit/brave_components_resources.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "content/public/common/url_constants.h"
 #include "net/base/features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/webui/webui_util.h"
@@ -33,8 +36,6 @@
 ShieldsPanelUI::ShieldsPanelUI(content::WebUI* web_ui)
     : TopChromeWebUIController(web_ui, true),
       profile_(Profile::FromWebUI(web_ui)) {
-  browser_ = chrome::FindLastActiveWithProfile(profile_);
-
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       web_ui->GetWebContents()->GetBrowserContext(), kShieldsPanelHost);
 
@@ -88,12 +89,12 @@ void ShieldsPanelUI::CreatePanelHandler(
         data_handler_receiver) {
   auto* profile = Profile::FromWebUI(web_ui());
   DCHECK(profile);
-
   panel_handler_ = std::make_unique<ShieldsPanelHandler>(
-      std::move(panel_receiver), this,
-      static_cast<BraveBrowserWindow*>(browser_->window()), profile);
+      std::move(panel_receiver), this, profile);
+  auto* browser = webui::GetBrowserWindowInterface(web_ui()->GetWebContents());
+  CHECK(browser);
   data_handler_ = std::make_unique<ShieldsPanelDataHandler>(
-      std::move(data_handler_receiver), this, browser_->tab_strip_model());
+      std::move(data_handler_receiver), this, browser->GetTabStripModel());
 }
 
 ShieldsPanelUIConfig::ShieldsPanelUIConfig()

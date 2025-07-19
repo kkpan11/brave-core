@@ -9,11 +9,14 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/fixed_flat_map.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/logging.h"
 #include "base/scoped_observation.h"
 #include "brave/components/brave_adaptive_captcha/brave_adaptive_captcha_service.h"
 #include "brave/components/brave_ads/core/browser/service/ads_service.h"
@@ -23,7 +26,6 @@
 #include "brave/components/brave_ads/core/public/prefs/pref_names.h"
 #include "brave/components/brave_ads/core/public/targeting/geographical/subdivision/supported_subdivisions.h"
 #include "brave/components/brave_ads/core/public/user_engagement/reactions/reactions_util.h"
-#include "brave/components/brave_news/common/pref_names.h"
 #include "brave/components/brave_rewards/content/rewards_p3a.h"
 #include "brave/components/brave_rewards/content/rewards_service.h"
 #include "brave/components/brave_rewards/content/rewards_service_observer.h"
@@ -31,9 +33,8 @@
 #include "brave/components/brave_rewards/core/pref_names.h"
 #include "brave/components/brave_rewards/core/rewards_util.h"
 #include "brave/components/constants/pref_names.h"
-#include "brave/components/l10n/common/country_code_util.h"
+#include "brave/components/l10n/common/locale_util.h"
 #include "brave/components/ntp_background_images/common/pref_names.h"
-#include "chrome/browser/browser_process.h"
 #include "components/grit/brave_components_strings.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
@@ -48,10 +49,6 @@ static constexpr auto kPluralStrings =
         {{"connectedAdsViewedText", IDS_REWARDS_CONNECTED_ADS_VIEWED_TEXT},
          {"unconnectedAdsViewedText",
           IDS_REWARDS_UNCONNECTED_ADS_VIEWED_TEXT}});
-
-PrefService* GetLocalState() {
-  return g_browser_process->local_state();
-}
 
 }  // namespace
 
@@ -79,9 +76,6 @@ class RewardsPageHandler::UpdateObserver
         brave_ads::prefs::kSubdivisionTargetingUserSelectedSubdivision,
         UpdateSource::kAds);
     AddPrefListener(brave_ads::prefs::kOptedInToSearchResultAds,
-                    UpdateSource::kAds);
-    AddPrefListener(brave_news::prefs::kBraveNewsOptedIn, UpdateSource::kAds);
-    AddPrefListener(brave_news::prefs::kNewTabPageShowToday,
                     UpdateSource::kAds);
     AddPrefListener(ntp_background_images::prefs::
                         kNewTabPageShowSponsoredImagesBackgroundImage,
@@ -407,9 +401,6 @@ void RewardsPageHandler::GetAdsSettings(GetAdsSettingsCallback callback) {
       prefs_->GetBoolean(brave_ads::prefs::kOptedInToNotificationAds);
   settings->search_ads_enabled =
       prefs_->GetBoolean(brave_ads::prefs::kOptedInToSearchResultAds);
-  settings->inline_content_ads_enabled =
-      prefs_->GetBoolean(brave_news::prefs::kBraveNewsOptedIn) &&
-      prefs_->GetBoolean(brave_news::prefs::kNewTabPageShowToday);
 
   settings->notification_ads_per_hour =
       ads_service_->GetMaximumNotificationAdsPerHour();
@@ -422,7 +413,7 @@ void RewardsPageHandler::GetAdsSettings(GetAdsSettingsCallback callback) {
       prefs_->GetBoolean(brave_ads::prefs::kShouldAllowSubdivisionTargeting);
 
   auto& subdivisions = brave_ads::GetSupportedSubdivisions();
-  auto iter = subdivisions.find(brave_l10n::GetCountryCode(GetLocalState()));
+  auto iter = subdivisions.find(brave_l10n::GetDefaultISOCountryCodeString());
   if (iter != subdivisions.cend()) {
     for (auto& [code, name] : iter->second) {
       auto entry = mojom::AdsSubdivision::New();
@@ -447,7 +438,6 @@ void RewardsPageHandler::GetAdsStatement(GetAdsStatementCallback callback) {
 
     statement->min_earnings_previous_month = info->min_earnings_previous_month;
     statement->next_payment_date = info->next_payment_date;
-    statement->ads_received_this_month = info->ads_received_this_month;
     statement->ad_type_summary_this_month = mojom::AdTypeSummary::New();
 
     auto& summary = statement->ad_type_summary_this_month;
@@ -457,7 +447,6 @@ void RewardsPageHandler::GetAdsStatement(GetAdsStatementCallback callback) {
 
     summary->notification_ads = ad_type_map[AdType::kNotificationAd];
     summary->new_tab_page_ads = ad_type_map[AdType::kNewTabPageAd];
-    summary->inline_content_ads = ad_type_map[AdType::kInlineContentAd];
     summary->search_result_ads = ad_type_map[AdType::kSearchResultAd];
 
     std::move(callback).Run(std::move(statement));

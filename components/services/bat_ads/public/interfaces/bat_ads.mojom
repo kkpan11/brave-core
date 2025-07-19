@@ -27,8 +27,6 @@ interface BatAdsClientNotifier {
 
   NotifyDidInitializeAds();
 
-  NotifyLocaleDidChange(string locale);
-
   NotifyPrefDidChange(string path);
 
   NotifyResourceComponentDidChange(string manifest_version, string id);
@@ -98,8 +96,6 @@ interface BatAdsClient {
       (mojo_base.mojom.File? file);
 
   ShowScheduledCaptcha(string payment_id, string captcha_id);
-
-  RecordP2AEvents(array<string> events);
 
   [Sync]
   FindProfilePref(string path) => (bool value);

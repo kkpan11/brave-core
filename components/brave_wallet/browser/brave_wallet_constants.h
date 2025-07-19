@@ -6,9 +6,12 @@
 #ifndef BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_BRAVE_WALLET_CONSTANTS_H_
 #define BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_BRAVE_WALLET_CONSTANTS_H_
 
+#include <array>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "base/containers/fixed_flat_map.h"
 #include "brave/components/brave_wallet/common/brave_wallet_types.h"
 #include "components/grit/brave_components_strings.h"
 #include "ui/base/webui/web_ui_util.h"
@@ -770,6 +773,7 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
      IDS_BRAVE_WALLET_ALLOW_ADD_NETWORK_EXPLORER},
     {"braveWalletAllowAddNetworkNetworkPanelTitle",
      IDS_BRAVE_WALLET_ALLOW_ADD_NETWORK_PANEL_TITLE},
+    {"braveWalletAddNetwork", IDS_BRAVE_WALLET_ADD_NETWORK},
     {"braveWalletConfirmTransactionTotal",
      IDS_BRAVE_WALLET_CONFIRM_TRANSACTION_TOTAL},
     {"braveWalletConfirmTransactionGasFee",
@@ -1249,6 +1253,12 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
      IDS_BRAVE_WALLET_TRANSACTION_INTENT_SEND},
     {"braveWalletTransactionIntentSwap",
      IDS_BRAVE_WALLET_TRANSACTION_INTENT_SWAP},
+    {"braveWalletCreatingAssociatedTokenAccount",
+     IDS_BRAVE_WALLET_CREATING_ASSOCIATED_TOKEN_ACCOUNT},
+    {"braveWalletFailedToCreateAssociatedTokenAccount",
+     IDS_BRAVE_WALLET_FAILED_TO_CREATE_ASSOCIATED_TOKEN_ACCOUNT},
+    {"braveWalletAssociatedTokenAccountCreated",
+     IDS_BRAVE_WALLET_ASSOCIATED_TOKEN_ACCOUNT_CREATED},
     {"braveWalletSignInWithBraveWallet",
      IDS_BRAVE_WALLET_SIGN_IN_WITH_BRAVE_WALLET},
     {"braveWalletSignInWithBraveWalletMessage",
@@ -1626,6 +1636,8 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"braveWalletSwitchToShieldedAccount",
      IDS_BRAVE_WALLET_SWITCH_TO_SHIELDED_ACCOUNT},
     {"braveWalletShieldAccount", IDS_BRAVE_WALLET_SHIELD_ACCOUNT},
+    {"braveWalletShieldAccountAlertDescription",
+     IDS_BRAVE_WALLET_SHIELD_ACCOUNT_ALERT_DESCRIPTION},
     {"braveWalletAccountNotShieldedDescription",
      IDS_BRAVE_WALLET_ACCOUNT_NOT_SHIELDED_DESCRIPTION},
     {"braveWalletAccountShieldedDescription",
@@ -1665,6 +1677,9 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"braveWalletReviewShield", IDS_BRAVE_WALLET_REVIEW_SHIELD},
     {"braveWalletShielding", IDS_BRAVE_WALLET_SHIELDING},
     {"braveWalletShieldZEC", IDS_BRAVE_WALLET_SHIELD_ZEC},
+    {"braveWalletShieldFunds", IDS_BRAVE_WALLET_SHIELD_FUNDS},
+    {"braveWalletShieldingFundsAlertDescription",
+     IDS_BRAVE_WALLET_SHIELDING_FUNDS_ALERT_DESCRIPTION},
     {"braveWalletPageNotFoundTitle", IDS_BRAVE_WALLET_PAGE_NOT_FOUND_TITLE},
     {"braveWalletPageNotFoundDescription",
      IDS_BRAVE_WALLET_PAGE_NOT_FOUND_DESCRIPTION},
@@ -1753,18 +1768,59 @@ inline constexpr char kMeldRpcEndpoint[] = "https://api-meld.wallet.brave.com";
 inline constexpr char kMeldRpcVersionHeader[] = "Meld-Version";
 inline constexpr char kMeldRpcVersion[] = "2023-05-26";
 
-const std::string GetSardineNetworkName(const std::string& chain_id);
-const base::flat_map<std::string, std::string>&
-GetEthBalanceScannerContractAddresses();
-const std::vector<std::string>& GetEthSupportedNftInterfaces();
-// Returns the URL for the Ratios service.
-const std::string GetAssetRatioBaseURL();
-const base::flat_map<std::string, std::string>& GetAnkrBlockchains();
+inline constexpr auto kEthBalanceScannerContractAddresses =
+    base::MakeFixedFlatMap<std::string_view, std::string_view>(
+        // Ref: https://github.com/brave/evm-scanner
+        {{mojom::kArbitrumMainnetChainId,
+          "0xfA542DD20c1997D6e8b24387D64CB8336197df3d"},
+         {mojom::kAvalancheMainnetChainId,
+          "0x827aa7e7C0C665df227Fae6dd155c0048fec6978"},
+         {mojom::kBaseMainnetChainId,
+          "0xF9164898C08f40DfB0999F94Bf9b9F73d66dfFeb"},
+         {mojom::kBnbSmartChainMainnetChainId,
+          "0x578E2574dDD2e609dDA7f6C8B2a90C540794B75e"},
+         {mojom::kMainnetChainId, "0x667e61DB0997B59681C15E07376185aE24f754Db"},
+         {mojom::kOptimismMainnetChainId,
+          "0x2D1AacdEcd43Be64d82c14E9a6072A29dc804cAe"},
+         {mojom::kPolygonMainnetChainId,
+          "0x0B7Dd2c628a6Ee40153D89ce68bdA82d4840CD34"}});
+
+// See https://api-docs.ankr.com/reference/post_ankr-getaccountbalance-1
+// for full list.
+inline constexpr auto kAnkrBlockchains =
+    base::MakeFixedFlatMap<std::string_view, std::string_view>(
+        {{mojom::kArbitrumMainnetChainId, "arbitrum"},
+         {mojom::kAvalancheMainnetChainId, "avalanche"},
+         {mojom::kBaseMainnetChainId, "base"},
+         {mojom::kBnbSmartChainMainnetChainId, "bsc"},
+         {mojom::kMainnetChainId, "eth"},
+         {mojom::kFantomMainnetChainId, "fantom"},
+         {mojom::kFlareMainnetChainId, "flare"},
+         {mojom::kGnosisChainId, "gnosis"},
+         {mojom::kOptimismMainnetChainId, "optimism"},
+         {mojom::kPolygonMainnetChainId, "polygon"},
+         {mojom::kPolygonZKEVMChainId, "polygon_zkevm"},
+         {mojom::kRolluxMainnetChainId, "rollux"},
+         {mojom::kSyscoinMainnetChainId, "syscoin"},
+         {mojom::kZkSyncEraChainId, "zksync_era"}});
+
+inline constexpr auto kEthSupportedNftInterfaces =
+    std::to_array<std::string_view>({
+        kERC721InterfaceId,
+        kERC1155InterfaceId,
+    });
+
 // https://docs.rs/solana-program/1.18.10/src/solana_program/clock.rs.html#129-131
 inline constexpr int kSolanaValidBlockHeightThreshold = 150;
 
-std::optional<std::string> GetZeroExAllowanceHolderAddress(
-    const std::string& chain_id);
+std::optional<std::string_view> GetSardineNetworkName(
+    std::string_view chain_id);
+
+// Returns the URL for the Ratios service.
+std::string GetAssetRatioBaseURL();
+
+std::optional<std::string_view> GetZeroExAllowanceHolderAddress(
+    std::string_view chain_id);
 
 }  // namespace brave_wallet
 

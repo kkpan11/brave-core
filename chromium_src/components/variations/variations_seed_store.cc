@@ -6,6 +6,7 @@
 #include "components/variations/variations_seed_store.h"
 
 #include "base/check_is_test.h"
+#include "base/check_op.h"
 #include "crypto/signature_verifier.h"
 
 namespace variations {
@@ -33,7 +34,7 @@ namespace variations {
 base::span<const uint8_t> PublicKeyWrapper::GetPublicKey(
     base::span<const uint8_t> public_key) {
   // Only kPublicKey should be passed here. This is a sanity check.
-  DCHECK_EQ(public_key, kPublicKey);
+  DCHECK(public_key == kPublicKey);
 
   // If we are in a Chromium test, return the original public key to let those
   // tests check everything they need.

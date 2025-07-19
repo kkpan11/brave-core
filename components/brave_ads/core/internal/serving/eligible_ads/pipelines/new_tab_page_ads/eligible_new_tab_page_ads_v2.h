@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "base/memory/weak_ptr.h"
+#include "base/values.h"
 #include "brave/components/brave_ads/core/internal/creatives/new_tab_page_ads/creative_new_tab_page_ad_info.h"
 #include "brave/components/brave_ads/core/internal/creatives/new_tab_page_ads/creative_new_tab_page_ads_database_table.h"
 #include "brave/components/brave_ads/core/internal/segments/segment_alias.h"
@@ -57,25 +58,36 @@ class EligibleNewTabPageAdsV2 final : public EligibleNewTabPageAdsBase {
                       const SiteHistoryList& site_history,
                       EligibleAdsCallback<CreativeNewTabPageAdList> callback);
   void GetEligibleAdsCallback(
-      const UserModelInfo& user_model,
+      UserModelInfo user_model,
       const AdEventList& ad_events,
       const SiteHistoryList& site_history,
       EligibleAdsCallback<CreativeNewTabPageAdList> callback,
       bool success,
       const SegmentList& segments,
-      const CreativeNewTabPageAdList& creative_ads);
+      CreativeNewTabPageAdList creative_ads);
 
-  void ApplyConditionMatcher(CreativeNewTabPageAdList& creative_ads);
+  void ApplyConditionMatcher(
+      CreativeNewTabPageAdList creative_ads,
+      EligibleAdsCallback<CreativeNewTabPageAdList> callback);
+  void ApplyConditionMatcherCallback(
+      CreativeNewTabPageAdList creative_ads,
+      EligibleAdsCallback<CreativeNewTabPageAdList> callback,
+      base::Value::Dict virtual_prefs);
+
 
   void FilterAndMaybePredictCreativeAd(
-      const UserModelInfo& user_model,
-      const CreativeNewTabPageAdList& creative_ads,
+      UserModelInfo user_model,
+      CreativeNewTabPageAdList creative_ads,
       const AdEventList& ad_events,
       const SiteHistoryList& site_history,
       EligibleAdsCallback<CreativeNewTabPageAdList> callback);
-  void FilterIneligibleCreativeAds(CreativeNewTabPageAdList& creative_ads,
-                                   const AdEventList& ad_events,
-                                   const SiteHistoryList& site_history);
+  void FilterAndMaybePredictCreativeAdCallback(
+      const UserModelInfo& user_model,
+      const AdEventList& ad_events,
+      const SiteHistoryList& site_history,
+      EligibleAdsCallback<CreativeNewTabPageAdList> callback,
+      uint64_t trace_id,
+      CreativeNewTabPageAdList creative_ads);
 
   const database::table::CreativeNewTabPageAds creative_ads_database_table_;
 

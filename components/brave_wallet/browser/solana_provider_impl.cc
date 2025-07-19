@@ -9,6 +9,8 @@
 #include <optional>
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/flat_map.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
@@ -26,7 +28,6 @@
 #include "brave/components/brave_wallet/common/brave_wallet_constants.h"
 #include "brave/components/brave_wallet/common/encoding_utils.h"
 #include "brave/components/brave_wallet/common/solana_utils.h"
-#include "brave/components/brave_wallet/common/web3_provider_constants.h"
 #include "components/grit/brave_components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -41,6 +42,13 @@ constexpr char kMessage[] = "message";
 constexpr char kPublicKey[] = "publicKey";
 constexpr char kSignature[] = "signature";
 constexpr char kOptions[] = "options";
+
+constexpr char kSolanaConnect[] = "connect";
+constexpr char kSolanaDisconnect[] = "disconnect";
+constexpr char kSolanaSignMessage[] = "signMessage";
+constexpr char kSolanaSignTransaction[] = "signTransaction";
+constexpr char kSolanaSignAndSendTransaction[] = "signAndSendTransaction";
+constexpr char kSolanaSignAllTransactions[] = "signAllTransactions";
 
 }  // namespace
 
@@ -84,6 +92,14 @@ void SolanaProviderImpl::Connect(std::optional<base::Value::Dict> arg,
   }
   auto account = keyring_service_->GetSelectedSolanaDappAccount();
   if (!account) {
+    if (!keyring_service_->IsWalletCreatedSync()) {
+      delegate_->ShowWalletOnboarding();
+      std::move(callback).Run(
+          mojom::SolanaProviderError::kInternalError,
+          l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR), "");
+      return;
+    }
+
     // Prompt users to create a Solana account. If wallet is not setup, users
     // will be lead to onboarding first.
     if (!account_creation_shown_) {
@@ -130,23 +146,24 @@ void SolanaProviderImpl::Connect(std::optional<base::Value::Dict> arg,
         l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST), "");
   } else {
     std::vector<mojom::AccountInfoPtr> sol_accounts;
-    std::vector<std::string> addresses;
+    std::vector<std::string> identifiers;
     for (const auto& account_info : keyring_service_->GetAllAccountInfos()) {
       if (account_info->account_id->coin == mojom::CoinType::SOL) {
         sol_accounts.push_back(account_info.Clone());
-        addresses.push_back(account_info->address);
+        identifiers.push_back(
+            GetAccountPermissionIdentifier(account_info->account_id));
       }
     }
     // filter out already permitted accounts if exists
     const auto allowed_accounts =
-        delegate_->GetAllowedAccounts(mojom::CoinType::SOL, addresses);
+        delegate_->GetAllowedAccounts(mojom::CoinType::SOL, identifiers);
     if (allowed_accounts) {
-      std::erase_if(addresses, [&allowed_accounts](const auto& address) {
-        return base::Contains(*allowed_accounts, address);
+      std::erase_if(identifiers, [&allowed_accounts](const auto& identifier) {
+        return base::Contains(*allowed_accounts, identifier);
       });
     }
     delegate_->RequestPermissions(
-        mojom::CoinType::SOL, addresses,
+        mojom::CoinType::SOL, identifiers,
         base::BindOnce(&SolanaProviderImpl::OnConnect,
                        weak_factory_.GetWeakPtr(), std::move(sol_accounts),
                        std::move(callback)));
@@ -665,17 +682,17 @@ void SolanaProviderImpl::Request(base::Value::Dict arg,
   base::Value::Dict* params = arg.FindDict("params");
 
   // params is optional for connect and disconnect doesn't need it
-  if (!params && (*method == solana::kSignTransaction ||
-                  *method == solana::kSignAndSendTransaction ||
-                  *method == solana::kSignAllTransactions ||
-                  *method == solana::kSignMessage)) {
+  if (!params && (*method == kSolanaSignTransaction ||
+                  *method == kSolanaSignAndSendTransaction ||
+                  *method == kSolanaSignAllTransactions ||
+                  *method == kSolanaSignMessage)) {
     std::move(callback).Run(mojom::SolanaProviderError::kParsingError,
                             l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR),
                             base::Value::Dict());
     return;
   }
 
-  if (*method == solana::kConnect) {
+  if (*method == kSolanaConnect) {
     std::optional<base::Value::Dict> option = std::nullopt;
     if (params) {
       option = std::move(*params);
@@ -683,11 +700,11 @@ void SolanaProviderImpl::Request(base::Value::Dict arg,
     Connect(std::move(option),
             base::BindOnce(&SolanaProviderImpl::OnRequestConnect,
                            weak_factory_.GetWeakPtr(), std::move(callback)));
-  } else if (*method == solana::kDisconnect) {
+  } else if (*method == kSolanaDisconnect) {
     Disconnect();
     std::move(callback).Run(mojom::SolanaProviderError::kSuccess, "",
                             base::Value::Dict());
-  } else if (*method == solana::kSignTransaction) {
+  } else if (*method == kSolanaSignTransaction) {
     const std::string* message = params->FindString(kMessage);
     if (!message) {
       std::move(callback).Run(
@@ -701,7 +718,7 @@ void SolanaProviderImpl::Request(base::Value::Dict arg,
             *message, std::vector<mojom::SignaturePubkeyPairPtr>()),
         base::BindOnce(&SolanaProviderImpl::OnRequestSignTransaction,
                        weak_factory_.GetWeakPtr(), std::move(callback)));
-  } else if (*method == solana::kSignAndSendTransaction) {
+  } else if (*method == kSolanaSignAndSendTransaction) {
     const std::string* message = params->FindString(kMessage);
     if (!message) {
       std::move(callback).Run(
@@ -719,7 +736,7 @@ void SolanaProviderImpl::Request(base::Value::Dict arg,
         mojom::SolanaSignTransactionParam::New(
             *message, std::vector<mojom::SignaturePubkeyPairPtr>()),
         std::move(options), std::move(callback));
-  } else if (*method == solana::kSignAllTransactions) {
+  } else if (*method == kSolanaSignAllTransactions) {
     const base::Value::List* messages = params->FindList(kMessage);
     if (!messages) {
       std::move(callback).Run(
@@ -742,7 +759,7 @@ void SolanaProviderImpl::Request(base::Value::Dict arg,
         std::move(sign_params),
         base::BindOnce(&SolanaProviderImpl::OnRequestSignAllTransactions,
                        weak_factory_.GetWeakPtr(), std::move(callback)));
-  } else if (*method == solana::kSignMessage) {
+  } else if (*method == kSolanaSignMessage) {
     const auto* message = params->FindBlob(kMessage);
     if (!message) {
       std::move(callback).Run(

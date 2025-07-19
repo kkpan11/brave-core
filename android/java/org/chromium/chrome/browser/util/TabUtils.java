@@ -108,7 +108,7 @@ public class TabUtils {
             tintIcon(addMenuItem.getIcon(), tintColor);
             tintIcon(editMenuItem.getIcon(), tintColor);
             tintIcon(viewMenuItem.getIcon(), tintColor);
-            tintIcon(addMenuItem.getIcon(), tintColor);
+            tintIcon(deleteMenuItem.getIcon(), tintColor);
         }
 
         if (editingAllowed) {
@@ -157,7 +157,7 @@ public class TabUtils {
                                     });
                             return true;
                         } else if (id == R.id.view_bookmarks) {
-                            activity.showBookmarkManager(currentTab.getProfile());
+                            activity.showBookmarkManager(currentTab.getProfile(), currentTab);
                             return true;
                         }
                         return false;

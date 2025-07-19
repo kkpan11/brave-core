@@ -5,6 +5,8 @@
 
 #include "components/component_updater/component_installer.h"
 
+#include "base/check.h"
+#include "base/logging.h"
 #include "build/build_config.h"
 
 #define Register Register_ChromiumImpl
@@ -44,6 +46,8 @@ void ComponentInstaller::Register(
           "gonpemdgkjcecdgbnaabipppbmgfggbe",  // First Party Sets
           "dhlpobdgcjafebgbbhjdnapejmpkgiie",  // Desktop Sharing Hub
           "ldfkbgjbencjpgjfleiooeldhjdapggh",  // Probabilistic Reveal Tokens
+          "hajigopbbjhghbfimgkfmpenfkclmohk",  // Amount Extraction Heuristic
+                                               // Regexes
 #if BUILDFLAG(IS_ANDROID)
           "lmelglejhemejginpboagddgdfbepgmp",  // Optimization Hints
           "obedbbhbpmojnkanicioggnmelmoomoc"   // OnDeviceHeadSuggest

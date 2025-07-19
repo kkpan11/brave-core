@@ -26,6 +26,9 @@ import { createMockStore } from '../../utils/test-utils'
 import { WalletApiDataOverrides } from '../../constants/testing_types'
 import '../locale'
 
+// Styles
+import { PanelWrapper } from './wallet_story_wrapper.style'
+
 export interface WalletPanelStoryProps {
   walletStateOverride?: Partial<WalletState>
   panelStateOverride?: Partial<PanelState>
@@ -40,7 +43,7 @@ export const WalletPanelStory: React.FC<
   panelStateOverride,
   walletStateOverride,
   uiStateOverride,
-  walletApiDataOverrides
+  walletApiDataOverrides,
 }) => {
   // redux
   const store = React.useMemo(() => {
@@ -48,15 +51,15 @@ export const WalletPanelStory: React.FC<
       {
         walletStateOverride,
         panelStateOverride,
-        uiStateOverride: uiStateOverride
+        uiStateOverride: uiStateOverride,
       },
-      walletApiDataOverrides
+      walletApiDataOverrides,
     )
   }, [
     walletStateOverride,
     panelStateOverride,
     walletApiDataOverrides,
-    uiStateOverride
+    uiStateOverride,
   ])
 
   React.useEffect(() => {
@@ -65,22 +68,18 @@ export const WalletPanelStory: React.FC<
 
   // render
   return (
-    <MemoryRouter initialEntries={['/']}>
-      <Provider store={store}>{children}</Provider>
-    </MemoryRouter>
+    <LightDarkThemeProvider
+      initialThemeType={'Light'}
+      dark={walletDarkTheme}
+      light={walletLightTheme}
+    >
+      <MemoryRouter initialEntries={['/']}>
+        <Provider store={store}>
+          <PanelWrapper>{children}</PanelWrapper>
+        </Provider>
+      </MemoryRouter>
+    </LightDarkThemeProvider>
   )
 }
-
-export const WalletPanelTestWrapper = (
-  props: React.PropsWithChildren<WalletPanelStoryProps>
-) => (
-  <LightDarkThemeProvider
-    initialThemeType={'Light'}
-    dark={walletDarkTheme}
-    light={walletLightTheme}
-  >
-    <WalletPanelStory {...props} />
-  </LightDarkThemeProvider>
-)
 
 export default WalletPanelStory

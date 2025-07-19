@@ -7,7 +7,9 @@
 
 #include <utility>
 
+#include "base/check.h"
 #include "base/command_line.h"
+#include "base/strings/string_util.h"
 #include "brave/browser/brave_wallet/asset_ratio_service_factory.h"
 #include "brave/browser/brave_wallet/brave_wallet_ipfs_service_factory.h"
 #include "brave/browser/brave_wallet/brave_wallet_provider_delegate_impl_helper.h"

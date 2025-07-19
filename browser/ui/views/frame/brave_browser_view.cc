@@ -10,18 +10,16 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/task/sequenced_task_runner.h"
-#include "brave/browser/brave_rewards/rewards_service_factory.h"
 #include "brave/browser/sparkle_buildflags.h"
 #include "brave/browser/translate/brave_translate_utils.h"
 #include "brave/browser/ui/brave_browser.h"
-#include "brave/browser/ui/brave_rewards/rewards_panel_coordinator.h"
 #include "brave/browser/ui/color/brave_color_id.h"
 #include "brave/browser/ui/commands/accelerator_service.h"
 #include "brave/browser/ui/commands/accelerator_service_factory.h"
@@ -33,11 +31,11 @@
 #include "brave/browser/ui/views/brave_actions/brave_actions_container.h"
 #include "brave/browser/ui/views/brave_actions/brave_shields_action_view.h"
 #include "brave/browser/ui/views/brave_help_bubble/brave_help_bubble_host_view.h"
-#include "brave/browser/ui/views/brave_shields/cookie_list_opt_in_bubble_host.h"
 #include "brave/browser/ui/views/frame/brave_contents_layout_manager.h"
 #include "brave/browser/ui/views/frame/brave_contents_view_util.h"
-#include "brave/browser/ui/views/frame/vertical_tab_strip_region_view.h"
-#include "brave/browser/ui/views/frame/vertical_tab_strip_widget_delegate_view.h"
+#include "brave/browser/ui/views/frame/split_view/brave_multi_contents_view.h"
+#include "brave/browser/ui/views/frame/vertical_tabs/vertical_tab_strip_region_view.h"
+#include "brave/browser/ui/views/frame/vertical_tabs/vertical_tab_strip_widget_delegate_view.h"
 #include "brave/browser/ui/views/location_bar/brave_location_bar_view.h"
 #include "brave/browser/ui/views/omnibox/brave_omnibox_view_views.h"
 #include "brave/browser/ui/views/sidebar/sidebar_container_view.h"
@@ -74,6 +72,9 @@
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
 #include "chrome/common/pref_names.h"
+#include "components/javascript_dialogs/tab_modal_dialog_manager.h"
+#include "components/permissions/permission_request_manager.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/buildflags/buildflags.h"
@@ -263,15 +264,6 @@ BraveBrowserView::BraveBrowserView(std::unique_ptr<Browser> browser)
   // Show the correct value in settings on initial start
   UpdateSearchTabsButtonState();
 
-  auto* rewards_service =
-      brave_rewards::RewardsServiceFactory::GetForProfile(browser_->profile());
-  if (rewards_service) {
-    brave_rewards::RewardsPanelCoordinator::CreateForBrowser(browser_.get());
-  }
-
-  brave_shields::CookieListOptInBubbleHost::MaybeCreateForBrowser(
-      browser_.get());
-
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
   pref_change_registrar_.Add(
       brave_vpn::prefs::kBraveVPNShowButton,
@@ -364,23 +356,21 @@ void BraveBrowserView::UpdateSideBarHorizontalAlignment() {
 }
 
 void BraveBrowserView::UpdateSearchTabsButtonState() {
-  if (auto* tab_search_button = tab_strip_region_view_->GetTabSearchButton()) {
-    auto is_tab_search_visible =
-        GetProfile()->GetPrefs()->GetBoolean(kTabsSearchShow);
-    tab_search_button->SetVisible(is_tab_search_visible);
+  const bool is_vertical_tabs = tabs::utils::ShouldShowVerticalTabs(browser());
+  const bool use_search_button =
+      browser()->profile()->GetPrefs()->GetBoolean(kTabsSearchShow);
+  if (features::HasTabSearchToolbarButton()) {
+    if (auto* tab_search_button = toolbar()->tab_search_button()) {
+      tab_search_button->SetVisible(!is_vertical_tabs && use_search_button);
+    }
+  } else if (auto* tab_search_button =
+                 tab_strip_region_view_->GetTabSearchButton()) {
+    tab_search_button->SetVisible(!is_vertical_tabs && use_search_button);
   }
 }
 
 BraveBrowserView::~BraveBrowserView() {
   tab_cycling_event_handler_.reset();
-  // Removes the bubble from the browser, as it uses the `ToolbarView` as an
-  // archor, and that leaves a dangling reference once the `TopContainerView` is
-  // destroyed before all `SupportsUserData` is cleared.
-  if (brave_shields::CookieListOptInBubbleHost::FromBrowser(browser_.get())) {
-    brave_shields::CookieListOptInBubbleHost::RemoveFromBrowser(browser_.get());
-  }
-
-  DCHECK(!tab_cycling_event_handler_);
 }
 
 sidebar::Sidebar* BraveBrowserView::InitSidebar() {
@@ -804,16 +794,33 @@ void BraveBrowserView::GetAccessiblePanes(std::vector<views::View*>* panes) {
   }
 }
 
-void BraveBrowserView::ShowSplitView() {
-  BrowserView::ShowSplitView();
+void BraveBrowserView::ShowSplitView(bool focus_active_view) {
+  BrowserView::ShowSplitView(focus_active_view);
 
   UpdateContentsSeparatorVisibility();
+  GetBraveMultiContentsView()->UpdateSecondaryLocationBar();
 }
 
 void BraveBrowserView::HideSplitView() {
   BrowserView::HideSplitView();
 
   UpdateContentsSeparatorVisibility();
+}
+
+void BraveBrowserView::UpdateActiveTabInSplitView() {
+  BrowserView::UpdateActiveTabInSplitView();
+  GetBraveMultiContentsView()->UpdateSecondaryLocationBar();
+}
+
+void BraveBrowserView::UpdateContentsInSplitView(
+    const std::vector<std::pair<tabs::TabInterface*, int>>& prev_tabs,
+    const std::vector<std::pair<tabs::TabInterface*, int>>& new_tabs) {
+  BrowserView::UpdateContentsInSplitView(prev_tabs, new_tabs);
+  GetBraveMultiContentsView()->UpdateSecondaryLocationBar();
+}
+
+BraveMultiContentsView* BraveBrowserView::GetBraveMultiContentsView() const {
+  return BraveMultiContentsView::From(multi_contents_view_);
 }
 
 bool BraveBrowserView::ShouldShowWindowTitle() const {
@@ -835,16 +842,6 @@ void BraveBrowserView::OnThemeChanged() {
     vertical_tab_strip_host_view_->SetBackground(
         views::CreateSolidBackground(background_color));
   }
-}
-
-TabSearchBubbleHost* BraveBrowserView::GetTabSearchBubbleHost() {
-  if (!tabs::utils::ShouldShowVerticalTabs(browser())) {
-    return BrowserView::GetTabSearchBubbleHost();
-  }
-
-  return vertical_tab_strip_widget_delegate_view_
-      ->vertical_tab_strip_region_view()
-      ->GetTabSearchBubbleHost();
 }
 
 void BraveBrowserView::OnActiveTabChanged(content::WebContents* old_contents,
@@ -870,6 +867,46 @@ void BraveBrowserView::OnActiveTabChanged(content::WebContents* old_contents,
 #if BUILDFLAG(ENABLE_SPEEDREADER)
   UpdateReaderModeToolbar();
 #endif
+
+  // Some managers need to consider tab's active state with web content's
+  // visibility.
+  if (old_contents) {
+    auto* permission_manager =
+        permissions::PermissionRequestManager::FromWebContents(old_contents);
+    CHECK(permission_manager);
+    permission_manager->OnTabActiveStateChanged(false);
+
+    // web/tab modal dialog manger can get tab activation state fromm their
+    // delegates.
+    auto* web_modal_dialog_manager =
+        web_modal::WebContentsModalDialogManager::FromWebContents(old_contents);
+    CHECK(web_modal_dialog_manager);
+    web_modal_dialog_manager->OnTabActiveStateChanged();
+
+    auto* tab_modal_dialog_manager =
+        javascript_dialogs::TabModalDialogManager::FromWebContents(
+            old_contents);
+    CHECK(tab_modal_dialog_manager);
+    tab_modal_dialog_manager->OnTabActiveStateChanged();
+  }
+
+  if (new_contents) {
+    auto* permission_manager =
+        permissions::PermissionRequestManager::FromWebContents(new_contents);
+    CHECK(permission_manager);
+    permission_manager->OnTabActiveStateChanged(true);
+
+    auto* web_modal_dialog_manager =
+        web_modal::WebContentsModalDialogManager::FromWebContents(new_contents);
+    CHECK(web_modal_dialog_manager);
+    web_modal_dialog_manager->OnTabActiveStateChanged();
+
+    auto* tab_modal_dialog_manager =
+        javascript_dialogs::TabModalDialogManager::FromWebContents(
+            new_contents);
+    CHECK(tab_modal_dialog_manager);
+    tab_modal_dialog_manager->OnTabActiveStateChanged();
+  }
 }
 
 void BraveBrowserView::UpdateContentsSeparatorVisibility() {

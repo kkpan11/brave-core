@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/containers/span.h"
 #include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
@@ -45,6 +46,7 @@ class NftMetadataFetcher;
 class NetworkManager;
 struct PendingAddChainRequest;
 struct PendingSwitchChainRequest;
+struct JsonRpcRequest;
 
 template <typename T>
 struct SolanaRPCResponse;
@@ -105,13 +107,10 @@ class JsonRpcService : public mojom::JsonRpcService {
                      GetFeeHistoryCallback callback);
 
   void Request(const std::string& chain_id,
-               const std::string& json_payload,
-               bool auto_retry_on_network_change,
-               base::Value id,
-               mojom::CoinType coin,
-               RequestCallback callback) override;
+               JsonRpcRequest request,
+               mojom::EthereumProvider::RequestCallback callback);
 
-  void OnRequestResult(RequestCallback callback,
+  void OnRequestResult(mojom::EthereumProvider::RequestCallback callback,
                        base::Value id,
                        APIRequestResult api_request_result);
 
@@ -130,7 +129,7 @@ class JsonRpcService : public mojom::JsonRpcService {
   void GetFilBlockHeight(const std::string& chain_id,
                          GetFilBlockHeightCallback callback);
   using GetFilStateSearchMsgLimitedCallback =
-      base::OnceCallback<void(int64_t code,
+      base::OnceCallback<void(std::optional<int64_t> code,
                               mojom::FilecoinProviderError error,
                               const std::string& error_message)>;
   void GetFilStateSearchMsgLimited(
@@ -389,7 +388,7 @@ class JsonRpcService : public mojom::JsonRpcService {
                               const std::string& error_message)>;
 
   void GetSupportsInterface(const std::string& contract_address,
-                            const std::string& interface_id,
+                            std::string_view interface_id,
                             const std::string& chain_id,
                             GetSupportsInterfaceCallback callback);
 
@@ -399,13 +398,13 @@ class JsonRpcService : public mojom::JsonRpcService {
                               const std::string& error_message)>;
   void GetEthNftStandard(const std::string& contract_address,
                          const std::string& chain_id,
-                         const std::vector<std::string>& interfaces,
+                         base::span<const std::string_view> interfaces,
                          GetEthNftStandardCallback callback,
                          size_t index = 0);
 
   void OnGetEthNftStandard(const std::string& contract_address,
                            const std::string& chain_id,
-                           const std::vector<std::string>& interfaces,
+                           base::span<const std::string_view> interfaces,
                            size_t index,
                            GetEthNftStandardCallback callback,
                            bool is_supported,
@@ -436,10 +435,11 @@ class JsonRpcService : public mojom::JsonRpcService {
       base::OnceCallback<void(mojom::ProviderError error,
                               const std::string& error_message)>;
   // return false when there is an error before processing request
-  bool AddSwitchEthereumChainRequest(const std::string& chain_id,
-                                     const url::Origin& origin,
-                                     RequestCallback callback,
-                                     base::Value id);
+  bool AddSwitchEthereumChainRequest(
+      const std::string& chain_id,
+      const url::Origin& origin,
+      mojom::EthereumProvider::RequestCallback callback,
+      base::Value id);
 
   void SetAPIRequestHelperForTesting(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);

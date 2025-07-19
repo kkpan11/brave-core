@@ -15,6 +15,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
@@ -51,10 +52,10 @@
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/country_codes/country_codes.h"
 #include "components/grit/brave_components_strings.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/regional_capabilities/regional_capabilities_prefs.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_task_environment.h"
@@ -219,6 +220,10 @@ class TestBraveWalletServiceObserver
     default_solana_wallet_ = wallet;
     default_solana_wallet_changed_fired_ = true;
   }
+  void OnDefaultCardanoWalletChanged(mojom::DefaultWallet wallet) override {
+    default_cardano_wallet_ = wallet;
+    default_cardano_wallet_changed_fired_ = true;
+  }
   void OnDefaultBaseCurrencyChanged(const std::string& currency) override {
     currency_ = currency;
     default_base_currency_changed_fired_ = true;
@@ -240,11 +245,17 @@ class TestBraveWalletServiceObserver
   mojom::DefaultWallet GetDefaultSolanaWallet() {
     return default_solana_wallet_;
   }
+  mojom::DefaultWallet GetDefaultCardanoWallet() {
+    return default_cardano_wallet_;
+  }
   bool DefaultEthereumWalletChangedFired() {
     return default_ethereum_wallet_changed_fired_;
   }
   bool DefaultSolanaWalletChangedFired() {
     return default_solana_wallet_changed_fired_;
+  }
+  bool DefaultCardanoWalletChangedFired() {
+    return default_cardano_wallet_changed_fired_;
   }
   std::string GetDefaultBaseCurrency() { return currency_; }
   std::string GetDefaultBaseCryptocurrency() { return cryptocurrency_; }
@@ -264,6 +275,7 @@ class TestBraveWalletServiceObserver
   void Reset() {
     default_ethereum_wallet_changed_fired_ = false;
     default_solana_wallet_changed_fired_ = false;
+    default_cardano_wallet_changed_fired_ = false;
     default_base_currency_changed_fired_ = false;
     default_base_cryptocurrency_changed_fired_ = false;
     network_list_changed_fired_ = false;
@@ -274,8 +286,11 @@ class TestBraveWalletServiceObserver
       mojom::DefaultWallet::BraveWalletPreferExtension;
   mojom::DefaultWallet default_solana_wallet_ =
       mojom::DefaultWallet::BraveWalletPreferExtension;
+  mojom::DefaultWallet default_cardano_wallet_ =
+      mojom::DefaultWallet::BraveWallet;
   bool default_ethereum_wallet_changed_fired_ = false;
   bool default_solana_wallet_changed_fired_ = false;
+  bool default_cardano_wallet_changed_fired_ = false;
   bool default_base_currency_changed_fired_ = false;
   bool default_base_cryptocurrency_changed_fired_ = false;
   bool network_list_changed_fired_ = false;
@@ -295,8 +310,6 @@ class BraveWalletServiceUnitTest : public testing::Test {
 
  protected:
   void SetUp() override {
-    TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
-
     scoped_feature_list_.InitAndEnableFeature(
         features::kBraveWalletBitcoinFeature);
 
@@ -600,6 +613,20 @@ class BraveWalletServiceUnitTest : public testing::Test {
     observer_->Reset();
   }
 
+  void SetDefaultCardanoWallet(mojom::DefaultWallet default_wallet) {
+    auto old_default_wallet = observer_->GetDefaultCardanoWallet();
+    EXPECT_FALSE(observer_->DefaultCardanoWalletChangedFired());
+    service_->SetDefaultCardanoWallet(default_wallet);
+    task_environment_.RunUntilIdle();
+    if (old_default_wallet != default_wallet) {
+      EXPECT_TRUE(observer_->DefaultCardanoWalletChangedFired());
+    } else {
+      EXPECT_FALSE(observer_->DefaultCardanoWalletChangedFired());
+    }
+    EXPECT_EQ(default_wallet, observer_->GetDefaultCardanoWallet());
+    observer_->Reset();
+  }
+
   void SetDefaultBaseCurrency(const std::string& currency) {
     auto old_currency = observer_->GetDefaultBaseCurrency();
     EXPECT_FALSE(observer_->DefaultBaseCurrencyChangedFired());
@@ -644,6 +671,18 @@ class BraveWalletServiceUnitTest : public testing::Test {
     base::RunLoop run_loop;
     mojom::DefaultWallet default_wallet;
     service_->GetDefaultSolanaWallet(
+        base::BindLambdaForTesting([&](mojom::DefaultWallet v) {
+          default_wallet = v;
+          run_loop.Quit();
+        }));
+    run_loop.Run();
+    return default_wallet;
+  }
+
+  mojom::DefaultWallet GetDefaultCardanoWallet() {
+    base::RunLoop run_loop;
+    mojom::DefaultWallet default_wallet;
+    service_->GetDefaultCardanoWallet(
         base::BindLambdaForTesting([&](mojom::DefaultWallet v) {
           default_wallet = v;
           run_loop.Quit();
@@ -753,16 +792,15 @@ class BraveWalletServiceUnitTest : public testing::Test {
     service_->AddSuggestTokenRequest(
         request.Clone(),
         base::BindLambdaForTesting(
-            [&](base::Value id, base::Value formed_response, const bool reject,
-                const std::string& first_allowed_account,
-                const bool update_bind_js_properties) {
+            [&](mojom::EthereumProviderResponsePtr response) {
               bool user_approved = false;
-              if (formed_response.type() == base::Value::Type::BOOLEAN) {
-                user_approved = formed_response.GetBool();
+              if (response->formed_response.type() ==
+                  base::Value::Type::BOOLEAN) {
+                user_approved = response->formed_response.GetBool();
               }
               mojom::ProviderError error;
               std::string error_message;
-              GetErrorCodeMessage(std::move(formed_response), &error,
+              GetErrorCodeMessage(std::move(response->formed_response), &error,
                                   &error_message);
               if (run_switch_network) {
                 EXPECT_FALSE(user_approved);
@@ -1515,6 +1553,17 @@ TEST_F(BraveWalletServiceUnitTest, GetAndSetDefaultSolanaWallet) {
             mojom::DefaultWallet::BraveWalletPreferExtension);
 }
 
+TEST_F(BraveWalletServiceUnitTest, GetAndSetDefaultCardanoWallet) {
+  SetDefaultCardanoWallet(mojom::DefaultWallet::BraveWallet);
+  EXPECT_EQ(GetDefaultCardanoWallet(), mojom::DefaultWallet::BraveWallet);
+
+  SetDefaultCardanoWallet(mojom::DefaultWallet::None);
+  EXPECT_EQ(GetDefaultCardanoWallet(), mojom::DefaultWallet::None);
+
+  SetDefaultCardanoWallet(mojom::DefaultWallet::BraveWallet);
+  EXPECT_EQ(GetDefaultCardanoWallet(), mojom::DefaultWallet::BraveWallet);
+}
+
 TEST_F(BraveWalletServiceUnitTest, GetAndSetDefaultBaseCurrency) {
   SetDefaultBaseCurrency("CAD");
   EXPECT_EQ(GetDefaultBaseCurrency(), "CAD");
@@ -1993,13 +2042,13 @@ TEST_F(BraveWalletServiceUnitTest, MigrateEip1559ForCustomNetworks) {
               "0xe708": true
             })"));
 
-  EXPECT_FALSE(*network_manager_->IsEip1559Chain("0x4e454152"));
-  EXPECT_TRUE(*network_manager_->IsEip1559Chain("0x1"));
-  EXPECT_TRUE(*network_manager_->IsEip1559Chain("0xe708"));
-  EXPECT_FALSE(*network_manager_->IsEip1559Chain(mojom::kLocalhostChainId));
+  EXPECT_FALSE(network_manager_->IsEip1559Chain("0x4e454152"));
+  EXPECT_TRUE(network_manager_->IsEip1559Chain("0x1"));
+  EXPECT_TRUE(network_manager_->IsEip1559Chain("0xe708"));
+  EXPECT_FALSE(network_manager_->IsEip1559Chain(mojom::kLocalhostChainId));
 
   // solana does not get into this list.
-  EXPECT_FALSE(network_manager_->IsEip1559Chain("0x66").has_value());
+  EXPECT_FALSE(network_manager_->IsEip1559Chain("0x66"));
 
   EXPECT_TRUE(
       GetPrefs()->GetBoolean(kBraveWalletEip1559ForCustomNetworksMigrated));
@@ -3247,21 +3296,6 @@ TEST_F(BraveWalletServiceUnitTest, MaybeMigrateSPLNfts) {
 
   // Migration should be marked as done.
   EXPECT_TRUE(GetPrefs()->GetBoolean(kBraveWalletIsSPLTokenProgramMigrated));
-}
-
-TEST_F(BraveWalletServiceUnitTest, GetCountryCode) {
-  const struct {
-    const int country_code;
-    const std::string expected_country;
-  } kCountryCodeCases[] = {{21843, "US"}, {17217, "CA"}, {16725, "AU"}};
-
-  for (const auto& [country_code, expected_country] : kCountryCodeCases) {
-    GetPrefs()->SetInteger(country_codes::kCountryIDAtInstall, country_code);
-    service_->GetCountryCode(base::BindLambdaForTesting(
-        [&expected_country](const std::string& cc) -> void {
-          EXPECT_EQ(expected_country, cc);
-        }));
-  }
 }
 
 TEST_F(BraveWalletServiceUnitTest, HasPermissionSync) {

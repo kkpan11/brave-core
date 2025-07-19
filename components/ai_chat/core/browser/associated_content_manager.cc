@@ -14,7 +14,9 @@
 
 #include "base/barrier_callback.h"
 #include "base/barrier_closure.h"
+#include "base/check.h"
 #include "base/functional/callback_forward.h"
+#include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "brave/components/ai_chat/core/browser/associated_archive_content.h"
@@ -70,20 +72,16 @@ void AssociatedContentManager::LoadArchivedContent(
     AddContent(archive_content_.back().get(), /*notify_updated=*/false);
   }
 
-  // If we restored content from an archive then it was used in the conversation
-  // so we should send it.
-  should_send_ = should_send_ || !archive->associated_content.empty();
   conversation_->OnAssociatedContentUpdated();
 }
 
-void AssociatedContentManager::SetArchiveContent(int content_id,
+void AssociatedContentManager::SetArchiveContent(std::string content_uuid,
                                                  std::string text_content,
                                                  bool is_video) {
   DVLOG(1) << __func__;
 
-  auto it =
-      std::ranges::find(content_delegates_, content_id,
-                        [](const auto& ptr) { return ptr->GetContentId(); });
+  auto it = std::ranges::find(content_delegates_, content_uuid,
+                              [](const auto& ptr) { return ptr->uuid(); });
   CHECK(it != content_delegates_.end()) << "Couldn't find |content_id|";
 
   auto* delegate = *it;
@@ -125,12 +123,6 @@ void AssociatedContentManager::AddContent(AssociatedContentDelegate* delegate,
     content_observations_.AddObservation(delegate);
   }
 
-  // If we're adding content, we probably want to send it, otherwise, set
-  // |should_send_| to the default value.
-  should_send_ =
-      !detach_existing_content ||
-      (features::IsPageContextEnabledInitially() && HasAssociatedContent());
-
   if (notify_updated) {
     conversation_->OnAssociatedContentUpdated();
   }
@@ -158,12 +150,33 @@ void AssociatedContentManager::RemoveContent(
     archive_content_.erase(archive_it);
   }
 
-  // If we're modifying the associated content, we probably want to send it.
-  should_send_ = !content_delegates_.empty();
-
   if (notify_updated) {
     conversation_->OnAssociatedContentUpdated();
   }
+}
+
+void AssociatedContentManager::RemoveContent(std::string_view content_uuid,
+                                             bool notify_updated) {
+  DVLOG(1) << __func__;
+
+  auto it = std::ranges::find_if(content_delegates_,
+                                 [&content_uuid](const auto& delegate) {
+                                   return delegate->uuid() == content_uuid;
+                                 });
+  if (it != content_delegates_.end()) {
+    RemoveContent(*it, notify_updated);
+  }
+}
+
+void AssociatedContentManager::ClearContent() {
+  DVLOG(1) << __func__;
+  if (!HasAssociatedContent()) {
+    return;
+  }
+
+  DetachContent();
+
+  conversation_->OnAssociatedContentUpdated();
 }
 
 std::vector<mojom::AssociatedContentPtr>
@@ -368,17 +381,10 @@ bool AssociatedContentManager::IsVideo() const {
          content_delegates_[0]->GetCachedIsVideo();
 }
 
-void AssociatedContentManager::SetShouldSend(bool value) {
-  DVLOG(1) << __func__ << " " << value;
-
-  should_send_ = value && HasAssociatedContent();
-  conversation_->OnAssociatedContentUpdated();
-}
-
 void AssociatedContentManager::OnNavigated(
     AssociatedContentDelegate* delegate) {
   DVLOG(1) << __func__;
-  SetArchiveContent(delegate->GetContentId(),
+  SetArchiveContent(delegate->uuid(),
                     std::string(delegate->GetCachedTextContent()),
                     delegate->GetCachedIsVideo());
 

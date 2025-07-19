@@ -18,8 +18,6 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
-class Browser;
-
 namespace content {
 class BrowserContext;
 }
@@ -38,7 +36,7 @@ class ShieldsPanelUI : public TopChromeWebUIController,
       mojo::PendingReceiver<brave_shields::mojom::PanelHandlerFactory>
           receiver);
 
-  static constexpr std::string GetWebUIName() { return "ShieldsPanel"; }
+  static constexpr std::string_view GetWebUIName() { return "ShieldsPanel"; }
 
  private:
   void CreatePanelHandler(
@@ -53,7 +51,6 @@ class ShieldsPanelUI : public TopChromeWebUIController,
       panel_factory_receiver_{this};
 
   raw_ptr<Profile> profile_ = nullptr;
-  raw_ptr<Browser> browser_ = nullptr;
 
   WEB_UI_CONTROLLER_TYPE_DECL();
 };

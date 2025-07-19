@@ -5,6 +5,7 @@
 
 #include "brave/components/brave_ads/core/internal/ads_client/ads_client_notifier_for_testing.h"
 
+#include "base/check.h"
 #include "base/check_op.h"
 #include "brave/components/brave_ads/core/public/ads_client/ads_client_notifier_observer.h"
 #include "url/gurl.h"
@@ -42,13 +43,6 @@ void AdsClientNotifierForTesting::NotifyRewardsWalletDidUpdate(
     const std::string& recovery_seed_base64) {
   ads_client_notifier_.NotifyRewardsWalletDidUpdate(payment_id,
                                                     recovery_seed_base64);
-
-  RunTaskEnvironmentUntilIdle();
-}
-
-void AdsClientNotifierForTesting::NotifyLocaleDidChange(
-    const std::string& locale) {
-  ads_client_notifier_.NotifyLocaleDidChange(locale);
 
   RunTaskEnvironmentUntilIdle();
 }

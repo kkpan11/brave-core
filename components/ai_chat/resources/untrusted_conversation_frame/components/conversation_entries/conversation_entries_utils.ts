@@ -48,3 +48,20 @@ export const getReasoningText = (text: string) => {
 
   return result.trim()
 }
+
+export const removeReasoning = (text: string) => {
+  return text.includes('<think>') && text.includes('</think>')
+    ? text.split('</think>')[1]
+    : text
+}
+
+export const removeCitationsWithMissingLinks = (
+  text: string,
+  citationLinks: string[],
+) => {
+  return text.replace(/\[(\d+)\]/g, (match, citationNumber) => {
+    // Convert to 0-based index
+    const index = parseInt(citationNumber) - 1
+    return index >= 0 && index < citationLinks.length ? match : ''
+  })
+}

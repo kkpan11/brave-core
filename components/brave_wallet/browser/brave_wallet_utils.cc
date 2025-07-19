@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/span.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
@@ -30,6 +31,7 @@
 #include "brave/components/brave_wallet/common/solana_utils.h"
 #include "brave/components/brave_wallet/common/value_conversion_utils.h"
 #include "brave/components/constants/brave_services_key.h"
+#include "brave/components/constants/webui_url_constants.h"
 #include "brave/components/version_info/version_info.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -412,6 +414,11 @@ mojom::DefaultWallet GetDefaultSolanaWallet(PrefService* prefs) {
       prefs->GetInteger(kDefaultSolanaWallet));
 }
 
+mojom::DefaultWallet GetDefaultCardanoWallet(PrefService* prefs) {
+  return static_cast<brave_wallet::mojom::DefaultWallet>(
+      prefs->GetInteger(kDefaultCardanoWallet));
+}
+
 void SetDefaultEthereumWallet(PrefService* prefs,
                               mojom::DefaultWallet default_wallet) {
   // We should not be using this value anymore
@@ -424,6 +431,13 @@ void SetDefaultSolanaWallet(PrefService* prefs,
   // We should not be using these values anymore
   DCHECK(default_wallet != mojom::DefaultWallet::AskDeprecated);
   prefs->SetInteger(kDefaultSolanaWallet, static_cast<int>(default_wallet));
+}
+
+void SetDefaultCardanoWallet(PrefService* prefs,
+                             mojom::DefaultWallet default_wallet) {
+  DCHECK(default_wallet == mojom::DefaultWallet::BraveWallet ||
+         default_wallet == mojom::DefaultWallet::None);
+  prefs->SetInteger(kDefaultCardanoWallet, static_cast<int>(default_wallet));
 }
 
 void SetDefaultBaseCurrency(PrefService* prefs, std::string_view currency) {
@@ -775,6 +789,10 @@ std::string WalletParsingErrorMessage() {
   return l10n_util::GetStringUTF8(IDS_WALLET_PARSING_ERROR);
 }
 
+std::string WalletInsufficientBalanceErrorMessage() {
+  return l10n_util::GetStringUTF8(IDS_BRAVE_WALLET_INSUFFICIENT_BALANCE);
+}
+
 mojom::BlockchainTokenPtr GetBitcoinNativeToken(std::string_view chain_id) {
   auto network = NetworkManager::GetKnownChain(chain_id, mojom::CoinType::BTC);
   CHECK(network);
@@ -858,6 +876,21 @@ std::string SPLTokenProgramToProgramID(mojom::SPLTokenProgram program) {
     default:
       return "";
   }
+}
+
+const std::string& GetAccountPermissionIdentifier(
+    const mojom::AccountIdPtr& account_id) {
+  CHECK(account_id);
+  if (account_id->coin == mojom::CoinType::ADA) {
+    return account_id->unique_key;
+  } else {
+    return account_id->address;
+  }
+}
+
+bool IsBraveWalletOrigin(const url::Origin& origin) {
+  return origin == url::Origin::Create(GURL(kBraveUIWalletPanelURL)) ||
+         origin == url::Origin::Create(GURL(kBraveUIWalletPageURL));
 }
 
 }  // namespace brave_wallet

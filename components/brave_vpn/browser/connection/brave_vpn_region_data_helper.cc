@@ -10,9 +10,8 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/check.h"
 #include "base/json/values_util.h"
-#include "base/notreached.h"
-#include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "brave/components/brave_vpn/common/brave_vpn_constants.h"
@@ -59,6 +58,8 @@ base::Value::Dict GetValueFromRegionWithoutCity(
   region_dict.Set(kRegionLatitudeKey, region->latitude);
   region_dict.Set(kRegionLongitudeKey, region->longitude);
   region_dict.Set(kRegionServerCountKey, region->server_count);
+  region_dict.Set(kRegionSmartRoutingProxyStateKey,
+                  region->smart_routing_proxy_state);
   return region_dict;
 }
 
@@ -84,7 +85,8 @@ bool IsValidRegionValue(const base::Value::Dict& value) {
       !value.FindList(kRegionCitiesKey) ||
       !value.FindDouble(kRegionLatitudeKey) ||
       !value.FindDouble(kRegionLongitudeKey) ||
-      !value.FindInt(kRegionServerCountKey)) {
+      !value.FindInt(kRegionServerCountKey) ||
+      !value.FindString(kRegionSmartRoutingProxyStateKey)) {
     return false;
   }
 
@@ -121,6 +123,11 @@ mojom::RegionPtr GetRegionFromValueWithoutCity(const base::Value::Dict& value) {
   }
   if (auto server_count = value.FindInt(brave_vpn::kRegionServerCountKey)) {
     region->server_count = *server_count;
+  }
+
+  if (auto* smart_routing_proxy_state =
+          value.FindString(brave_vpn::kRegionSmartRoutingProxyStateKey)) {
+    region->smart_routing_proxy_state = *smart_routing_proxy_state;
   }
 
   // |is_automatic| is calculated in runtime.

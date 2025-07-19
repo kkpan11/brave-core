@@ -5,6 +5,7 @@
 
 #include "brave/third_party/blink/renderer/core/brave_page_graph/requests/tracked_request.h"
 
+#include "base/check.h"
 #include "brave/third_party/blink/renderer/core/brave_page_graph/graph_item/edge/request/edge_request_complete.h"
 #include "brave/third_party/blink/renderer/core/brave_page_graph/graph_item/edge/request/edge_request_error.h"
 #include "brave/third_party/blink/renderer/core/brave_page_graph/graph_item/edge/request/edge_request_redirect.h"
@@ -164,7 +165,7 @@ void TrackedRequest::FinishResponseBodyHash() {
   CHECK(hash_.empty());
   blink::DigestValue digest;
   CHECK(body_digestor_.Finish(digest));
-  hash_ = WTF::Base64Encode(digest);
+  hash_ = blink::Base64Encode(digest);
 }
 
 }  // namespace brave_page_graph

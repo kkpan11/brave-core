@@ -8,6 +8,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/sys_string_conversions.h"
 #include "brave/components/ai_chat/core/common/features.h"
+#include "brave/components/brave_account/features.h"
 #include "brave/components/brave_component_updater/browser/features.h"
 #include "brave/components/brave_news/common/features.h"
 #include "brave/components/brave_rewards/core/features.h"
@@ -25,8 +26,8 @@
 #include "brave/components/playlist/common/features.h"
 #include "brave/components/skus/common/features.h"
 #include "brave/ios/browser/api/translate/features.h"
-#include "brave/ios/browser/playlist/features.h"
-#include "brave/ios/browser/ui/browser_menu/features.h"
+#include "brave/ios/browser/ui/commerce/features.h"
+#include "brave/ios/browser/ui/tab_tray/features.h"
 #include "brave/ios/browser/ui/web_view/features.h"
 #import "build/blink_buildflags.h"
 #include "build/build_config.h"
@@ -179,6 +180,12 @@
                                               kBraveNTPSuperReferralWallpaper];
 }
 
++ (Feature*)kBraveNTPBrandedWallpaperSurveyPanelist {
+  return [[Feature alloc]
+      initWithFeature:&ntp_background_images::features::
+                          kBraveNTPBrandedWallpaperSurveyPanelist];
+}
+
 + (Feature*)kBraveNewsCardPeekFeature {
   return [[Feature alloc]
       initWithFeature:&brave_news::features::kBraveNewsCardPeekFeature];
@@ -244,10 +251,6 @@
       initWithFeature:&brave_wallet::features::kBraveWalletZCashFeature];
 }
 
-+ (Feature*)kConstellation {
-  return [[Feature alloc] initWithFeature:&p3a::features::kConstellation];
-}
-
 + (Feature*)kConstellationEnclaveAttestation {
   return [[Feature alloc]
       initWithFeature:&p3a::features::kConstellationEnclaveAttestation];
@@ -267,6 +270,11 @@
 + (Feature*)kCosmeticFilteringSyncLoad {
   return [[Feature alloc]
       initWithFeature:&brave_shields::features::kCosmeticFilteringSyncLoad];
+}
+
++ (Feature*)kBraveAccount {
+  return
+      [[Feature alloc] initWithFeature:&brave_account::features::kBraveAccount];
 }
 
 #if BUILDFLAG(ENABLE_GEMINI_WALLET)
@@ -289,18 +297,8 @@
       initWithFeature:&brave_wallet::features::kNativeBraveWalletFeature];
 }
 
-+ (Feature*)kOtherJSONDeprecation {
-  return
-      [[Feature alloc] initWithFeature:&p3a::features::kOtherJSONDeprecation];
-}
-
 + (Feature*)kSkusFeature {
   return [[Feature alloc] initWithFeature:&skus::features::kSkusFeature];
-}
-
-+ (Feature*)kTypicalJSONDeprecation {
-  return
-      [[Feature alloc] initWithFeature:&p3a::features::kTypicalJSONDeprecation];
 }
 
 + (Feature*)kUseDevUpdaterUrl {
@@ -313,10 +311,6 @@
       initWithFeature:&brave_rewards::features::kVerboseLoggingFeature];
 }
 
-+ (Feature*)kNewPlaylistUI {
-  return [[Feature alloc] initWithFeature:&playlist::features::kNewPlaylistUI];
-}
-
 + (Feature*)kBraveHttpsByDefault {
   return [[Feature alloc] initWithFeature:&net::features::kBraveHttpsByDefault];
 }
@@ -324,11 +318,6 @@
 + (Feature*)kBlockAllCookiesToggle {
   return [[Feature alloc]
       initWithFeature:&brave_shields::features::kBlockAllCookiesToggle];
-}
-
-+ (Feature*)kModernBrowserMenuEnabled {
-  return [[Feature alloc]
-      initWithFeature:&brave::features::kModernBrowserMenuEnabled];
 }
 
 + (Feature*)kBraveTranslateEnabled {
@@ -349,6 +338,16 @@
 + (Feature*)kUseChromiumWebViews {
   return
       [[Feature alloc] initWithFeature:&brave::features::kUseChromiumWebViews];
+}
+
++ (Feature*)kBraveAllowExternalPurchaseLinks {
+  return [[Feature alloc]
+      initWithFeature:&brave::features::kBraveAllowExternalPurchaseLinks];
+}
+
++ (Feature*)kModernTabTrayEnabled {
+  return
+      [[Feature alloc] initWithFeature:&brave::features::kModernTabTrayEnabled];
 }
 
 @end

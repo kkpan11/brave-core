@@ -9,6 +9,9 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
+#include "base/notreached.h"
+#include "brave/components/brave_wallet/common/common_utils.h"
 #include "brave/components/brave_wallet/renderer/v8_helper.h"
 #include "build/buildflag.h"
 #include "content/public/common/isolated_world_ids.h"
@@ -94,6 +97,7 @@ void BraveWalletRenderFrameObserver::DidClearWindowObject() {
   auto dynamic_params = get_dynamic_params_callback_.Run();
   if (!dynamic_params.install_window_brave_ethereum_provider &&
       !dynamic_params.install_window_ethereum_provider &&
+      !dynamic_params.install_window_brave_cardano_provider &&
       !dynamic_params.brave_use_native_solana_wallet) {
     return;
   }
@@ -117,6 +121,12 @@ void BraveWalletRenderFrameObserver::DidClearWindowObject() {
       dynamic_params.brave_use_native_solana_wallet) {
     JSSolanaProvider::Install(
         dynamic_params.allow_overwrite_window_solana_provider, render_frame());
+  }
+
+  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate, context,
+                                                         "cardano") &&
+      dynamic_params.install_window_brave_cardano_provider) {
+    JSCardanoProvider::Install(render_frame());
   }
 }
 

@@ -6,30 +6,33 @@
 import * as React from 'react'
 import ProgressRing from '@brave/leo/react/progressRing'
 
+// constants
+import { BraveWallet } from '../constants/types'
+
 // Components
 import {
-  ConnectWithSite //
+  ConnectWithSite, //
 } from '../components/extension/connect-with-site-panel/connect-with-site-panel'
 import { WelcomePanel } from '../components/extension/welcome-panel/index'
 import { SignPanel } from '../components/extension/sign-panel/index'
 import {
-  AllowAddChangeNetworkPanel //
-} from '../components/extension/allow-add-change-network-panel/index'
+  AllowAddChangeNetworkPanel, //
+} from '../components/extension/allow_add_change_network_panel/allow_add_change_network_panel'
 import {
-  ConnectHardwareWalletPanel //
+  ConnectHardwareWalletPanel, //
 } from '../components/extension/connect-hardware-wallet-panel/index'
 import {
-  AddSuggestedTokenPanel //
+  AddSuggestedTokenPanel, //
 } from '../components/extension/add-suggested-token-panel/index'
 import {
   ProvidePubKeyPanel,
-  DecryptRequestPanel
+  DecryptRequestPanel,
 } from '../components/extension/encryption-key-panel/index'
 
 import {
   StyledExtensionWrapper,
   LongWrapper,
-  ConnectWithSiteWrapper
+  ConnectWithSiteWrapper,
 } from '../stories/style'
 import { PanelWrapper, WelcomePanelWrapper } from './style'
 import { FullScreenWrapper } from '../page/screens/page-screen.styles'
@@ -38,7 +41,7 @@ import { TransactionStatus } from '../components/extension/post-confirmation'
 import {
   useSafePanelSelector,
   useSafeWalletSelector,
-  useUnsafePanelSelector
+  useUnsafePanelSelector,
 } from '../common/hooks/use-safe-selector'
 import { WalletSelectors } from '../common/selectors'
 import { PanelSelectors } from './selectors'
@@ -50,21 +53,21 @@ import {
   useGetPendingSignMessageRequestsQuery,
   useGetPendingSwitchChainRequestQuery,
   useGetPendingSignSolTransactionsRequestsQuery,
-  useGetPendingTokenSuggestionRequestsQuery
+  useGetPendingTokenSuggestionRequestsQuery,
 } from '../common/slices/api.slice'
 import { useAccountsQuery } from '../common/slices/api.slice.extra'
 import {
-  useSelectedPendingTransaction //
+  useSelectedPendingTransaction, //
 } from '../common/hooks/use-pending-transaction'
 import PageContainer from '../page/container'
 import {
-  SignInWithEthereumError //
+  SignInWithEthereumError, //
 } from '../components/extension/sign-panel/sign_in_with_ethereum_error'
 import {
-  PendingTransactionPanel //
+  PendingTransactionPanel, //
 } from '../components/extension/pending_transaction_panel/pending_transaction_panel'
 import {
-  PendingSignatureRequestsPanel //
+  PendingSignatureRequestsPanel, //
 } from '../components/extension/pending_signature_requests_panel/pending_signature_requests_panel'
 
 // Allow BigInts to be stringified
@@ -81,18 +84,18 @@ function Container() {
   // panel selectors (safe)
   const selectedPanel = useSafePanelSelector(PanelSelectors.selectedPanel)
   const hardwareWalletCode = useSafePanelSelector(
-    PanelSelectors.hardwareWalletCode
+    PanelSelectors.hardwareWalletCode,
   )
 
   // panel selectors (unsafe)
   const selectedTransactionId = useUnsafePanelSelector(
-    PanelSelectors.selectedTransactionId
+    PanelSelectors.selectedTransactionId,
   )
   const connectToSiteOrigin = useUnsafePanelSelector(
-    PanelSelectors.connectToSiteOrigin
+    PanelSelectors.connectToSiteOrigin,
   )
   const connectingAccounts = useUnsafePanelSelector(
-    PanelSelectors.connectingAccounts
+    PanelSelectors.connectingAccounts,
   )
 
   // queries
@@ -102,33 +105,33 @@ function Container() {
   const { data: decryptRequest } = useGetPendingDecryptRequestQuery()
   const {
     data: getEncryptionPublicKeyRequest,
-    isLoading: isLoadingPendingPublicKeyRequest
+    isLoading: isLoadingPendingPublicKeyRequest,
   } = useGetPendingGetEncryptionPublicKeyRequestQuery()
   const {
     data: signSolTransactionsRequests,
-    isLoading: isLoadingSignSolTransactionsRequests
+    isLoading: isLoadingSignSolTransactionsRequests,
   } = useGetPendingSignSolTransactionsRequestsQuery()
   const { data: signMessageData, isLoading: isLoadingSignMessageData } =
     useGetPendingSignMessageRequestsQuery()
   const {
     data: signMessageErrorData,
-    isLoading: isLoadingSignMessageErrorData
+    isLoading: isLoadingSignMessageErrorData,
   } = useGetPendingSignMessageErrorsQuery()
   const { data: addTokenRequests = [], isLoading: isLoadingAddTokenRequests } =
     useGetPendingTokenSuggestionRequestsQuery()
   const {
     selectedPendingTransaction,
-    isLoading: isLoadingPendingTransactions
+    isLoading: isLoadingPendingTransactions,
   } = useSelectedPendingTransaction()
 
   // computed
   const isLoadingPendingActions =
-    isLoadingPendingTransactions ||
-    isLoadingPendingPublicKeyRequest ||
-    isLoadingSignSolTransactionsRequests ||
-    isLoadingSignMessageData ||
-    isLoadingSignMessageErrorData ||
-    isLoadingAddTokenRequests
+    isLoadingPendingTransactions
+    || isLoadingPendingPublicKeyRequest
+    || isLoadingSignSolTransactionsRequests
+    || isLoadingSignMessageData
+    || isLoadingSignMessageErrorData
+    || isLoadingAddTokenRequests
 
   // render
   if (!hasInitialized || isLoadingPendingActions) {
@@ -166,9 +169,13 @@ function Container() {
   }
 
   if (selectedPanel === 'connectWithSite') {
-    const accountsToConnect = accounts.filter((account) =>
-      connectingAccounts.includes(account.address.toLowerCase())
-    )
+    const accountsToConnect = accounts.filter((account) => {
+      if (account.accountId.coin === BraveWallet.CoinType.ADA) {
+        return connectingAccounts.includes(account.accountId.uniqueKey)
+      } else {
+        return connectingAccounts.includes(account.address.toLowerCase())
+      }
+    })
     return (
       <PanelWrapper
         width={390}
@@ -185,10 +192,10 @@ function Container() {
   }
 
   if (
-    selectedPanel === 'connectHardwareWallet' &&
-    (selectedPendingTransaction ||
-      signMessageData?.length ||
-      signSolTransactionsRequests?.length)
+    selectedPanel === 'connectHardwareWallet'
+    && (selectedPendingTransaction
+      || signMessageData?.length
+      || signSolTransactionsRequests?.length)
   ) {
     return (
       <PanelWrapper isLonger={false}>
@@ -201,20 +208,22 @@ function Container() {
 
   if (addChainRequest) {
     return (
-      <PanelWrapper isLonger={true}>
-        <LongWrapper>
-          <AllowAddChangeNetworkPanel addChainRequest={addChainRequest} />
-        </LongWrapper>
+      <PanelWrapper
+        width={390}
+        height={650}
+      >
+        <AllowAddChangeNetworkPanel addChainRequest={addChainRequest} />
       </PanelWrapper>
     )
   }
 
   if (switchChainRequest) {
     return (
-      <PanelWrapper isLonger={true}>
-        <LongWrapper>
-          <AllowAddChangeNetworkPanel switchChainRequest={switchChainRequest} />
-        </LongWrapper>
+      <PanelWrapper
+        width={390}
+        height={650}
+      >
+        <AllowAddChangeNetworkPanel switchChainRequest={switchChainRequest} />
       </PanelWrapper>
     )
   }

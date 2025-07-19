@@ -11,10 +11,11 @@
 #include <vector>
 
 #include "base/base64.h"
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
-#include "base/strings/utf_string_conversions.h"
 #include "crypto/openssl_util.h"
 #include "net/base/ip_address.h"
 #include "net/base/url_util.h"
@@ -41,6 +42,8 @@ std::string EncodeBase64(const std::vector<uint8_t>& in) {
 
 constexpr char kCloudflareIPv4[] = "1.1.1.1";
 // Template for wireguard config generation.
+// For a quick reference on the keys/values, please see:
+// https://github.com/pirate/wireguard-docs?tab=readme-ov-file#config-reference
 constexpr char kWireguardConfigTemplate[] = R"(
   [Interface]
   PrivateKey = {client_private_key}

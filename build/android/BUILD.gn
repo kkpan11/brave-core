@@ -85,6 +85,14 @@ action("sign_app") {
     "$brave_android_key_password",
     "$brave_android_keystore_name",
   ]
+
+  # Add PKCS11 arguments if both provider and alias are defined
+  if (brave_android_pkcs11_provider != "" && brave_android_pkcs11_alias != "") {
+    args += [
+      "--pkcs11-provider=" + brave_android_pkcs11_provider,
+      "--pkcs11-alias=" + brave_android_pkcs11_alias,
+    ]
+  }
 }
 
 copy("brave") {
@@ -207,11 +215,6 @@ java_strings_grd("android_brave_strings_grd") {
   ]
 }
 
-brave_xml_preprocessor("brave_java_xml_preprocess_resources") {
-  sources = brave_java_preprocess_xml_sources
-  modules = brave_java_preprocess_module_sources
-}
-
 generate_jni("jni_headers") {
   sources = [
     "//brave/android/java/org/chromium/chrome/browser/brave_leo/BraveLeoSettingsLauncherHelper.java",
@@ -226,6 +229,7 @@ generate_jni("jni_headers") {
 
   public_deps = [
     "//brave/android/java/org/chromium/chrome/browser/search_engines:jni_headers",
+    "//brave/browser/android/youtube_script_injector:jni_headers",
     "//chrome/android:chrome_jni_headers",
   ]
 }

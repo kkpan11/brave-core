@@ -4,6 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import BraveShared
+import Preferences
 import Shared
 import Storage
 import Web
@@ -48,8 +49,7 @@ extension BrowserViewController: ReaderModeStyleViewControllerDelegate {
     didConfigureStyle style: ReaderModeStyle
   ) {
     // Persist the new style to the profile
-    let encodedStyle: [String: Any] = style.encodeAsDictionary()
-    profile.prefs.setObject(encodedStyle, forKey: readerModeProfileKeyStyle)
+    Preferences.ReaderMode.style.value = style.encode()
     // Change the reader mode style on all tabs that have reader mode active
     for tabIndex in 0..<tabManager.count {
       if let tab = tabManager[tabIndex] {
@@ -81,8 +81,8 @@ extension BrowserViewController: ReaderModeBarViewDelegate {
     }
 
     var readerModeStyle = defaultReaderModeStyle
-    if let dict = profile.prefs.dictionaryForKey(readerModeProfileKeyStyle) {
-      if let style = ReaderModeStyle(dict: dict as [String: AnyObject]) {
+    if let encodedString = Preferences.ReaderMode.style.value {
+      if let style = ReaderModeStyle(encodedString: encodedString) {
         readerModeStyle = style
       }
     }
@@ -92,26 +92,16 @@ extension BrowserViewController: ReaderModeBarViewDelegate {
     )
     readerModeStyleViewController.delegate = self
     readerModeStyleViewController.modalPresentationStyle = .popover
+    readerModeStyleViewController.presentationController?.delegate = self
 
-    let setupPopover = { [unowned self, weak readerModeStyleViewController] in
-
-      if let popoverPresentationController = readerModeStyleViewController?
-        .popoverPresentationController
-      {
-        popoverPresentationController.backgroundColor = .white
-        popoverPresentationController.delegate = self
-        popoverPresentationController.sourceView = view
-        popoverPresentationController.sourceRect =
-          CGRect(x: view.bounds.width / 2, y: UIConstants.toolbarHeight / 2, width: 0, height: 0)
-        popoverPresentationController.permittedArrowDirections = .up
-      }
-    }
-
-    setupPopover()
-
-    if readerModeStyleViewController.popoverPresentationController != nil {
-      displayedPopoverController = readerModeStyleViewController
-      updateDisplayedPopoverProperties = setupPopover
+    if let popoverPresentationController = readerModeStyleViewController
+      .popoverPresentationController
+    {
+      popoverPresentationController.backgroundColor = .white
+      popoverPresentationController.sourceView = view
+      popoverPresentationController.sourceRect =
+        CGRect(x: view.bounds.width / 2, y: UIConstants.toolbarHeight / 2, width: 0, height: 0)
+      popoverPresentationController.permittedArrowDirections = .up
     }
 
     present(readerModeStyleViewController, animated: true, completion: nil)
@@ -232,8 +222,8 @@ extension BrowserViewController {
     guard notification.name == .dynamicFontChanged else { return }
 
     var readerModeStyle = defaultReaderModeStyle
-    if let dict = profile.prefs.dictionaryForKey(readerModeProfileKeyStyle) {
-      if let style = ReaderModeStyle(dict: dict as [String: AnyObject]) {
+    if let encodedString = Preferences.ReaderMode.style.value {
+      if let style = ReaderModeStyle(encodedString: encodedString) {
         readerModeStyle = style
       }
     }

@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "base/logging.h"
+#include "base/notreached.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_executor.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
@@ -117,7 +118,9 @@ void StatusTrayRunner::ConnectVPN() {
   if (IsWireguardActive()) {
     wireguard::EnableBraveVpnWireguardService(
         // passing empty params will reconnect using last known good config.
-        "", "", "", "",
+        // TODO(https://github.com/brave/brave-browser/issues/47115): fetch
+        // actual server details. See issue for more info.
+        "", "", "", "", std::nullopt,
         base::BindOnce(&StatusTrayRunner::OnConnected,
                        weak_factory_.GetWeakPtr()));
   } else {

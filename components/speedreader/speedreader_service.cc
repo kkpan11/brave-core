@@ -7,7 +7,9 @@
 
 #include <string>
 
+#include "base/check.h"
 #include "base/command_line.h"
+#include "base/dcheck_is_on.h"
 #include "base/feature_list.h"
 #include "base/strings/string_number_conversions.h"
 #include "brave/components/speedreader/common/features.h"
@@ -41,6 +43,10 @@ bool IsSpeedreaderEnabled() {
 }
 
 }  // namespace features
+
+bool IsDisabledByPolicy(PrefService* prefs) {
+  return prefs->GetBoolean(kSpeedreaderDisabledByPolicy);
+}
 
 SpeedreaderService::SpeedreaderService(content::BrowserContext* browser_context,
                                        PrefService* local_state,
@@ -81,6 +87,7 @@ void SpeedreaderService::RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kSpeedreaderPrefTtsVoice, "");
   registry->RegisterIntegerPref(kSpeedreaderPrefTtsSpeed,
                                 static_cast<int>(PlaybackSpeed::k100));
+  registry->RegisterBooleanPref(kSpeedreaderDisabledByPolicy, false);
 }
 
 // static
@@ -97,7 +104,9 @@ void SpeedreaderService::RemoveObserver(Observer* observer) {
 }
 
 bool SpeedreaderService::IsEnabledForAllSites() {
-  return prefs_->GetBoolean(kSpeedreaderPrefEnabled);
+  bool disabled_by_policy = speedreader::IsDisabledByPolicy(prefs_);
+  bool enabled_pref = prefs_->GetBoolean(kSpeedreaderPrefEnabled);
+  return !disabled_by_policy && enabled_pref;
 }
 
 ContentSetting SpeedreaderService::GetEnabledForSiteSetting(const GURL& url) {

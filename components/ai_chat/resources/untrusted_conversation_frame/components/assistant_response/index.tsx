@@ -6,13 +6,16 @@
 import * as React from 'react'
 import ProgressRing from '@brave/leo/react/progressRing'
 import Icon from '@brave/leo/react/icon'
-import formatMessage from '$web-common/formatMessage'
-import { getLocale } from '$web-common/locale'
+import { getLocale, formatLocale } from '$web-common/locale'
 import * as Mojom from '../../../common/mojom'
 import { useUntrustedConversationContext } from '../../untrusted_conversation_context'
 import MarkdownRenderer from '../markdown_renderer'
 import WebSourcesEvent from './web_sources_event'
 import styles from './style.module.scss'
+import {
+  removeReasoning,
+  removeCitationsWithMissingLinks
+} from '../conversation_entries/conversation_entries_utils'
 
 function SearchSummary (props: { searchQueries: string[] }) {
   const context = useUntrustedConversationContext()
@@ -26,8 +29,7 @@ function SearchSummary (props: { searchQueries: string[] }) {
     context.uiHandler?.openLearnMoreAboutBraveSearchWithLeo()
   }
 
-  const message = formatMessage(getLocale('searchQueries'), {
-    placeholders: {
+  const message = formatLocale(S.CHAT_UI_SEARCH_QUERIES, {
       $1: props.searchQueries.map((query, i, a) => (
         <React.Fragment key={i}>
           "<a className={styles.searchQueryLink} href='#' onClick={(e) => handleOpenSearchQuery(e, query)}>
@@ -35,14 +37,13 @@ function SearchSummary (props: { searchQueries: string[] }) {
           </a>"{(i < a.length-1) ? ', ' : null}
         </React.Fragment>
       ))
-    }
   })
 
   return (
     <div className={styles.searchSummary}>
       <Icon name="brave-icon-search-color" />
       <span>
-        {message} <a className={styles.searchLearnMoreLink} href='#' onClick={handleLearnMore}>{getLocale('learnMore')}</a>
+        {message} <a className={styles.searchLearnMoreLink} href='#' onClick={handleLearnMore}>{getLocale(S.CHAT_UI_LEARN_MORE)}</a>
       </span>
     </div>
   )
@@ -64,12 +65,20 @@ function AssistantEvent(props: {
                            `[${index + 1}]: ${url}`).join('\n') + '\n\n'
         : '';
 
-    // Replaces 2 consecutive citations with a separator so that
-    // they will both render as links.
+    // Remove citations with missing links
+    const filteredOutCitationsWithMissingLinks =
+      removeCitationsWithMissingLinks(
+        event.completionEvent.completion,
+        allowedLinks
+      )
+
+    // Replaces 2 consecutive citations with a separator and also
+    // adds a space before the citation and the text.
     const completion =
-      event.completionEvent.completion.replace(/(\[\d+\])(?=\[\d+\])/g,
-                                               '$1\u200B')
-    const fullText = `${numberedLinks}${completion}`;
+      filteredOutCitationsWithMissingLinks
+        .replace(/(\w|\S)\[(\d+)\]/g, '$1 [$2]')
+
+    const fullText = `${numberedLinks}${removeReasoning(completion)}`;
 
     return (
       <MarkdownRenderer
@@ -127,8 +136,10 @@ export default function AssistantResponse(props: {
   {
     !props.isEntryInProgress &&
     <>
-      {searchQueriesEvent && <SearchSummary searchQueries={searchQueriesEvent.searchQueries} />}
       {sourcesEvent && <WebSourcesEvent sources={sourcesEvent.sources} />}
+      {searchQueriesEvent &&
+        <SearchSummary searchQueries={searchQueriesEvent.searchQueries} />
+      }
     </>
   }
   </>)

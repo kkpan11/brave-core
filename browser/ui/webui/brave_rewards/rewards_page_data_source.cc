@@ -16,6 +16,7 @@
 #include "brave/components/constants/webui_url_constants.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
+#include "chrome/browser/ui/webui/sanitized_image_source.h"
 #include "components/favicon_base/favicon_url_parser.h"
 #include "components/grit/brave_components_resources.h"
 #include "components/grit/brave_components_strings.h"
@@ -63,6 +64,7 @@ static constexpr webui::LocalizedString kStrings[] = {
      IDS_REWARDS_ADS_SETTINGS_SUBDIVISION_AUTO_LABEL},
     {"adsSettingsTitle", IDS_REWARDS_ADS_SETTINGS_TITLE},
     {"adsSettingsText", IDS_REWARDS_ADS_SETTINGS_TEXT},
+    {"adsViewedTooltip", IDS_REWARDS_ADS_VIEWED_TOOLTIP},
     {"adTypeInlineContentLabel", IDS_REWARDS_AD_TYPE_INLINE_CONTENT_LABEL},
     {"adTypeNewTabPageLabel", IDS_REWARDS_AD_TYPE_NEW_TAB_PAGE_LABEL},
     {"adTypeNotificationLabel", IDS_REWARDS_AD_TYPE_NOTIFICATION_LABEL},
@@ -300,10 +302,9 @@ void CreateAndAddRewardsPageDataSource(content::WebUI& web_ui,
           brave_adaptive_captcha::ServerUtil::GetInstance()->GetServerUrl("/") +
           ";");
 
-  // Override img-src to allow chrome://rewards-image support.
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ImgSrc,
-      "img-src chrome://resources chrome://theme chrome://rewards-image "
+      "img-src chrome://resources chrome://theme chrome://image "
       "chrome://favicon2 blob: data: 'self';");
 
   source->AddResourcePaths(kResources);
@@ -326,6 +327,9 @@ void CreateAndAddRewardsPageDataSource(content::WebUI& web_ui,
   content::URLDataSource::Add(
       browser_context, std::make_unique<FaviconSource>(
                            profile, chrome::FaviconUrlFormat::kFavicon2));
+
+  content::URLDataSource::Add(profile,
+                              std::make_unique<SanitizedImageSource>(profile));
 }
 
 }  // namespace brave_rewards

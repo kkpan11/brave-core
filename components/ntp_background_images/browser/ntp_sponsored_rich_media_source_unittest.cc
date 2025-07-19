@@ -16,6 +16,7 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/string_view_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "brave/components/ntp_background_images/browser/features.h"
 #include "brave/components/ntp_background_images/browser/ntp_background_images_service.h"
@@ -50,7 +51,8 @@ class NTPSponsoredRichMediaSourceTest : public testing::Test {
         pref_service_.registry());
 
     background_images_service_ = std::make_unique<NTPBackgroundImagesService>(
-        /*component_update_service=*/nullptr, &pref_service_);
+        /*variations_service=*/nullptr, /*component_update_service=*/nullptr,
+        &pref_service_);
     url_data_source_ = std::make_unique<NTPSponsoredRichMediaSource>(
         background_images_service_.get());
 
@@ -129,7 +131,7 @@ TEST_F(NTPSponsoredRichMediaSourceTest,
 }
 
 TEST_F(NTPSponsoredRichMediaSourceTest,
-       DoNotStartDataRequestIfContentIsOutsideOfSandbox3) {
+       DoNotStartDataRequestIfContentIsOutsideOfSandbox) {
   EXPECT_THAT(StartDataRequest(
                   GURL("chrome-untrusted://new-tab-takeover/restricted.jpg")),
               ::testing::IsEmpty());
@@ -210,6 +212,12 @@ TEST_F(NTPSponsoredRichMediaSourceTest, GetContentSecurityPolicy) {
 
       case network::mojom::CSPDirectiveName::StyleSrc: {
         EXPECT_EQ("style-src 'self';",
+                  url_data_source()->GetContentSecurityPolicy(directive));
+        break;
+      }
+
+      case network::mojom::CSPDirectiveName::FontSrc: {
+        EXPECT_EQ("font-src 'self';",
                   url_data_source()->GetContentSecurityPolicy(directive));
         break;
       }

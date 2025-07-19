@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+import '../../common/strings'
+
 import * as React from 'react'
 import { useArgs } from '@storybook/preview-api'
 import { Meta, StoryObj } from '@storybook/react'
@@ -19,7 +21,6 @@ import FeedbackForm from '../components/feedback_form'
 import FullPage from '../components/full_page'
 import Loading from '../components/loading'
 import Main from '../components/main'
-import './story_utils/locale'
 import ACTIONS_LIST from './story_utils/actions'
 import styles from './style.module.scss'
 import StorybookConversationEntries from './story_utils/ConversationEntries'
@@ -41,7 +42,8 @@ const eventTemplate: Mojom.ConversationEntryEvent = {
   selectedLanguageEvent: undefined,
   conversationTitleEvent: undefined,
   sourcesEvent: undefined,
-  contentReceiptEvent: undefined
+  contentReceiptEvent: undefined,
+  toolUseEvent: undefined,
 }
 
 function getCompletionEvent(text: string): Mojom.ConversationEntryEvent {
@@ -216,7 +218,25 @@ const HISTORY: Mojom.ConversationTurn[] = [
     selectedText: undefined,
     edits: [],
     createdTime: { internalValue: BigInt('13278618001000000') },
-    events: [getCompletionEvent("Hello! As a helpful and respectful AI assistant, I'd be happy to assist you with your question. However, I'm a text-based AI and cannot provide code in a specific programming language like C++. Instead, I can offer a brief explanation of how to write a \"hello world\" program in C++.\n\nTo write a \"hello world\" program in C++, you can use the following code:\n\n```c++\n#include <iostream>\n\nint main() {\n    std::cout << \"Hello, world!\" << std::endl;\n    return 0;\n}\n```\nThis code will print \"Hello, world!\" and uses `iostream` std library. If you have any further questions or need more information, please don't hesitate to ask!")],
+    events: [
+      getCompletionEvent(
+        'Sure! Here\'s a table with 5 Marvel characters:\n\n' +
+        '| First Name | Last Name   | Character Name       | ' +
+        'First Appearance |\n' +
+        '|------------|-------------|----------------------|' +
+        '------------------|\n' +
+        '| Tony       | Stark      | Iron Man            | ' +
+        '1968              |\n' +
+        '| Steve      | Rogers     | Captain America      | ' +
+        '1941              |\n' +
+        '| Thor       | Odinson    | Thor                 | ' +
+        '1962              |\n' +
+        '| Natasha    | Romanoff   | Black Widow          | ' +
+        '1964              |\n' +
+        '| Peter      | Parker     | Spider-Man           | ' +
+        '1962              |\n' +
+        '\n\n Let me know if you\'d like more details!'
+      )],
     uploadedFiles : [],
     fromBraveSearchSERP: false,
     modelKey: '1'
@@ -443,6 +463,38 @@ const HISTORY: Mojom.ConversationTurn[] = [
     uploadedFiles : [],
     fromBraveSearchSERP: false,
     modelKey: '1'
+  },
+  {
+    uuid: undefined,
+    text: '',
+    characterType: Mojom.CharacterType.ASSISTANT,
+    actionType: Mojom.ActionType.UNSPECIFIED,
+    prompt: undefined,
+    selectedText: undefined,
+    edits: [],
+    createdTime: { internalValue: BigInt('13278618001000000') },
+    events: [
+      getCompletionEvent(
+        'Sure! Here\'s a table with 5 Marvel characters:\n\n' +
+        '| First Name | Last Name   | Character Name       | ' +
+        'First Appearance |\n' +
+        '|------------|-------------|----------------------|' +
+        '------------------|\n' +
+        '| Tony       | Stark      | Iron Man            | ' +
+        '1968              |\n' +
+        '| Steve      | Rogers     | Captain America      | ' +
+        '1941              |\n' +
+        '| Thor       | Odinson    | Thor                 | ' +
+        '1962              |\n' +
+        '| Natasha    | Romanoff   | Black Widow          | ' +
+        '1964              |\n' +
+        '| Peter      | Parker     | Spider-Man           | ' +
+        '1962              |\n' +
+        '\n\n Let me know if you\'d like more details!'
+      )],
+    uploadedFiles : [],
+    fromBraveSearchSERP: false,
+    modelKey: '1'
   }
 ]
 
@@ -451,6 +503,7 @@ const MODELS: Mojom.Model[] = [
     key: '1',
     displayName: 'Model One',
     visionSupport: false,
+    supportsTools: false,
     options: {
       leoModelOptions: {
         name: 'model-one',
@@ -467,6 +520,7 @@ const MODELS: Mojom.Model[] = [
     key: '2',
     displayName: 'Model Two',
     visionSupport: true,
+    supportsTools: false,
     options: {
       leoModelOptions: {
         name: 'model-two-premium',
@@ -483,6 +537,7 @@ const MODELS: Mojom.Model[] = [
     key: '3',
     displayName: 'Model Three',
     visionSupport: false,
+    supportsTools: false,
     options: {
       leoModelOptions: {
         name: 'model-three-freemium',
@@ -499,6 +554,7 @@ const MODELS: Mojom.Model[] = [
     key: '4',
     displayName: 'Microsoft Phi-3',
     visionSupport: false,
+    supportsTools: false,
     options: {
       leoModelOptions: undefined,
       customModelOptions: {
@@ -532,7 +588,7 @@ const ASSOCIATED_CONTENT: Mojom.AssociatedContent = {
   contentType: Mojom.ContentType.PageContent,
   title: 'Tiny Tweaks to Neurons Can Rewire Animal Motion',
   contentUsedPercentage: 40,
-  url: { url: 'https://www.example.com/a' },
+  url: { url: 'https://www.example.com/areallylongurlthatwillbetruncatedintheinputbox' },
   contentId: 1,
 }
 
@@ -683,6 +739,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
   }
 
   const [showSidebar, setShowSidebar] = React.useState(isSmall)
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = React.useState(false)
 
   let conversations: typeof CONVERSATIONS = []
 
@@ -709,7 +766,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     isMobile: options.args.isMobile,
     isHistoryFeatureEnabled: options.args.isHistoryEnabled,
     isStandalone: options.args.isStandalone,
-    allActions: ACTIONS_LIST,
+    actionList: ACTIONS_LIST,
     tabs: [{
       id: 1,
       contentId: 1,
@@ -731,6 +788,7 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
       url: { url: 'https://search.brave.com' },
       title: 'Brave Search',
     }],
+    getPluralString: () => Promise.resolve(''),
     goPremium: () => { },
     managePremium: () => { },
     handleAgreeClick: () => { },
@@ -773,11 +831,9 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     shouldDisableUserInput: false,
     shouldShowLongPageWarning: options.args.shouldShowLongPageWarning,
     shouldShowLongConversationInfo: options.args.shouldShowLongConversationInfo,
-    shouldSendPageContents: !!associatedContent,
     inputText,
-    actionList: ACTIONS_LIST,
     selectedActionType: undefined,
-    isToolsMenuOpen: false,
+    isToolsMenuOpen,
     isCurrentModelLeo: true,
     isCharLimitApproaching: inputText.length > 64,
     isCharLimitExceeded: inputText.length > 70,
@@ -792,14 +848,13 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     switchToBasicModel,
     generateSuggestedQuestions: () => { },
     dismissLongConversationInfo: () => { },
-    updateShouldSendPageContents: () => { },
     retryAPIRequest: () => { },
     handleResetError: () => { },
     handleStopGenerating: async () => { },
     submitInputTextToAPI: () => { },
     resetSelectedActionType: () => { },
     handleActionTypeClick: () => { },
-    setIsToolsMenuOpen: () => { },
+    setIsToolsMenuOpen,
     handleFeedbackFormCancel: () => { },
     handleFeedbackFormSubmit: () => Promise.resolve(),
     setShowAttachments: (show: boolean) => setArgs({ showAttachments: show }),
@@ -815,7 +870,8 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     handleRateMessage: () => Promise.resolve(),
     setTemporary: (temporary: boolean) => {
       setArgs({ isTemporaryChat: temporary })
-    }
+    },
+    disassociateContent: () => {}
   }
 
   const conversationEntriesContext: UntrustedConversationContext = {
@@ -829,7 +885,8 @@ function StoryContext(props: React.PropsWithChildren<{ args: CustomArgs, setArgs
     canSubmitUserEntries: !conversationContext.shouldDisableUserInput,
     isMobile: aiChatContext.isMobile,
     allModels: MODELS,
-    currentModelKey: currentModel?.key ?? ''
+    currentModelKey: currentModel?.key ?? '',
+    associatedContent: [associatedContent],
   }
 
   return (

@@ -10,13 +10,12 @@ import android.content.ComponentCallbacks;
 import android.content.res.Configuration;
 import android.widget.FrameLayout.LayoutParams;
 
-import androidx.annotation.NonNull;
-
 import org.chromium.base.BravePreferenceKeys;
 import org.chromium.base.BraveReflectionUtil;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
@@ -32,23 +31,24 @@ import org.chromium.ui.base.DeviceFormFactor;
  * toolbar, when it is visible.
  */
 public class BraveHubManagerImpl extends HubManagerImpl {
-    private Activity mActivity;
+    private final Activity mActivity;
     private int mBottomToolbarHeight;
-    private boolean mIsTablet;
-    private ComponentCallbacks mComponentCallbacks;
+    private final boolean mIsTablet;
+    private final ComponentCallbacks mComponentCallbacks;
 
     public BraveHubManagerImpl(
-            @NonNull Activity activity,
-            @NonNull OneshotSupplier<ProfileProvider> profileProviderSupplier,
-            @NonNull PaneListBuilder paneListBuilder,
-            @NonNull BackPressManager backPressManager,
-            @NonNull MenuOrKeyboardActionController menuOrKeyboardActionController,
-            @NonNull SnackbarManager snackbarManager,
-            @NonNull ObservableSupplier<Tab> tabSupplier,
-            @NonNull MenuButtonCoordinator menuButtonCoordinator,
-            @NonNull HubShowPaneHelper hubShowPaneHelper,
-            @NonNull ObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
-            @NonNull SearchActivityClient searchActivityClient) {
+            Activity activity,
+            OneshotSupplier<ProfileProvider> profileProviderSupplier,
+            PaneListBuilder paneListBuilder,
+            BackPressManager backPressManager,
+            MenuOrKeyboardActionController menuOrKeyboardActionController,
+            SnackbarManager snackbarManager,
+            ObservableSupplier<Tab> tabSupplier,
+            MenuButtonCoordinator menuButtonCoordinator,
+            HubShowPaneHelper hubShowPaneHelper,
+            ObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
+            SearchActivityClient searchActivityClient,
+            @Nullable ObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
         super(
                 activity,
                 profileProviderSupplier,
@@ -60,7 +60,8 @@ public class BraveHubManagerImpl extends HubManagerImpl {
                 menuButtonCoordinator,
                 hubShowPaneHelper,
                 edgeToEdgeSupplier,
-                searchActivityClient);
+                searchActivityClient,
+                xrSpaceModeObservableSupplier);
 
         mIsTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(activity);
 

@@ -9,6 +9,8 @@
 #include <memory>
 #include <utility>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "brave/app/brave_command_ids.h"
 #include "brave/browser/ai_chat/ai_chat_utils.h"
@@ -149,13 +151,19 @@ void BraveToolbarView::Init() {
     return;
   }
 
+  // We don't use chromium's split tabs button in toolbar.
+  if (split_tabs_) {
+    auto split_tabs = container_view->RemoveChildViewT(split_tabs_);
+    split_tabs_ = nullptr;
+  }
+
   Profile* profile = browser()->profile();
 
   // We don't use divider between extensions container and other toolbar
   // buttons. Upstream conditionally creates |toolbar_divider_|, they check
   // whether it's null or not. So safe to make remove here.
   if (toolbar_divider_) {
-    container_view->RemoveChildView(toolbar_divider_.get());
+    auto view = container_view->RemoveChildViewT(toolbar_divider_.get());
     toolbar_divider_ = nullptr;
   }
 

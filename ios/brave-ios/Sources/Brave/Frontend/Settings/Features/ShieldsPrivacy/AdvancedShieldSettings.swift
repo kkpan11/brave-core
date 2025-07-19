@@ -94,6 +94,12 @@ import os
     }
   }
 
+  @Published var isSurveyPanelistEnabled: Bool = false {
+    didSet {
+      rewards?.ads.isSurveyPanelistEnabled = isSurveyPanelistEnabled
+    }
+  }
+
   typealias ClearDataCallback = @MainActor (Bool, Bool) -> Void
   @Published var clearableSettings: [ClearableSetting]
 
@@ -130,6 +136,7 @@ import os
     self.isDebounceEnabled = debounceService?.isEnabled ?? false
     self.shredLevel = ShieldPreferences.shredLevel
     self.webcompatReporterHandler = webcompatReporterHandler
+    self.isSurveyPanelistEnabled = rewards?.ads.isSurveyPanelistEnabled ?? false
 
     cookieConsentBlocking = FilterListStorage.shared.isEnabled(
       for: AdblockFilterListCatalogEntry.cookieConsentNoticesComponentID
@@ -198,7 +205,7 @@ import os
     self.clearableSettings = clearableSettings
     registerSubscriptions()
     Task { @MainActor in
-      self.isSaveContactInfoEnabled = await webcompatReporterHandler?.contactInfo().1 ?? false
+      self.isSaveContactInfoEnabled = await webcompatReporterHandler?.browserParams().1 ?? false
     }
   }
 
@@ -260,6 +267,9 @@ import os
     // Reset Webkit configuration to remove data from memory
     if clearAffectsTabs {
       self.tabManager.reset()
+      // This will recreate the webview for the selected tab.
+      // Other tabs will have webviews re-created when they are selected
+      self.tabManager.reloadSelectedTab()
       // Unlock the folders to allow clearing of data.
       await _toggleFolderAccessForBlockCookies(locked: false)
     }

@@ -18,6 +18,8 @@ struct AuthState {
   AuthenticationStatus status;
   // The authentication email address for this current account
   string email;
+  // Error message if authentication has failed somehow
+  string? error_message;
 };
 
 struct Alias {
@@ -54,7 +56,7 @@ interface EmailAliasesService {
   RequestAuthentication(string auth_email) => (string? error_message);
 
   // Cancel pending authentication or log out if already authenticated.
-  CancelAuthenticationOrLogout();
+  CancelAuthenticationOrLogout() => ();
 
   // Generate a proposed email alias.
   GenerateAlias() => (GenerateAliasResult result);
@@ -63,13 +65,10 @@ interface EmailAliasesService {
   UpdateAlias(string alias_email, string? note) => (string? error_message);
 
   // Delete an email alias.
-  DeleteAlias(string alias_email);
+  DeleteAlias(string alias_email) => (string? error_message);
 
   // Add an email aliases observer.
   AddObserver(pending_remote<EmailAliasesServiceObserver> observer);
-
-  // Remove an email aliases observer.
-  RemoveObserver(pending_remote<EmailAliasesServiceObserver> observer);
 
 };
 

@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 
+#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "brave/browser/brave_adaptive_captcha/brave_adaptive_captcha_service_factory.h"
@@ -28,7 +29,9 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/window_controller.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
@@ -61,7 +64,7 @@ RewardsPanelCoordinator* GetPanelCoordinator(
     content::WebContents* web_contents) {
   DCHECK(web_contents);
   auto* browser = chrome::FindBrowserWithTab(web_contents);
-  return browser ? RewardsPanelCoordinator::FromBrowser(browser) : nullptr;
+  return browser ? browser->GetFeatures().rewards_panel_coordinator() : nullptr;
 }
 
 RewardsPanelCoordinator* GetPanelCoordinator(ExtensionFunction* function) {
@@ -717,7 +720,11 @@ void BraveRewardsGetAdsAccountStatementFunction::OnGetAdsAccountStatement(
     base::Value::Dict dict;
     dict.Set("nextPaymentDate",
              statement->next_payment_date.InSecondsFSinceUnixEpoch() * 1000);
-    dict.Set("adsReceivedThisMonth", statement->ads_received_this_month);
+    auto& ad_type_map = statement->ads_summary_this_month;
+    dict.Set("adsReceivedThisMonth",
+             ad_type_map[brave_ads::mojom::AdType::kNotificationAd] +
+                 ad_type_map[brave_ads::mojom::AdType::kNewTabPageAd] +
+                 ad_type_map[brave_ads::mojom::AdType::kSearchResultAd]);
     dict.Set("minEarningsThisMonth", statement->min_earnings_this_month);
     dict.Set("maxEarningsThisMonth", statement->max_earnings_this_month);
     dict.Set("minEarningsLastMonth", statement->min_earnings_previous_month);

@@ -20,7 +20,7 @@ import {
 } from '../../common/conversation_history_utils'
 import useHasConversationStarted from '../hooks/useHasConversationStarted'
 
-const MAX_INPUT_CHAR = 2000
+const MAX_INPUT_CHAR = 20000
 const CHAR_LIMIT_THRESHOLD = MAX_INPUT_CHAR * 0.8
 
 export interface CharCountContext {
@@ -46,10 +46,7 @@ export type ConversationContext = SendFeedbackState & CharCountContext & {
   shouldDisableUserInput: boolean
   shouldShowLongPageWarning: boolean
   shouldShowLongConversationInfo: boolean
-  shouldSendPageContents: boolean
   inputText: string
-  // TODO(petemill): rename to `filteredActions`?
-  actionList: Mojom.ActionGroup[]
   selectedActionType: Mojom.ActionType | undefined
   isToolsMenuOpen: boolean
   isCurrentModelLeo: boolean
@@ -58,7 +55,6 @@ export type ConversationContext = SendFeedbackState & CharCountContext & {
   switchToBasicModel: () => void
   generateSuggestedQuestions: () => void
   dismissLongConversationInfo: () => void
-  updateShouldSendPageContents: (shouldSend: boolean) => void
   retryAPIRequest: () => void
   handleResetError: () => void
   handleStopGenerating: () => Promise<void>
@@ -68,6 +64,8 @@ export type ConversationContext = SendFeedbackState & CharCountContext & {
   handleActionTypeClick: (actionType: Mojom.ActionType) => void
   setIsToolsMenuOpen: (isOpen: boolean) => void
   handleVoiceRecognition?: () => void
+  disassociateContent: (content: Mojom.AssociatedContent) => void,
+  associateDefaultContent?: () => void,
   conversationHandler?: Mojom.ConversationHandlerRemote
 
   isTemporaryChat: boolean
@@ -89,7 +87,7 @@ export const defaultCharCountContext: CharCountContext = {
   inputTextCharCountDisplay: ''
 }
 
-const defaultContext: ConversationContext = {
+export const defaultContext: ConversationContext = {
   historyInitialized: false,
   conversationHistory: [],
   allModels: [],
@@ -102,9 +100,7 @@ const defaultContext: ConversationContext = {
   currentError: Mojom.APIError.None,
   shouldShowLongPageWarning: false,
   shouldShowLongConversationInfo: false,
-  shouldSendPageContents: true,
   inputText: '',
-  actionList: [],
   selectedActionType: undefined,
   isToolsMenuOpen: false,
   isCurrentModelLeo: true,
@@ -113,7 +109,6 @@ const defaultContext: ConversationContext = {
   switchToBasicModel: () => { },
   generateSuggestedQuestions: () => { },
   dismissLongConversationInfo: () => { },
-  updateShouldSendPageContents: () => { },
   retryAPIRequest: () => { },
   handleResetError: () => { },
   handleStopGenerating: async () => { },
@@ -123,10 +118,11 @@ const defaultContext: ConversationContext = {
   handleActionTypeClick: () => { },
   setIsToolsMenuOpen: () => { },
   isTemporaryChat: false,
+  disassociateContent: () => { },
   showAttachments: false,
   setShowAttachments: () => { },
   uploadImage: (useMediaCapture: boolean) => { },
-  getScreenshots: () => {},
+  getScreenshots: () => { },
   removeImage: () => { },
   setGeneratedUrlToBeOpened: () => { },
   setIgnoreExternalLinkWarning: () => { },
@@ -147,42 +143,6 @@ export function useCharCountInfo(inputText: string) {
     isCharLimitApproaching,
     inputTextCharCountDisplay
   }
-}
-
-function normalizeText(text: string) {
-  return text.trim().replace(/\s/g, '').toLocaleLowerCase()
-}
-
-export const getFirstValidAction = (actionList: Mojom.ActionGroup[]) =>
-  actionList
-    .flatMap((actionGroup) => actionGroup.entries)
-    .find((entries) => entries.details)?.details?.type
-
-export function useActionMenu(
-  filter: string,
-  actionList: Mojom.ActionGroup[]
-) {
-  return React.useMemo(() => {
-    const reg = new RegExp(/^\/\w+/)
-
-    // If we aren't filtering the actions, then just return our original list.
-    if (!reg.test(filter)) return actionList
-
-    // effectively remove the leading slash (/), and normalize before comparing it to the action labels.
-    const normalizedFilter = normalizeText(filter.substring(1))
-
-    // Filter the actionlist by our text
-    return actionList
-      .map((group) => ({
-        ...group,
-        entries: group.entries.filter(
-          (entry) =>
-            !!entry.details &&
-            normalizeText(entry.details.label).includes(normalizedFilter)
-        )
-      }))
-      .filter((group) => group.entries.length > 0)
-  }, [actionList, filter])
 }
 
 export const ConversationReactContext =
@@ -257,7 +217,6 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
         suggestedQuestions,
         suggestionStatus,
         associatedContent,
-        shouldSendContent,
         error,
         temporary
       } } = await conversationHandler.getState()
@@ -268,7 +227,6 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
         suggestedQuestions,
         suggestionStatus,
         associatedContentInfo: associatedContent,
-        shouldSendPageContents: shouldSendContent,
         currentError: error,
         isTemporaryChat: temporary
       })
@@ -317,12 +275,10 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
 
     id = callbackRouter.onAssociatedContentInfoChanged.addListener(
       (
-        associatedContentInfo: Mojom.AssociatedContent[],
-        shouldSendPageContents: boolean
+        associatedContentInfo: Mojom.AssociatedContent[]
       ) => {
         setPartialContext({
-          associatedContentInfo,
-          shouldSendPageContents
+          associatedContentInfo
         })
       }
     )
@@ -357,13 +313,13 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
     const originalTitle = document.title
     const conversationTitle = aiChatContext.conversations.find(c =>
       c.uuid === context.conversationUuid
-    )?.title || getLocale('conversationListUntitled')
+    )?.title || getLocale(S.AI_CHAT_CONVERSATION_LIST_UNTITLED)
 
     function setTitle(isPWA: boolean) {
       if (isPWA) {
         document.title = conversationTitle
       } else {
-        document.title = `${getLocale('siteTitle')} - ${conversationTitle}`
+        document.title = `${getLocale(S.CHAT_UI_TITLE)} - ${conversationTitle}`
       }
     }
 
@@ -379,8 +335,6 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
     }
   }, [aiChatContext.conversations, context.conversationUuid])
 
-  const actionList = useActionMenu(context.inputText, aiChatContext.allActions)
-
   const shouldShowLongConversationInfo = React.useMemo(() => {
     const chatHistoryCharTotal = context.conversationHistory.reduce(
       (charCount, curr) => charCount + curr.text.length,
@@ -395,9 +349,9 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
 
     if (options) {
       totalCharLimit += options.longConversationWarningCharacterLimit ?? 0
-      totalCharLimit += context.shouldSendPageContents
-        ? options.maxAssociatedContentLength ?? 0
-        : 0
+      if (context.associatedContentInfo.length > 0) {
+        totalCharLimit += options.maxAssociatedContentLength ?? 0
+      }
     }
 
     return !hasDismissedLongConversationInfo
@@ -432,48 +386,26 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
   React.useEffect(() => {
     try {
       getAPI().metrics.onQuickActionStatusChange(!!context.selectedActionType)
-    } catch (e) {}
+    } catch (e) { }
   }, [context.selectedActionType])
 
   const handleActionTypeClick = (actionType: Mojom.ActionType) => {
-    setPartialContext({
-      selectedActionType: actionType
-    })
-    // TODO(petemill): Explain why the settimeout?
-    setTimeout(() => {
-      if (context.inputText.startsWith('/')) {
-        setPartialContext({
-          inputText: ''
-        })
-      }
-    })
-  }
-
-  React.useEffect(() => {
-    const isOpen = context.inputText.startsWith('/') && actionList.length > 0
-    setPartialContext({
-      isToolsMenuOpen: isOpen
-    })
-  }, [context.inputText, actionList])
-
-  const handleFilterActivation = () => {
-    if (context.isToolsMenuOpen && context.inputText.startsWith('/')) {
-      setPartialContext({
-        selectedActionType: getFirstValidAction(actionList),
-        inputText: '',
-        isToolsMenuOpen: false
-      })
-      return true
+    const update: Partial<ConversationContext> = {
+      selectedActionType: actionType,
+      isToolsMenuOpen: false
     }
 
-    return false
+    if (context.inputText.startsWith('/')) {
+      update.inputText = ''
+    }
+
+    setPartialContext(update)
   }
 
   const submitInputTextToAPI = () => {
     if (!context.inputText) return
     if (isCharLimitExceeded) return
     if (shouldDisableUserInput) return
-    if (handleFilterActivation()) return
 
     if (!aiChatContext.isStorageNoticeDismissed && aiChatContext.hasAcceptedAgreement) {
       // Submitting a conversation entry manually, after opt-in,
@@ -502,6 +434,21 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
     })
     resetSelectedActionType()
   }
+
+  const disassociateContent = (content: Mojom.AssociatedContent) => {
+    aiChatContext.uiHandler?.disassociateContent(content, context.conversationUuid!)
+  }
+
+  const associateDefaultContent = React.useMemo(() => {
+    const existingAttachedContent = context.associatedContentInfo.find(c => c.contentId === aiChatContext.defaultTabContentId)
+    const tab = aiChatContext.tabs.find(t => t.contentId === aiChatContext.defaultTabContentId)
+
+    return aiChatContext.defaultTabContentId && !existingAttachedContent && tab
+      ? () => {
+        aiChatContext.uiHandler?.associateTab(tab, context.conversationUuid!)
+      }
+      : undefined
+  }, [aiChatContext.defaultTabContentId, aiChatContext.uiHandler, aiChatContext.tabs, context.associatedContentInfo, context.conversationUuid])
 
   // TODO(petemill): rename to switchToNonPremiumModel as there are no longer
   // a different in limitations between basic and freemium models.
@@ -543,43 +490,43 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
   }
 
   const processUploadedImage = (images: Mojom.UploadedFile[]) => {
-        const totalUploadedImages = context.conversationHistory.reduce(
-          (total, turn) => total +
-            (getImageFiles(turn.uploadedFiles)?.length || 0),
-          0
-        )
-        const currentPendingImages = context.pendingMessageImages.length
-        const maxNewImages = MAX_IMAGES - totalUploadedImages - currentPendingImages
-        const newImages = images.slice(0, Math.max(0, maxNewImages))
+    const totalUploadedImages = context.conversationHistory.reduce(
+      (total, turn) => total +
+        (getImageFiles(turn.uploadedFiles)?.length || 0),
+      0
+    )
+    const currentPendingImages = context.pendingMessageImages.length
+    const maxNewImages = MAX_IMAGES - totalUploadedImages - currentPendingImages
+    const newImages = images.slice(0, Math.max(0, maxNewImages))
 
-        if (newImages.length > 0) {
-          setPartialContext({
-            isUploadingFiles: false,
-            pendingMessageImages:
-              [...context.pendingMessageImages, ...newImages]
-          })
-        }
+    if (newImages.length > 0) {
+      setPartialContext({
+        isUploadingFiles: false,
+        pendingMessageImages:
+          [...context.pendingMessageImages, ...newImages]
+      })
     }
+  }
 
   const getScreenshots = () => {
     setPartialContext({
       isUploadingFiles: true
     })
     conversationHandler.getScreenshots()
-    .then(({screenshots}) => {
-      if (screenshots) {
-        processUploadedImage(screenshots)
-      }
-    })
+      .then(({ screenshots }) => {
+        if (screenshots) {
+          processUploadedImage(screenshots)
+        }
+      })
   }
 
   const uploadImage = (useMediaCapture: boolean) => {
     aiChatContext.uiHandler?.uploadImage(useMediaCapture)
-    .then(({uploadedImages}) => {
-      if (uploadedImages) {
-        processUploadedImage(uploadedImages)
-      }
-    })
+      .then(({ uploadedImages }) => {
+        if (uploadedImages) {
+          processUploadedImage(uploadedImages)
+        }
+      })
   }
 
   const removeImage = (index: number) => {
@@ -672,7 +619,6 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
   const store: ConversationContext = {
     ...context,
     ...sendFeedbackState,
-    actionList,
     apiHasError,
     shouldDisableUserInput,
     isCharLimitApproaching,
@@ -689,7 +635,6 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
     setCurrentModel: (model) => conversationHandler.changeModel(model.key),
     generateSuggestedQuestions: () => conversationHandler.generateQuestions(),
     resetSelectedActionType,
-    updateShouldSendPageContents: (shouldSend) => conversationHandler.setShouldSendPageContents(shouldSend),
     setInputText: (inputText) => setPartialContext({ inputText }),
     handleActionTypeClick,
     submitInputTextToAPI,
@@ -710,7 +655,9 @@ export function ConversationContextProvider(props: React.PropsWithChildren) {
     conversationHandler,
     setGeneratedUrlToBeOpened:
       (url?: Url) => setPartialContext({ generatedUrlToBeOpened: url }),
-    setIgnoreExternalLinkWarning
+    setIgnoreExternalLinkWarning,
+    disassociateContent,
+    associateDefaultContent,
   }
 
   return (
@@ -731,10 +678,4 @@ export function useIsNewConversation() {
   // A conversation is new if it isn't in the list of conversations or doesn't have content
   return !aiChatContext.conversations.find(
     c => c.uuid === conversationContext.conversationUuid && c.hasContent)
-}
-
-export function useSupportsAttachments() {
-  const aiChatContext = useAIChat()
-  const isNew = useIsNewConversation()
-  return aiChatContext.isStandalone && isNew
 }

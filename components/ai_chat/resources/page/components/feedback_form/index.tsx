@@ -7,17 +7,16 @@ import * as React from 'react'
 import DropDown from '@brave/leo/react/dropdown'
 import Button from '@brave/leo/react/button'
 import Checkbox from '@brave/leo/react/checkbox'
-import { getLocale } from '$web-common/locale'
-import formatMessage from '$web-common/formatMessage'
+import { getLocale , formatLocale } from '$web-common/locale'
 import { useAIChat } from '../../state/ai_chat_context'
 import { useConversation } from '../../state/conversation_context'
 import styles from './style.module.scss'
 
 const CATEGORY_OPTIONS = new Map([
-  ['not-helpful', getLocale('optionNotHelpful')],
-  ['incorrect', getLocale('optionIncorrect')],
-  ['unsafe-harmful', getLocale('optionUnsafeHarmful')],
-  ['other', getLocale('optionOther')]
+  ['not-helpful', getLocale(S.CHAT_UI_OPTION_NOT_HELPFUL)],
+  ['incorrect', getLocale(S.CHAT_UI_OPTION_INCORRECT)],
+  ['unsafe-harmful', getLocale(S.CHAT_UI_OPTION_UNSAFE_HARMFUL)],
+  ['other', getLocale(S.CHAT_UI_OPTION_OTHER)]
 ])
 
 const getHostName = (url: string) => {
@@ -63,17 +62,17 @@ function FeedbackForm() {
 
   return (
     <div ref={ref} className={styles.form}>
-      <h4>{getLocale('provideFeedbackTitle')}</h4>
+      <h4>{getLocale(S.CHAT_UI_PROVIDE_FEEDBACK_TITLE)}</h4>
       <form>
         <fieldset>
           <DropDown
             className={styles.dropdown}
-            placeholder={getLocale('selectFeedbackTopic')}
+            placeholder={getLocale(S.CHAT_UI_SELECT_FEEDBACK_TOPIC)}
             onChange={handleSelectOnChange}
             required={true}
             value={CATEGORY_OPTIONS.get(category)}
           >
-            <div slot='label'>{getLocale('feedbackCategoryLabel')}</div>
+            <div slot='label'>{getLocale(S.CHAT_UI_FEEDBACK_CATEGORY_LABEL)}</div>
             {[...CATEGORY_OPTIONS.keys()].map((key) => {
               return (
                 <leo-option key={key} value={key}>
@@ -85,10 +84,10 @@ function FeedbackForm() {
         </fieldset>
         <fieldset>
           <label>
-            {getLocale('feedbackDescriptionLabel')}
+            {getLocale(S.CHAT_UI_FEEDBACK_DESCRIPTION_LABEL)}
             <textarea
               onChange={handleInputChange}
-              placeholder={getLocale('feedbackDescriptionLabel')}
+              placeholder={getLocale(S.CHAT_UI_FEEDBACK_DESCRIPTION_LABEL)}
             />
           </label>
         </fieldset>
@@ -96,10 +95,8 @@ function FeedbackForm() {
           <fieldset>
             <Checkbox checked={shouldSendUrl} onChange={handleCheckboxChange}>
               <label>{
-                formatMessage(getLocale('sendSiteHostnameLabel'), {
-                  placeholders: {
-                    $1: conversationContext.associatedContentInfo.map(c => getHostName(c.url.url)).join(', ')
-                  }
+                formatLocale(S.CHAT_UI_SEND_SITE_HOSTNAME_LABEL, {
+                  $1: conversationContext.associatedContentInfo.map(c => getHostName(c.url.url)).join(', ')
                 })
               }</label>
             </Checkbox>
@@ -107,23 +104,21 @@ function FeedbackForm() {
         )}
         {!aiChatContext.isPremiumUser && (
           <div className={styles.premiumNote}>
-            {formatMessage(getLocale('feedbackPremiumNote'), {
-              tags: {
-                $1: (linkText) => (
+            {formatLocale(S.CHAT_UI_FEEDBACK_PREMIUM_NOTE, {
+              $1: (linkText) => (
                   <Button kind='plain' size='medium' onClick={aiChatContext.goPremium}>
                     {linkText}
                   </Button>
                 )
-              }
             })}
           </div>
         )}
         <fieldset className={styles.actions}>
           <Button onClick={conversationContext.handleFeedbackFormCancel} kind='plain-faint'>
-            {getLocale('cancelButtonLabel')}
+            {getLocale(S.CHAT_UI_CANCEL_BUTTON_LABEL)}
           </Button>
           <Button isDisabled={!canSubmit} onClick={handleSubmit}>
-            {getLocale('submitButtonLabel')}
+            {getLocale(S.CHAT_UI_SUBMIT_BUTTON_LABEL)}
           </Button>
         </fieldset>
       </form>

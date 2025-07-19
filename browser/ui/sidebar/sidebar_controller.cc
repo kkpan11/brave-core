@@ -8,6 +8,7 @@
 #include <optional>
 #include <vector>
 
+#include "base/check.h"
 #include "base/check_op.h"
 #include "brave/browser/ui/sidebar/sidebar.h"
 #include "brave/browser/ui/sidebar/sidebar_model.h"
@@ -84,6 +85,11 @@ bool SidebarController::DoesBrowserHaveOpenedTabForItem(
   }
 
   return false;
+}
+
+void SidebarController::TearDownPreBrowserWindowDestruction() {
+  sidebar_service_observed_.Reset();
+  sidebar_ = nullptr;
 }
 
 void SidebarController::ActivateItemAt(std::optional<size_t> index,

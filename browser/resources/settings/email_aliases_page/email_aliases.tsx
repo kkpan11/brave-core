@@ -12,9 +12,9 @@ import {
   AuthState,
   Alias,
   EmailAliasesServiceInterface,
-  EmailAliasesServiceRemote,
-  EmailAliasesServiceObserverRemote,
-  EmailAliasesServiceObserverInterface
+  EmailAliasesServiceObserverInterface,
+  EmailAliasesServiceObserverReceiver,
+  EmailAliasesService
 } from "gen/brave/components/email_aliases/email_aliases.mojom.m"
 
 export const ManagePageConnected = ({ emailAliasesService, bindObserver }: {
@@ -22,7 +22,8 @@ export const ManagePageConnected = ({ emailAliasesService, bindObserver }: {
     bindObserver: (observer: EmailAliasesServiceObserverInterface) => () => void
   }) => {
   const [authState, setAuthState] = React.useState<AuthState>(
-      { status: AuthenticationStatus.kStartup, email: '' })
+      { status: AuthenticationStatus.kStartup, email: '',
+        errorMessage: undefined })
   const [aliasesState, setAliasesState] = React.useState<Alias[]>([]);
   React.useEffect(() => {
     // Note: We keep track of the status here so we can avoid setting aliases
@@ -56,11 +57,15 @@ export const ManagePageConnected = ({ emailAliasesService, bindObserver }: {
 
 export const mount = (at: HTMLElement) => {
   const root = createRoot(at);
-  const emailAliasesService = new EmailAliasesServiceRemote()
+  const emailAliasesService = EmailAliasesService.getRemote()
+
   const bindObserver = (observer: EmailAliasesServiceObserverInterface) => {
-    const observerRemote = new EmailAliasesServiceObserverRemote(observer)
+    const observerReceiver = new EmailAliasesServiceObserverReceiver(observer)
+    const observerRemote = observerReceiver.$.bindNewPipeAndPassRemote()
     emailAliasesService.addObserver(observerRemote)
-    return () => emailAliasesService.removeObserver(observerRemote)
+    return () => {
+      observerReceiver.$.close()
+    }
   }
   root.render(
     <StyleSheetManager target={at}>

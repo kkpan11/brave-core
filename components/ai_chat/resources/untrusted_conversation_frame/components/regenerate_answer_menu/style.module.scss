@@ -11,7 +11,9 @@
     justify-content: space-between;
     gap: var(--leo-spacing-xl);
     padding: var(--leo-spacing-m);
-    min-width: 200px;
+    margin: var(--leo-spacing-s) var(--leo-spacing-s) 0;
+    min-width: 240px;
+    font: var(--leo-font-default-regular);
   }
 }
 
@@ -21,7 +23,6 @@
   padding: var(--leo-spacing-l) var(--leo-spacing-xl);
   color: var(--leo-color-text-secondary);
   font: var(--leo-font-components-label);
-  text-transform: uppercase;
   position: absolute;
   border-radius: 8px 8px 0px 0px;
   border-top: 1px solid var(--leo-color-divider-subtle);
@@ -34,8 +35,8 @@
 }
 
 .headerGap {
-  min-height: 33px;
-}
+  min-height: 37px;
+} 
 
 .anchorButton {
   display: flex;
@@ -43,27 +44,47 @@
   flex: 0;
 }
 
-.footerGap {
-  min-height: 53px;
+.anchorButtonOpen {
+  color: var(--leo-color-icon-interactive);
+}
+
+.anchorButtonIconRow {
+  display: flex;
+  flex-direction: row;
 }
 
 .menuFooter {
   display: flex;
   width: 100%;
   padding: var(--leo-spacing-s);
-  border: 1px solid var(--leo-color-divider-subtle);
+  background-color: var(--leo-color-container-background);
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   background-color: var(--leo-color-container-background);
   border-radius: 0px 0px 8px 8px;
+  border: 1px solid var(--leo-color-divider-subtle);
   leo-menu-item {
     justify-content: flex-start;
     border-radius: var(--leo-radius-s);
+    margin: 0;
+    gap: var(--leo-spacing-m);
     &:hover {
       background-color: var(--leo-color-container-highlight);
     }
   }
 }
 
+.footerGap {
+  min-height: 51px;
+} 
+
+.modelIconAndName {
+  --leo-icon-size: 20px;
+  --leo-icon-color: var(--leo-color-icon-default);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--leo-spacing-m);
+}

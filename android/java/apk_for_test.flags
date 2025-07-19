@@ -189,7 +189,7 @@
     public <init>(...);
 }
 
--keep class org.chromium.chrome.browser.appmenu.BraveTabbedAppMenuPropertiesDelegate {
+-keep class org.chromium.chrome.browser.tabbed_mode.BraveTabbedAppMenuPropertiesDelegate {
     public <init>(...);
 }
 
@@ -308,14 +308,6 @@
     public <init>(...);
 }
 
--keep class org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl {
-    public <init>(...);
-}
-
--keep class org.chromium.chrome.browser.app.appmenu.BraveAppMenuPropertiesDelegateImpl {
-    public <init>(...);
-}
-
 -keep class org.chromium.chrome.browser.customtabs.CustomTabAppMenuPropertiesDelegate {
     public <init>(...);
 }
@@ -358,7 +350,11 @@
 
 -keep class org.chromium.chrome.browser.search_engines.settings.BraveBaseSearchEngineAdapter
 
--keep class org.chromium.chrome.browser.ChromeTabbedActivity
+-keep class org.chromium.components.browser_ui.util.motion.MotionEventInfo
+
+-keep class org.chromium.chrome.browser.ChromeTabbedActivity {
+    boolean onMenuOrKeyboardAction(int, boolean, org.chromium.components.browser_ui.util.motion.MotionEventInfo);
+}
 
 -keep class org.chromium.chrome.browser.app.BraveActivity
 
@@ -472,9 +468,10 @@
     *** getActionButtonTintList(...);
 }
 
--keep class org.chromium.chrome.browser.tab_ui.TabUiThemeUtils {
+-keep class org.chromium.chrome.browser.tab_ui.TabCardThemeUtil {
     *** getTitleTextColor(...);
     *** getCardViewBackgroundColor(...);
+    *** getActionButtonTintList(...);
 }
 
 -keep class org.chromium.chrome.browser.download.BraveDownloadMessageUiControllerImpl {
@@ -916,6 +913,7 @@
     *** mMinimizationManagerHolder;
     *** mCustomTabFeatureOverridesManager;
     *** getAppHeaderCoordinator(...);
+    *** getBrowserServicesThemeColorProvider(...);
     public <init>(...);
 }
 
@@ -987,4 +985,21 @@
 
 -keep class org.chromium.chrome.browser.tab_group_sync.BraveStartupHelper {
     *** handleUnsavedLocalTabGroups(...);
+}
+
+-keep class org.chromium.chrome.browser.infobar.InfoBarContainerView {
+    <init>(...);
+    *** mEdgeToEdgeSupplier;
+}
+
+-keep class org.chromium.chrome.browser.infobar.BraveInfoBarContainerView {
+    <init>(...);
+}
+
+-keep class org.chromium.chrome.browser.toolbar.ToolbarLongPressMenuHandler {
+    public <init>(...);
+}
+
+-keep class org.chromium.chrome.browser.toolbar.BraveToolbarLongPressMenuHandler {
+    public <init>(...);
 }

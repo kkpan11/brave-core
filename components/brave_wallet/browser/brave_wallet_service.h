@@ -132,8 +132,13 @@ class BraveWalletService : public KeyedService,
   void GetDefaultEthereumWallet(
       GetDefaultEthereumWalletCallback callback) override;
   void GetDefaultSolanaWallet(GetDefaultSolanaWalletCallback callback) override;
+  void GetDefaultCardanoWallet(
+      GetDefaultCardanoWalletCallback callback) override;
+
   void SetDefaultEthereumWallet(mojom::DefaultWallet default_wallet) override;
   void SetDefaultSolanaWallet(mojom::DefaultWallet default_wallet) override;
+  void SetDefaultCardanoWallet(mojom::DefaultWallet default_wallet) override;
+
   void GetDefaultBaseCurrency(GetDefaultBaseCurrencyCallback callback) override;
   void SetDefaultBaseCurrency(const std::string& currency) override;
   void GetDefaultBaseCryptocurrency(
@@ -315,6 +320,7 @@ class BraveWalletService : public KeyedService,
   NetworkManager* network_manager() { return network_manager_.get(); }
   JsonRpcService* json_rpc_service() { return json_rpc_service_.get(); }
   KeyringService* keyring_service() { return keyring_service_.get(); }
+
   TxService* tx_service() { return tx_service_.get(); }
   // Might return nullptr.
   BitcoinWalletService* GetBitcoinWalletService();
@@ -322,8 +328,6 @@ class BraveWalletService : public KeyedService,
   ZCashWalletService* GetZcashWalletService();
   // Might return nullptr.
   CardanoWalletService* GetCardanoWalletService();
-
-  void GetCountryCode(GetCountryCodeCallback callback) override;
 
  protected:
   // For tests
@@ -344,6 +348,8 @@ class BraveWalletService : public KeyedService,
 
   void OnDefaultEthereumWalletChanged();
   void OnDefaultSolanaWalletChanged();
+  void OnDefaultCardanoWalletChanged();
+
   void OnDefaultBaseCurrencyChanged();
   void OnDefaultBaseCryptocurrencyChanged();
   void OnNetworkListChanged();

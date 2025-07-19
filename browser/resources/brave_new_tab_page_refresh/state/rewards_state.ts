@@ -4,25 +4,28 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 import { ExternalWallet } from '../../../../components/brave_rewards/resources/shared/lib/external_wallet'
-import { Optional } from '../lib/optional'
 
 export interface RewardsState {
+  initialized: boolean
   rewardsFeatureEnabled: boolean
   showRewardsWidget: boolean
   rewardsEnabled: boolean
   rewardsExternalWallet: ExternalWallet | null
-  rewardsBalance: Optional<number>
+  rewardsBalance: number | null
   rewardsExchangeRate: number
+  rewardsAdsViewed: number | null
 }
 
 export function defaultRewardsState(): RewardsState {
   return {
+    initialized: false,
     rewardsFeatureEnabled: false,
     showRewardsWidget: false,
     rewardsEnabled: false,
     rewardsExternalWallet: null,
-    rewardsBalance: new Optional(),
-    rewardsExchangeRate: 1
+    rewardsBalance: null,
+    rewardsExchangeRate: 0,
+    rewardsAdsViewed: null
   }
 }
 

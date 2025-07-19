@@ -12,7 +12,9 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/check_is_test.h"
+#include "base/check_op.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
@@ -21,6 +23,7 @@
 #include "base/values.h"
 #include "brave/components/ai_chat/core/browser/utils.h"
 #include "brave/components/brave_wallet/common/common_utils.h"
+#include "brave/components/constants/pref_names.h"
 #include "brave/components/constants/webui_url_constants.h"
 #include "brave/components/l10n/common/locale_util.h"
 #include "brave/components/playlist/common/buildflags/buildflags.h"
@@ -591,12 +594,15 @@ SidebarItem SidebarService::GetBuiltInItemForType(
     SidebarItem::BuiltInItemType type) const {
   switch (type) {
     case SidebarItem::BuiltInItemType::kBraveTalk:
-      return SidebarItem::Create(
-          GURL(kBraveTalkURL),
-          l10n_util::GetStringUTF16(IDS_SIDEBAR_BRAVE_TALK_ITEM_TITLE),
-          SidebarItem::Type::kTypeBuiltIn,
-          SidebarItem::BuiltInItemType::kBraveTalk,
-          /* open_in_panel = */ false);
+      if (!prefs_->GetBoolean(kBraveTalkDisabledByPolicy)) {
+        return SidebarItem::Create(
+            GURL(kBraveTalkURL),
+            l10n_util::GetStringUTF16(IDS_SIDEBAR_BRAVE_TALK_ITEM_TITLE),
+            SidebarItem::Type::kTypeBuiltIn,
+            SidebarItem::BuiltInItemType::kBraveTalk,
+            /* open_in_panel = */ false);
+      }
+      return SidebarItem();
     case SidebarItem::BuiltInItemType::kWallet: {
       if (brave_wallet::IsAllowed(prefs_)) {
         return SidebarItem::Create(

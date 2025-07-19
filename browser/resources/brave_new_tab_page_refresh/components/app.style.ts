@@ -6,11 +6,37 @@
 import { color, font } from '@brave/leo/tokens/css/variables'
 import { scoped } from '../lib/scoped_css'
 
-const narrowBreakpoint = '900px'
+export const narrowBreakpoint = '900px'
+export const threeColumnBreakpoint = '1275px'
+export const horizontalContentPadding = 24
 
 export const style = scoped.css`
   & {
     --search-transition-duration: 120ms;
+  }
+
+  @keyframes background-scroll-fade {
+    from {
+      background: rgba(0, 0, 0, 0);
+      backdrop-filter: blur(0);
+    }
+    50% {
+      backdrop-filter: blur(0);
+    }
+    to {
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(32px);
+    }
+  }
+
+  .background-filter {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+
+    animation: linear background-scroll-fade both;
+    animation-timeline: scroll();
+    animation-range: 0px 100vh;
   }
 
   .top-controls {
@@ -63,6 +89,7 @@ export const style = scoped.css`
 
   main {
     container-type: inline-size;
+    view-timeline-name: --ntp-main-view-timeline;
     position: relative;
     z-index: 1;
     display: flex;
@@ -70,7 +97,7 @@ export const style = scoped.css`
     align-items: center;
     min-height: 100vh;
     gap: 16px;
-    padding: 16px 24px;
+    padding: 16px ${horizontalContentPadding}px;
 
     > * {
       transition:
@@ -137,33 +164,48 @@ export const style = scoped.css`
 
   .widget-container {
     --widget-height: 128px;
-    --widget-width: 420px;
-    --widget-flex-basis: var(--widget-width);
+    --widget-min-width: 380px;
+    --widget-max-width: 512px;
+    --widget-gap: 16px;
 
     anchor-name: --ntp-widget-container;
 
-    flex: 0 0 var(--widget-height);
+    flex: 0 0 auto;
+    min-height: var(--widget-height);
 
-    display: flex;
+    display: grid;
+    grid-auto-columns: minmax(var(--widget-min-width), var(--widget-max-width));
+    grid-auto-rows: minmax(var(--widget-height), auto);
+    grid-auto-flow: column;
     justify-content: center;
     align-items: stretch;
-    gap: 16px;
+    gap: var(--widget-gap);
 
     &:empty {
-      flex-basis: 0;
+      min-height: 0;
     }
 
     @container (width <= ${narrowBreakpoint}) {
-      --widget-flex-basis: var(--widget-height);
+      grid-auto-flow: row;
+    }
 
-      width: var(--widget-width);
-      align-self: center;
-      flex-basis: auto;
-      display: flex;
-      flex-direction: column;
+    @container (width > ${narrowBreakpoint}) {
+      &:has(> :nth-child(2)) {
+        justify-content: space-between;
+        align-self: stretch;
+      }
+
+      &:has(> :nth-child(3)) {
+        justify-content: center;
+        align-self: center;
+      }
     }
   }
 
+  .news-container {
+    position: relative;
+    z-index: 1;
+  }
 `
 
 style.passthrough.css`
@@ -247,5 +289,41 @@ style.passthrough.css`
         background: ${color.container.highlight};
       }
     }
+  }
+
+  .skeleton {
+    --self-animation-color: rgba(0, 0, 0, 0.1);
+
+    background: rgba(255, 255, 255, 0.25);
+    position: relative;
+    overflow: hidden;
+    opacity: .7;
+
+    animation: skeleton-fade-in 1s ease-in-out both 250ms;
+
+    @media (prefers-color-scheme: dark) {
+      --self-animation-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  .skeleton:after {
+    content: '';
+    position: absolute;
+    transform: translateX(-100%);
+    inset: 0;
+    background: linear-gradient(
+      90deg, transparent, var(--self-animation-color), transparent);
+    animation: skeleton-background-cycle 2s linear 0.5s infinite;
+  }
+
+  @keyframes skeleton-fade-in {
+    0% { opacity: 0; }
+    100% { opacity: .7; }
+  }
+
+  @keyframes skeleton-background-cycle {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(100%); }
+    100% { transform: translateX(100%); }
   }
 `

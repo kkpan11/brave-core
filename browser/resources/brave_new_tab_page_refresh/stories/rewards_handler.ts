@@ -4,7 +4,6 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 import { Store } from '../lib/store'
-import { optional } from '../lib/optional'
 
 import {
   RewardsState,
@@ -15,17 +14,19 @@ export function createRewardsHandler(
   store: Store<RewardsState>
 ): RewardsActions {
   store.update({
+    initialized: true,
     rewardsFeatureEnabled: true,
     rewardsEnabled: true,
     showRewardsWidget: true,
-    rewardsBalance: optional(1.204),
+    rewardsBalance: 1.204,
     rewardsExchangeRate: 1,
     rewardsExternalWallet: {
-      provider: 'uphold',
+      provider: 'gemini',
       authenticated: true,
       name: 'Joe',
       url: 'https://brave.com'
-    }
+    },
+    rewardsAdsViewed: 1
   })
 
   return {

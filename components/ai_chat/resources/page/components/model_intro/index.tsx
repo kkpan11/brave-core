@@ -7,8 +7,7 @@ import * as React from 'react'
 import Icon from '@brave/leo/react/icon'
 import Tooltip from '@brave/leo/react/tooltip'
 import Button from '@brave/leo/react/button'
-import formatMessage from '$web-common/formatMessage'
-import { getLocale } from '$web-common/locale'
+import { getLocale, formatLocale } from '$web-common/locale'
 import * as Mojom from '../../../common/mojom'
 import { useAIChat } from '../../state/ai_chat_context'
 import { useConversation } from '../../state/conversation_context'
@@ -19,13 +18,11 @@ function getCategoryName(category: Mojom.ModelCategory) {
   // To avoid problems when order of enum values change, we base the key
   // on the enum name rather than the number value, e.g. "CHAT" vs 0
   const categoryKey = getKeysForMojomEnum(Mojom.ModelCategory)[category]
-  const key = `modelCategory-${categoryKey.toLowerCase()}`
-  return getLocale(key)
+  return getLocale('CHAT_UI_MODEL_CATEGORY_' + categoryKey)
 }
 
-function getIntroMessage(model: Mojom.Model) {
-  const key = `introMessage-${model.key}`
-  return getLocale(key)
+function getIntroMessageKey(model: Mojom.Model) {
+  return `CHAT_UI_INTRO_MESSAGE_${model.key.toUpperCase().replaceAll('-', '_')}`
 }
 
 export default function ModelIntro() {
@@ -62,22 +59,18 @@ export default function ModelIntro() {
                 slot='content'
                 className={styles.tooltipContent}
               >
-                {formatMessage(getIntroMessage(model), {
-                  tags: {
-                    $1: (content) => {
+                {formatLocale(getIntroMessageKey(model), {
+                  $1: (content) => {
                       return (
-                        <a
+                        <button
                           key={content}
                           onClick={() =>
                             aiChatContext.uiHandler?.openModelSupportUrl()
                           }
-                          href='#'
-                          target='_blank'
                         >
                           {content}
-                        </a>
+                        </button>
                       )
-                    }
                   }
                 })}
               </div>

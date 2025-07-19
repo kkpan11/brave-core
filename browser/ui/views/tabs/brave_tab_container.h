@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "brave/browser/ui/tabs/split_view_browser_data.h"
 #include "brave/browser/ui/tabs/split_view_browser_data_observer.h"
@@ -52,6 +53,9 @@ class BraveTabContainer : public TabContainerImpl,
   void SetTabSlotVisibility() override;
   void InvalidateIdealBounds() override;
   void Layout(PassKey) override;
+  void OnSplitCreated(const std::vector<int>& indices) override;
+  void OnSplitRemoved(const std::vector<int>& indices) override;
+  void OnSplitContentsChanged(const std::vector<int>& indices) override;
 
   // BrowserRootView::DropTarget
   std::optional<BrowserRootView::DropIndex> GetDropIndex(
@@ -64,6 +68,7 @@ class BraveTabContainer : public TabContainerImpl,
   void OnTileTabs(const TabTile& tile) override;
   void OnDidBreakTile(const TabTile& tile) override;
   void OnSwapTabsInTile(const TabTile& tile) override;
+  void OnWillDeleteBrowserData() override;
 
  private:
   class DropArrow {
@@ -104,6 +109,9 @@ class BraveTabContainer : public TabContainerImpl,
   void PaintBoundingBoxForTiles(gfx::Canvas& canvas,
                                 const SplitViewBrowserData* split_view_data);
   void PaintBoundingBoxForTile(gfx::Canvas& canvas, const TabTile& tile);
+  void PaintBoundingBoxForSplitTabs(gfx::Canvas& canvas);
+  void PaintBoundingBoxForSplitTab(gfx::Canvas& canvas,
+                                   const std::vector<int>& indices);
 
   static gfx::ImageSkia* GetDropArrowImage(
       BraveTabContainer::DropArrow::Position pos,
@@ -119,6 +127,7 @@ class BraveTabContainer : public TabContainerImpl,
 
   bool IsPinnedTabContainer() const;
   void UpdateTabsBorderInTile(const TabTile& tile);
+  void UpdateTabsBorderInSplitTab(const std::vector<int>& indices);
 
   base::flat_set<Tab*> closing_tabs_;
 

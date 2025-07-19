@@ -18,7 +18,7 @@
 #include "base/time/time.h"
 #include "brave/browser/ephemeral_storage/ephemeral_storage_service_factory.h"
 #include "brave/browser/ephemeral_storage/ephemeral_storage_tab_helper.h"
-#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
+#include "brave/components/brave_shields/core/browser/brave_shields_utils.h"
 #include "brave/components/brave_shields/core/common/brave_shield_constants.h"
 #include "brave/components/constants/brave_paths.h"
 #include "brave/components/ephemeral_storage/ephemeral_storage_service.h"
@@ -67,10 +67,10 @@ const char* ToString(EphemeralStorageBrowserTest::StorageType storage_type) {
 }
 
 GURL GetHttpRequestURL(const HttpRequest& http_request) {
-  return GURL(base::StrCat(
-      {http_request.base_url.scheme_piece(), "://",
-       http_request.headers.at(net::HttpRequestHeaders::kHost).c_str(),
-       http_request.relative_url.c_str()}));
+  return GURL(
+      base::StrCat({http_request.base_url.scheme_piece(), "://",
+                    http_request.headers.at(net::HttpRequestHeaders::kHost),
+                    http_request.relative_url}));
 }
 
 std::unique_ptr<HttpResponse> HandleFileRequestWithCustomHeaders(
@@ -1332,7 +1332,7 @@ class EphemeralStorageWithDisableThirdPartyStoragePartitioningBrowserTest
 
     blink::RuntimeFeatureStateContext& context =
         navigation_handle->GetMutableRuntimeFeatureStateContext();
-    context.SetDisableThirdPartyStoragePartitioning3Enabled(GetParam());
+    context.SetThirdPartyStoragePartitioningUserBypassEnabled(GetParam());
   }
 };
 

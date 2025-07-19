@@ -9,8 +9,10 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "brave/browser/brave_browser_process.h"
@@ -33,6 +35,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_select_file_policy.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/search_engine_type.h"
@@ -348,8 +351,8 @@ void BraveNewTabPageHandler::ReportVPNWidgetUsage() {
 #endif
 
 bool BraveNewTabPageHandler::IsCustomBackgroundImageEnabled() const {
-  if (profile_->GetPrefs()->IsManagedPreference(GetThemePrefNameInMigration(
-          ThemePrefInMigration::kNtpCustomBackgroundDict))) {
+  if (profile_->GetPrefs()->IsManagedPreference(
+          prefs::kNtpCustomBackgroundDict)) {
     return false;
   }
 

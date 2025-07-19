@@ -99,7 +99,10 @@ class TabCWVNavigationHandler: NSObject, BraveWebViewNavigationDelegate {
           navigationType: navigationType,
           isMainFrame: navigationAction.isTargetFrameMain,
           isNewWindow: navigationAction.navigationType == .newWindow,
-          isUserInitiated: navigationAction.isUserInitiated
+          isUserInitiated: navigationAction.isUserInitiated,
+          isCrossOriginFrame: navigationAction.isTargetFrameCrossOrigin,
+          isCrossOriginWindow: navigationAction.isTargetWindowCrossOrigin,
+          hasUserTappedRecently: navigationAction.hasTappedRecently
         )
       )
       decisionHandler(policy == .allow ? .allow : .cancel)
@@ -143,6 +146,10 @@ class TabCWVNavigationHandler: NSObject, BraveWebViewNavigationDelegate {
   public func webView(_ webView: CWVWebView, didFailNavigationWithError error: any Error) {
     guard let tab else { return }
     tab.didFailNavigation(with: error)
+  }
+
+  func webViewWebContentProcessDidTerminate(_ webView: CWVWebView) {
+    tab?.renderProcessTerminated()
   }
 
   public func webView(_ webView: CWVWebView, didRequestDownloadWith task: CWVDownloadTask) {

@@ -20,17 +20,20 @@ namespace TemplateURLPrepopulateData {
 
 namespace {
 
-PrepopulatedEngine MakeBravePrepopulatedEngine(const char16_t* const name,
-                                               const char16_t* const keyword,
-                                               const char* const favicon_url,
-                                               const char* const search_url,
-                                               const char* const encoding,
-                                               const char* const suggest_url,
-                                               SearchEngineType type,
-                                               const int id) {
+PrepopulatedEngine MakeBravePrepopulatedEngine(
+    const char16_t* const name,
+    const char16_t* const keyword,
+    const char* const favicon_url,
+    const char* const base_builtin_resource_id,
+    const char* const search_url,
+    const char* const encoding,
+    const char* const suggest_url,
+    SearchEngineType type,
+    const int id) {
   return {name,
           keyword,
           favicon_url,
+          base_builtin_resource_id,
           search_url,
           encoding,
           suggest_url,
@@ -55,26 +58,6 @@ PrepopulatedEngine MakeBravePrepopulatedEngine(const char16_t* const name,
           /*regulatory_extensions=*/{}};
 }
 
-// Maps BravePrepopulatedEngineID to Chromium's PrepopulatedEngine.
-// LINT.IfChange
-const std::map<BravePrepopulatedEngineID, const PrepopulatedEngine*>
-    brave_engines_map = {
-        {PREPOPULATED_ENGINE_ID_GOOGLE, &brave_google},
-        {PREPOPULATED_ENGINE_ID_YANDEX, &brave_yandex},
-        {PREPOPULATED_ENGINE_ID_BING, &brave_bing},
-        {PREPOPULATED_ENGINE_ID_NAVER, &naver},
-        {PREPOPULATED_ENGINE_ID_DAUM, &daum},
-        {PREPOPULATED_ENGINE_ID_DUCKDUCKGO, &duckduckgo},
-        {PREPOPULATED_ENGINE_ID_DUCKDUCKGO_DE, &duckduckgo_de},
-        {PREPOPULATED_ENGINE_ID_DUCKDUCKGO_AU_NZ_IE, &duckduckgo_au_nz_ie},
-        {PREPOPULATED_ENGINE_ID_QWANT, &qwant},
-        {PREPOPULATED_ENGINE_ID_STARTPAGE, &brave_startpage},
-        {PREPOPULATED_ENGINE_ID_ECOSIA, &brave_ecosia},
-        {PREPOPULATED_ENGINE_ID_BRAVE, &brave_search},
-        {PREPOPULATED_ENGINE_ID_YAHOO_JP, &brave_yahoo_jp},
-};
-// LINT.ThenChange(//brave/components/search_engines/brave_prepopulated_engines.h:kBraveCurrentDataVersion)
-
 PrepopulatedEngine ModifyEngineParams(const PrepopulatedEngine& engine,
                                       const char16_t* const name,
                                       const char16_t* const keyword,
@@ -85,6 +68,7 @@ PrepopulatedEngine ModifyEngineParams(const PrepopulatedEngine& engine,
   return {name ? name : engine.name,
           keyword ? keyword : engine.keyword,
           engine.favicon_url,
+          engine.base_builtin_resource_id,
           search_url ? search_url : engine.search_url,
           engine.encoding,
           suggest_url ? suggest_url : engine.suggest_url,
@@ -115,6 +99,7 @@ const PrepopulatedEngine duckduckgo = MakeBravePrepopulatedEngine(
     u"DuckDuckGo",
     u":d",
     "https://duckduckgo.com/favicon.ico",
+    "IDR_SEARCH_ENGINE_DUCKDUCKGO",
     "https://duckduckgo.com/?q={searchTerms}&t=brave",
     "UTF-8",
     "https://ac.duckduckgo.com/ac/?q={searchTerms}&type=list",
@@ -150,6 +135,7 @@ const PrepopulatedEngine duckduckgo_lite = MakeBravePrepopulatedEngine(
     u"DuckDuckGo Lite",
     u":dl",
     "https://duckduckgo.com/favicon.ico",
+    "IDR_SEARCH_ENGINE_DUCKDUCKGO",
     "https://duckduckgo.com/lite/?q={searchTerms}&t=brave",
     "UTF-8",
     "https://ac.duckduckgo.com/ac/?q={searchTerms}&type=list",
@@ -180,6 +166,7 @@ const PrepopulatedEngine qwant = MakeBravePrepopulatedEngine(
     u"Qwant",
     u":q",
     "https://www.qwant.com/favicon.ico",
+    "IDR_SEARCH_ENGINE_QWANT",
     "https://www.qwant.com/?q={searchTerms}&client=brz-brave",
     "UTF-8",
     "https://api.qwant.com/api/suggest/?q={searchTerms}&client=opensearch",
@@ -223,6 +210,7 @@ const PrepopulatedEngine brave_search = MakeBravePrepopulatedEngine(
     u"Brave",
     u":br",
     "https://cdn.search.brave.com/serp/favicon.ico",
+    "IDR_SEARCH_ENGINE_BRAVE",
     "https://search.brave.com/search?q={searchTerms}&source="
 #if BUILDFLAG(IS_ANDROID)
     "android",
@@ -304,10 +292,5 @@ const PrepopulatedEngine brave_yahoo_jp = ModifyEngineParams(
 const PrepopulatedEngine brave_google =
     ModifyEngineParams(google, nullptr, u":g", nullptr, nullptr, nullptr, 0);
 // LINT.ThenChange(//brave/components/search_engines/brave_prepopulated_engines.h:kBraveCurrentDataVersion)
-
-const std::map<BravePrepopulatedEngineID, const PrepopulatedEngine*>&
-GetBraveEnginesMap() {
-  return brave_engines_map;
-}
 
 }  // namespace TemplateURLPrepopulateData

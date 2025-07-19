@@ -54,8 +54,11 @@ void SetDefaultEthereumWallet(PrefService* prefs,
                               mojom::DefaultWallet default_wallet);
 void SetDefaultSolanaWallet(PrefService* prefs,
                             mojom::DefaultWallet default_wallet);
+void SetDefaultCardanoWallet(PrefService* prefs,
+                             mojom::DefaultWallet default_wallet);
 mojom::DefaultWallet GetDefaultEthereumWallet(PrefService* prefs);
 mojom::DefaultWallet GetDefaultSolanaWallet(PrefService* prefs);
+mojom::DefaultWallet GetDefaultCardanoWallet(PrefService* prefs);
 void SetDefaultBaseCurrency(PrefService* prefs, std::string_view currency);
 std::string GetDefaultBaseCurrency(PrefService* prefs);
 void SetDefaultBaseCryptocurrency(PrefService* prefs,
@@ -114,6 +117,7 @@ std::string GenerateRandomHexString();
 
 std::string WalletInternalErrorMessage();
 std::string WalletParsingErrorMessage();
+std::string WalletInsufficientBalanceErrorMessage();
 
 mojom::BlockchainTokenPtr GetBitcoinNativeToken(std::string_view chain_id);
 mojom::BlockchainTokenPtr GetZcashNativeToken(std::string_view chain_id);
@@ -131,6 +135,11 @@ void SetTransactionSimulationOptInStatus(
 bool IsRetriableStatus(mojom::TransactionStatus status);
 
 std::string SPLTokenProgramToProgramID(mojom::SPLTokenProgram program);
+
+const std::string& GetAccountPermissionIdentifier(
+    const mojom::AccountIdPtr& account_id);
+
+bool IsBraveWalletOrigin(const url::Origin& origin);
 
 }  // namespace brave_wallet
 

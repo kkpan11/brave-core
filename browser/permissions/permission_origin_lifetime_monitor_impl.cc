@@ -7,9 +7,11 @@
 
 #include <utility>
 
+#include "base/check.h"
 #include "brave/browser/ephemeral_storage/ephemeral_storage_service_factory.h"
 #include "brave/components/brave_wallet/browser/permission_utils.h"
 #include "brave/components/ephemeral_storage/ephemeral_storage_service.h"
+#include "components/permissions/request_type.h"
 #include "net/base/features.h"
 #include "net/base/url_util.h"
 

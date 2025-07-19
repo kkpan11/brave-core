@@ -1,8 +1,8 @@
 diff --git a/components/sync/protocol/proto_visitors.h b/components/sync/protocol/proto_visitors.h
-index 6a8f5adbceedb7822e74a51935ed38c76864b4df..81a3c7f3c4e1487dd22e4efe0f7fc0f4f0926aff 100644
+index f3f558d2d477d3d6524c69dc8d1529bb62b15d77..5e06802727f2caebc36ed55607402b6fb98b9369 100644
 --- a/components/sync/protocol/proto_visitors.h
 +++ b/components/sync/protocol/proto_visitors.h
-@@ -633,6 +633,7 @@ VISIT_PROTO_FIELDS(const sync_pb::DeviceInfoSpecifics& proto) {
+@@ -634,6 +634,7 @@ VISIT_PROTO_FIELDS(const sync_pb::DeviceInfoSpecifics& proto) {
    VISIT(manufacturer);
    VISIT(last_updated_timestamp);
    VISIT(feature_fields);
@@ -10,11 +10,11 @@ index 6a8f5adbceedb7822e74a51935ed38c76864b4df..81a3c7f3c4e1487dd22e4efe0f7fc0f4
    VISIT(sharing_fields);
    VISIT(invalidation_fields);
    VISIT(paask_fields);
-@@ -655,6 +656,7 @@ VISIT_PROTO_FIELDS(const sync_pb::FeatureSpecificFields& proto) {
+@@ -656,6 +657,7 @@ VISIT_PROTO_FIELDS(const sync_pb::FeatureSpecificFields& proto) {
    VISIT(floating_workspace_last_signin_time_windows_epoch_micros);
  }
  
 +BRAVE_VISIT_PROTO_FIELDS_BRAVE_SPECIFIC_FIELD
  VISIT_PROTO_FIELDS(const sync_pb::SharingSpecificFields& proto) {
-   VISIT(vapid_fcm_token);
-   VISIT_BYTES(vapid_p256dh);
+   VISIT_REP(enabled_features);
+   VISIT(sender_id_fcm_token_v2);

@@ -3,10 +3,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { mockAccount, mockNetwork } from '../../common/constants/mocks'
+import { mockAccount } from '../../common/constants/mocks'
 import { BraveWallet } from '../../constants/types'
-import { mockEthMainnet } from './mock-networks'
-import { mockOriginInfo } from './mock-origin-info'
+import { mockEthMainnet, mockBNBChainNetwork } from './mock-networks'
+import { mockOriginInfo, mockUniswapOriginInfo } from './mock-origin-info'
 import { mockEthAccount } from './mock-wallet-accounts'
 
 export const mockSignMessageRequest: BraveWallet.SignMessageRequest = {
@@ -15,7 +15,7 @@ export const mockSignMessageRequest: BraveWallet.SignMessageRequest = {
   accountId: mockEthAccount.accountId,
   signData: {
     ethStandardSignData: {
-      message: ''
+      message: '',
     },
     ethSignTypedData: {
       addressParam: '',
@@ -33,9 +33,9 @@ export const mockSignMessageRequest: BraveWallet.SignMessageRequest = {
           deadline: new Date().toISOString(),
           receiver: mockAccount.address,
           sellAmount: '1',
-          sellToken: 'ETH'
-        }
-      }
+          sellToken: 'ETH',
+        },
+      },
     },
     ethSiweData: {
       address: mockAccount.address,
@@ -48,24 +48,24 @@ export const mockSignMessageRequest: BraveWallet.SignMessageRequest = {
         host: 'host',
         nonceIfOpaque: undefined,
         port: 8080,
-        scheme: 'scheme'
+        scheme: 'scheme',
       },
       requestId: '123',
       resources: [
         {
-          url: 'url.com'
-        }
+          url: 'url.com',
+        },
       ],
       statement: 'statement',
       uri: {
-        url: 'url.com'
+        url: 'url.com',
       },
-      version: 1
+      version: 1,
     },
-    solanaSignData: undefined
+    solanaSignData: undefined,
   },
   coin: BraveWallet.CoinType.ETH,
-  chainId: BraveWallet.MAINNET_CHAIN_ID
+  chainId: BraveWallet.MAINNET_CHAIN_ID,
 }
 
 export const mockSignMessageError: BraveWallet.SignMessageError = {
@@ -73,30 +73,30 @@ export const mockSignMessageError: BraveWallet.SignMessageError = {
   localizedErrMsg: 'This is an error message, unable to sign.',
   type: 1,
   id: '1',
-  originInfo: mockOriginInfo
+  originInfo: mockOriginInfo,
 }
 
 export const mockAddChainRequest = {
-  originInfo: mockOriginInfo,
-  networkInfo: mockNetwork
+  originInfo: mockUniswapOriginInfo,
+  networkInfo: mockBNBChainNetwork,
 }
 
 export const mockGetEncryptionPublicKeyRequest: //
 BraveWallet.GetEncryptionPublicKeyRequest = {
   requestId: '',
   originInfo: mockOriginInfo,
-  accountId: mockEthAccount.accountId
+  accountId: mockEthAccount.accountId,
 }
 
 export const mockDecryptRequest = {
   requestId: '',
   originInfo: mockOriginInfo,
   accountId: mockEthAccount.accountId,
-  unsafeMessage: ''
+  unsafeMessage: '',
 }
 
 export const mockSwitchChainRequest = {
   requestId: '',
-  originInfo: mockOriginInfo,
-  chainId: ''
+  originInfo: mockUniswapOriginInfo,
+  chainId: BraveWallet.BNB_SMART_CHAIN_MAINNET_CHAIN_ID,
 }

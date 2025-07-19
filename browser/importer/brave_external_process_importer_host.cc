@@ -5,6 +5,7 @@
 
 #include "brave/browser/importer/brave_external_process_importer_host.h"
 
+#include "base/check.h"
 #include "brave/browser/importer/brave_importer_p3a.h"
 #include "brave/browser/importer/extensions_import_helpers.h"
 #include "brave/grit/brave_generated_resources.h"
@@ -26,7 +27,7 @@ void BraveExternalProcessImporterHost::NotifyImportEnded() {
   // Don't import if cancelled.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   if (NeedToImportExtensions() && extensions_importer_) {
-    NotifyImportItemStarted(importer::EXTENSIONS);
+    NotifyImportItemStarted(user_data_importer::EXTENSIONS);
     if (extensions_importer_->Import(base::BindRepeating(
             &BraveExternalProcessImporterHost::OnExtensionImported,
             weak_ptr_factory_.GetWeakPtr()))) {
@@ -34,6 +35,8 @@ void BraveExternalProcessImporterHost::NotifyImportEnded() {
     }
   }
 #endif
+  // Force tests to fail if |this| is deleted.
+  DCHECK(weak_ptr_factory_.GetWeakPtr());
 
   // Otherwise, notifying here and importing is finished.
   ExternalProcessImporterHost::NotifyImportEnded();
@@ -81,7 +84,8 @@ BraveExternalProcessImporterHost::GetObserverForTesting() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 
 bool BraveExternalProcessImporterHost::NeedToImportExtensions() const {
-  return !cancelled_ && (items_ & importer::EXTENSIONS) == importer::EXTENSIONS;
+  return !cancelled_ && (items_ & user_data_importer::EXTENSIONS) ==
+                            user_data_importer::EXTENSIONS;
 }
 
 void BraveExternalProcessImporterHost::OnExtensionsImportReady(bool ready) {
@@ -91,7 +95,7 @@ void BraveExternalProcessImporterHost::OnExtensionsImportReady(bool ready) {
   if (!ready) {
     extensions_importer_.reset();
     importer::ShowImportLockDialog(
-        parent_window_,
+        parent_view_, parent_window_,
         base::BindOnce(
             &BraveExternalProcessImporterHost::OnExtensionsImportLockDialogEnd,
             weak_ptr_factory_.GetWeakPtr()),
@@ -118,7 +122,7 @@ void BraveExternalProcessImporterHost::OnExtensionImported(
   if (!extensions_importer_ || !extensions_importer_->IsImportInProgress()) {
     extensions_importer_.reset();
     if (observer_) {
-      NotifyImportItemEnded(importer::EXTENSIONS);
+      NotifyImportItemEnded(user_data_importer::EXTENSIONS);
     }
     ExternalProcessImporterHost::NotifyImportEnded();
   }

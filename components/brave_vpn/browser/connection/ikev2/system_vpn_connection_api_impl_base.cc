@@ -8,9 +8,11 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
+#include "base/logging.h"
 #include "brave/components/brave_vpn/browser/api/brave_vpn_api_request.h"
 #include "brave/components/brave_vpn/browser/connection/brave_vpn_connection_manager.h"
 #include "brave/components/brave_vpn/browser/connection/brave_vpn_region_data_manager.h"
@@ -100,6 +102,9 @@ void SystemVPNConnectionAPIImplBase::Connect() {
   if (connection_info_.IsValid()) {
     VLOG(2) << __func__
             << " : Create os vpn entry with cached connection_info.";
+
+    // smart routing could be changed for the same region.
+    connection_info_.set_smart_routing_enabled(SmartRoutingEnabled());
     CreateVPNConnectionImpl(connection_info_);
     return;
   }

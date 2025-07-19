@@ -23,13 +23,15 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/dcheck_is_on.h"
+#include "base/check.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/debug/stack_trace.h"
 #include "base/json/json_string_value_serializer.h"
+#include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/values.h"
 #include "brave/components/brave_page_graph/common/features.h"
 #include "brave/components/brave_shields/core/common/brave_shield_constants.h"
@@ -195,7 +197,7 @@ namespace blink {
 
 namespace {
 
-constexpr char kPageGraphVersion[] = "0.7.4";
+constexpr char kPageGraphVersion[] = "0.7.5";
 constexpr char kPageGraphUrl[] =
     "https://github.com/brave/brave-browser/wiki/PageGraph";
 
@@ -323,6 +325,18 @@ static int GetListenerScriptId(blink::EventTarget* event_target,
   v8::Local<v8::Function> listener_function =
       GetInnermostFunction(maybe_listener_function.As<v8::Function>());
   return listener_function->ScriptId();
+}
+
+static void AssignSecurityOriginToNodeDOMRoot(
+    blink::Document* document,
+    brave_page_graph::NodeDOMRoot* node_domroot) {
+  if (document->GetExecutionContext()) {
+    const auto* security_origin =
+        document->GetExecutionContext()->GetSecurityOrigin();
+    if (security_origin) {
+      node_domroot->SetSecurityOrigin(security_origin->ToString());
+    }
+  }
 }
 
 }  // namespace
@@ -523,7 +537,7 @@ void PageGraph::DidCommitLoad(blink::LocalFrame* local_frame,
   auto* node_domroot = To<NodeDOMRoot>(
       GetHTMLElementNode(blink::DOMNodeIds::IdForNode(document)));
   node_domroot->SetURL(document->Url());
-  node_domroot->SetSecurityOrigin(document->TopFrameOrigin()->ToString());
+  AssignSecurityOriginToNodeDOMRoot(document, node_domroot);
 }
 
 void PageGraph::WillSendNavigationRequest(uint64_t identifier,
@@ -1308,8 +1322,7 @@ void PageGraph::RegisterDocumentNodeCreated(blink::Document* document) {
     source_url_ = url;
   }
 
-  auto security_origin = document->TopFrameOrigin();
-  dom_root->SetSecurityOrigin(security_origin->ToString());
+  AssignSecurityOriginToNodeDOMRoot(document, dom_root);
 
   auto execution_context_nodes_it =
       execution_context_nodes_.find(execution_context);

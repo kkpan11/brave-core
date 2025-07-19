@@ -6,8 +6,7 @@
 import * as React from 'react'
 import Button from '@brave/leo/react/button'
 import Dialog from '@brave/leo/react/dialog'
-import formatMessage from '$web-common/formatMessage'
-import { getLocale } from '$web-common/locale'
+import { getLocale, formatLocale } from '$web-common/locale'
 import { Url } from 'gen/url/mojom/url.mojom.m.js'
 import { useAIChat } from '../../state/ai_chat_context'
 import styles from './style.module.scss'
@@ -33,16 +32,12 @@ function PrivacyMessage () {
       </a>
   )
 
-  const aboutDescription = formatMessage(getLocale('aboutDescription'), {
-    tags: {
-      $1: (content) => createLinkWithClickHandler(content, WIKI_URL)
-    }
+  const aboutDescription = formatLocale(S.CHAT_UI_ABOUT_DESCRIPTION, {
+    $1: (content) => createLinkWithClickHandler(content, WIKI_URL)
   })
 
-  const aboutDescription3 = formatMessage(getLocale('aboutDescription_3'), {
-    tags: {
-      $1: (content) => createLinkWithClickHandler(content, PRIVACY_URL)
-    }
+  const aboutDescription3 = formatLocale(S.CHAT_UI_ABOUT_DESCRIPTION_3, {
+    $1: (content) => createLinkWithClickHandler(content, PRIVACY_URL)
   })
 
   React.useEffect(() => {
@@ -58,14 +53,14 @@ function PrivacyMessage () {
       backdropClickCloses={false}
       className={styles.dialog}
     >
-      <div slot="subtitle">{getLocale('privacyTitle')}</div>
+      <div slot="subtitle">{getLocale(S.CHAT_UI_PRIVACY_TITLE)}</div>
       <div className={styles.content}>
         <p>{aboutDescription}</p>
-        <p>{getLocale('aboutDescription_2')}</p>
+        <p>{getLocale(S.CHAT_UI_ABOUT_DESCRIPTION_2)}</p>
         <p>{aboutDescription3}</p>
       </div>
       <div slot="actions">
-        <Button ref={buttonRef} onClick={context.handleAgreeClick}>{getLocale('acceptButtonLabel')}</Button>
+        <Button ref={buttonRef} onClick={context.handleAgreeClick}>{getLocale(S.CHAT_UI_ACCEPT_BUTTON_LABEL)}</Button>
       </div>
     </Dialog>
   )

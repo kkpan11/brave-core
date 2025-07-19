@@ -3,11 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "base/check.h"
 #include "brave/browser/brave_local_state_prefs.h"
 #include "brave/browser/brave_profile_prefs.h"
 #include "brave/browser/brave_rewards/rewards_prefs_util.h"
 #include "brave/browser/brave_stats/brave_stats_updater.h"
 #include "brave/browser/misc_metrics/uptime_monitor_impl.h"
+#include "brave/browser/ntp_background/ntp_p3a_helper_impl.h"
 #include "brave/browser/themes/brave_dark_mode_utils.h"
 #include "brave/browser/translate/brave_translate_prefs_migration.h"
 #include "brave/components/ai_chat/core/browser/model_service.h"
@@ -17,7 +19,7 @@
 #include "brave/components/brave_news/common/p3a_pref_names.h"
 #include "brave/components/brave_news/common/pref_names.h"
 #include "brave/components/brave_search_conversion/p3a.h"
-#include "brave/components/brave_shields/content/browser/brave_shields_p3a.h"
+#include "brave/components/brave_shields/core/browser/brave_shields_p3a.h"
 #include "brave/components/brave_sync/brave_sync_prefs.h"
 #include "brave/components/brave_vpn/common/buildflags/buildflags.h"
 #include "brave/components/brave_wallet/browser/brave_wallet_prefs.h"
@@ -25,10 +27,12 @@
 #include "brave/components/constants/pref_names.h"
 #include "brave/components/decentralized_dns/core/utils.h"
 #include "brave/components/ipfs/ipfs_prefs.h"
+#include "brave/components/l10n/common/prefs.h"
 #include "brave/components/ntp_background_images/buildflags/buildflags.h"
 #include "brave/components/ntp_background_images/common/view_counter_pref_registry.h"
 #include "brave/components/omnibox/browser/brave_omnibox_prefs.h"
-#include "brave/components/p3a/star_randomness_meta.h"
+#include "brave/components/p3a/metric_log_store.h"
+#include "brave/components/p3a/rotation_scheduler.h"
 #include "brave/components/tor/buildflags/buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/channel_info.h"
@@ -40,6 +44,7 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "brave/browser/ui/tabs/brave_tab_prefs.h"
+#include "brave/browser/ui/webui/welcome_page/brave_welcome_ui_prefs.h"
 #endif
 
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
@@ -89,6 +94,13 @@ void MigrateObsoleteProfilePrefs(PrefService* profile_prefs,
   // to Brave pref.
   gcm::MigrateGCMPrefs(profile_prefs);
 #endif
+
+#if !BUILDFLAG(IS_ANDROID)
+  // Added 06/2025.
+  // Must be called before ChromiumImpl because it's migrating a Chromium pref
+  // to Brave pref.
+  brave::welcome_ui::prefs::MigratePrefs(profile_prefs);
+#endif  // !BUILDFLAG(IS_ANDROID)
 
   MigrateObsoleteProfilePrefs_ChromiumImpl(profile_prefs, profile_path);
 
@@ -226,7 +238,11 @@ void MigrateObsoleteLocalStatePrefs(PrefService* local_state) {
   misc_metrics::UptimeMonitorImpl::MigrateObsoletePrefs(local_state);
   brave_search_conversion::p3a::MigrateObsoleteLocalStatePrefs(local_state);
   brave_stats::MigrateObsoleteLocalStatePrefs(local_state);
-  p3a::StarRandomnessMeta::MigrateObsoleteLocalStatePrefs(local_state);
+  brave_l10n::MigrateObsoleteLocalStatePrefs(local_state);
+  p3a::MetricLogStore::MigrateObsoleteLocalStatePrefs(local_state);
+  p3a::RotationScheduler::MigrateObsoleteLocalStatePrefs(local_state);
+  ntp_background_images::NTPP3AHelperImpl::MigrateObsoleteLocalStatePrefs(
+      local_state);
 
   // END_MIGRATE_OBSOLETE_LOCAL_STATE_PREFS
 }

@@ -11,7 +11,10 @@
 #include <optional>
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/contains.h"
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
@@ -36,10 +39,10 @@
 #include "brave/components/brave_wallet/common/fil_address.h"
 #include "brave/components/brave_wallet/common/solana_utils.h"
 #include "brave/components/brave_wallet/common/value_conversion_utils.h"
-#include "components/country_codes/country_codes.h"
 #include "components/grit/brave_components_strings.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/regional_capabilities/regional_capabilities_prefs.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/origin.h"
@@ -196,6 +199,10 @@ BraveWalletService::BraveWalletService(
   pref_change_registrar_.Add(
       kDefaultSolanaWallet,
       base::BindRepeating(&BraveWalletService::OnDefaultSolanaWalletChanged,
+                          base::Unretained(this)));
+  pref_change_registrar_.Add(
+      kDefaultCardanoWallet,
+      base::BindRepeating(&BraveWalletService::OnDefaultCardanoWalletChanged,
                           base::Unretained(this)));
   pref_change_registrar_.Add(
       kDefaultBaseCurrency,
@@ -358,12 +365,11 @@ bool BraveWalletService::AddUserAssetInternal(mojom::BlockchainTokenPtr token) {
 
 void BraveWalletService::AddUserAsset(mojom::BlockchainTokenPtr token,
                                       AddUserAssetCallback callback) {
-  const auto& interfaces_to_check = GetEthSupportedNftInterfaces();
   if (token->is_nft && token->coin == mojom::CoinType::ETH) {
     const std::string contract_address = token->contract_address;
     const std::string chain_id = token->chain_id;
     json_rpc_service_->GetEthNftStandard(
-        contract_address, chain_id, interfaces_to_check,
+        contract_address, chain_id, kEthSupportedNftInterfaces,
         base::BindOnce(&BraveWalletService::OnGetEthNftStandard,
                        weak_ptr_factory_.GetWeakPtr(), std::move(token),
                        std::move(callback)));
@@ -512,6 +518,12 @@ void BraveWalletService::GetDefaultSolanaWallet(
       ::brave_wallet::GetDefaultSolanaWallet(profile_prefs_));
 }
 
+void BraveWalletService::GetDefaultCardanoWallet(
+    GetDefaultCardanoWalletCallback callback) {
+  std::move(callback).Run(
+      ::brave_wallet::GetDefaultCardanoWallet(profile_prefs_));
+}
+
 void BraveWalletService::SetDefaultEthereumWallet(
     mojom::DefaultWallet default_wallet) {
   auto old_default_wallet =
@@ -527,6 +539,15 @@ void BraveWalletService::SetDefaultSolanaWallet(
       ::brave_wallet::GetDefaultSolanaWallet(profile_prefs_);
   if (old_default_wallet != default_wallet) {
     ::brave_wallet::SetDefaultSolanaWallet(profile_prefs_, default_wallet);
+  }
+}
+
+void BraveWalletService::SetDefaultCardanoWallet(
+    mojom::DefaultWallet default_wallet) {
+  auto old_default_wallet =
+      ::brave_wallet::GetDefaultCardanoWallet(profile_prefs_);
+  if (old_default_wallet != default_wallet) {
+    ::brave_wallet::SetDefaultCardanoWallet(profile_prefs_, default_wallet);
   }
 }
 
@@ -591,6 +612,11 @@ mojom::AccountIdPtr BraveWalletService::EnsureSelectedAccountForChainSync(
              all_accounts->sol_dapp_selected_account) {
     acc_to_select =
         all_accounts->sol_dapp_selected_account->account_id->Clone();
+    DCHECK(AccountMatchesCoinAndChain(*acc_to_select, coin, chain_id));
+  } else if (coin == mojom::CoinType::ADA &&
+             all_accounts->ada_dapp_selected_account) {
+    acc_to_select =
+        all_accounts->ada_dapp_selected_account->account_id->Clone();
     DCHECK(AccountMatchesCoinAndChain(*acc_to_select, coin, chain_id));
   }
 
@@ -745,6 +771,13 @@ void BraveWalletService::OnDefaultSolanaWalletChanged() {
   }
 }
 
+void BraveWalletService::OnDefaultCardanoWalletChanged() {
+  auto default_wallet = ::brave_wallet::GetDefaultCardanoWallet(profile_prefs_);
+  for (const auto& observer : observers_) {
+    observer->OnDefaultCardanoWalletChanged(default_wallet);
+  }
+}
+
 void BraveWalletService::OnDefaultBaseCurrencyChanged() {
   auto value = ::brave_wallet::GetDefaultBaseCurrency(profile_prefs_);
   for (const auto& observer : observers_) {
@@ -778,7 +811,7 @@ BraveWalletService::HasPermissionSync(
   std::vector<mojom::AccountIdPtr> result;
   for (auto& account_id : accounts) {
     if (delegate_->HasPermission(account_id->coin, origin,
-                                 account_id->address)) {
+                                 GetAccountPermissionIdentifier(account_id))) {
       result.push_back(account_id->Clone());
     }
   }
@@ -820,8 +853,8 @@ void BraveWalletService::ResetPermission(mojom::AccountIdPtr account_id,
     return;
   }
 
-  std::move(callback).Run(delegate_->ResetPermission(account_id->coin, *origin,
-                                                     account_id->address));
+  std::move(callback).Run(delegate_->ResetPermission(
+      account_id->coin, *origin, GetAccountPermissionIdentifier(account_id)));
 }
 
 void BraveWalletService::IsPermissionDenied(
@@ -1337,8 +1370,8 @@ void BraveWalletService::AddSuggestTokenRequest(
     base::Value formed_response = GetProviderErrorDictionary(
         mojom::ProviderError::kInvalidParams,
         l10n_util::GetStringUTF8(IDS_WALLET_ALREADY_IN_PROGRESS_ERROR));
-    std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), std::move(formed_response), reject, "", false));
     return;
   }
 
@@ -1394,8 +1427,8 @@ void BraveWalletService::AddGetPublicKeyRequest(
     base::Value formed_response = GetProviderErrorDictionary(
         mojom::ProviderError::kUserRejectedRequest,
         l10n_util::GetStringUTF8(IDS_WALLET_ALREADY_IN_PROGRESS_ERROR));
-    std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), std::move(formed_response), reject, "", false));
     return;
   }
 
@@ -1422,8 +1455,8 @@ void BraveWalletService::AddDecryptRequest(
     base::Value formed_response = GetProviderErrorDictionary(
         mojom::ProviderError::kUserRejectedRequest,
         l10n_util::GetStringUTF8(IDS_WALLET_ALREADY_IN_PROGRESS_ERROR));
-    std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), std::move(formed_response), reject, "", false));
     return;
   }
 
@@ -1485,8 +1518,8 @@ void BraveWalletService::NotifyAddSuggestTokenRequestsProcessed(
         base::Value formed_response = GetProviderErrorDictionary(
             mojom::ProviderError::kInternalError, WalletInternalErrorMessage());
         reject = true;
-        std::move(callback).Run(std::move(id), std::move(formed_response),
-                                reject, "", false);
+        std::move(callback).Run(mojom::EthereumProviderResponse::New(
+            std::move(id), std::move(formed_response), reject, "", false));
         continue;
       }
 
@@ -1494,8 +1527,8 @@ void BraveWalletService::NotifyAddSuggestTokenRequestsProcessed(
       add_suggest_token_callbacks_.erase(addr);
       add_suggest_token_ids_.erase(addr);
       reject = false;
-      std::move(callback).Run(std::move(id), base::Value(approved), reject, "",
-                              false);
+      std::move(callback).Run(mojom::EthereumProviderResponse::New(
+          std::move(id), base::Value(approved), reject, "", false));
     }
   }
 }
@@ -1524,19 +1557,20 @@ void BraveWalletService::NotifyGetPublicKeyRequestProcessed(
                  account_id, &key)) {
       base::Value formed_response = GetProviderErrorDictionary(
           mojom::ProviderError::kInternalError, WalletInternalErrorMessage());
-      std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                              "", false);
+      std::move(callback).Run(mojom::EthereumProviderResponse::New(
+          std::move(id), std::move(formed_response), reject, "", false));
       return;
     }
 
     reject = false;
-    std::move(callback).Run(std::move(id), base::Value(key), reject, "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), base::Value(key), reject, "", false));
   } else {
     base::Value formed_response = GetProviderErrorDictionary(
         mojom::ProviderError::kUserRejectedRequest,
         l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
-    std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), std::move(formed_response), reject, "", false));
   }
 }
 
@@ -1559,14 +1593,14 @@ void BraveWalletService::NotifyDecryptRequestProcessed(
   if (approved) {
     std::string key;
     reject = false;
-    std::move(callback).Run(std::move(id), base::Value(unsafe_message), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), base::Value(unsafe_message), reject, "", false));
   } else {
     base::Value formed_response = GetProviderErrorDictionary(
         mojom::ProviderError::kUserRejectedRequest,
         l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
-    std::move(callback).Run(std::move(id), std::move(formed_response), reject,
-                            "", false);
+    std::move(callback).Run(mojom::EthereumProviderResponse::New(
+        std::move(id), std::move(formed_response), reject, "", false));
   }
 }
 
@@ -1627,11 +1661,9 @@ void BraveWalletService::SetPrivateWindowsEnabled(bool enabled) {
 
 void BraveWalletService::GetBalanceScannerSupportedChains(
     GetBalanceScannerSupportedChainsCallback callback) {
-  const auto& contract_addresses = GetEthBalanceScannerContractAddresses();
-
   std::vector<std::string> chain_ids;
-  for (const auto& entry : contract_addresses) {
-    chain_ids.push_back(entry.first);
+  for (const auto& entry : kEthBalanceScannerContractAddresses) {
+    chain_ids.push_back(std::string(entry.first));
   }
 
   std::move(callback).Run(chain_ids);
@@ -1772,8 +1804,9 @@ void BraveWalletService::CancelAllSuggestedTokenCallbacks() {
         mojom::ProviderError::kUserRejectedRequest,
         l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
     std::move(callback.second)
-        .Run(std::move(add_suggest_token_ids_[callback.first]),
-             std::move(formed_response), reject, "", false);
+        .Run(mojom::EthereumProviderResponse::New(
+            std::move(add_suggest_token_ids_[callback.first]),
+            std::move(formed_response), reject, "", false));
   }
   add_suggest_token_callbacks_.clear();
   add_suggest_token_ids_.clear();
@@ -1805,8 +1838,9 @@ void BraveWalletService::CancelAllGetEncryptionPublicKeyCallbacks() {
   bool reject = true;
   for (auto& request : pending_get_encryption_public_key_requests_) {
     std::move(request.second.encryption_public_key_callback)
-        .Run(std::move(request.second.encryption_public_key_id),
-             formed_response.Clone(), reject, "", false);
+        .Run(mojom::EthereumProviderResponse::New(
+            std::move(request.second.encryption_public_key_id),
+            formed_response.Clone(), reject, "", false));
   }
   pending_get_encryption_public_key_requests_.clear();
 }
@@ -1819,8 +1853,9 @@ void BraveWalletService::CancelAllDecryptCallbacks() {
   bool reject = true;
   for (auto& request : pending_decrypt_requests_) {
     std::move(request.second.decrypt_callback)
-        .Run(std::move(request.second.decrypt_id), formed_response.Clone(),
-             reject, "", false);
+        .Run(mojom::EthereumProviderResponse::New(
+            std::move(request.second.decrypt_id), formed_response.Clone(),
+            reject, "", false));
   }
   pending_decrypt_requests_.clear();
 }
@@ -1879,11 +1914,9 @@ void BraveWalletService::DiscoverEthAllowances(
 
 void BraveWalletService::GetAnkrSupportedChainIds(
     GetAnkrSupportedChainIdsCallback callback) {
-  const auto& blockchains = GetAnkrBlockchains();
-
   std::vector<std::string> chain_ids;
-  for (const auto& entry : blockchains) {
-    chain_ids.push_back(entry.first);
+  for (const auto& entry : kAnkrBlockchains) {
+    chain_ids.push_back(std::string(entry.first));
   }
 
   std::move(callback).Run(std::move(chain_ids));
@@ -1906,11 +1939,6 @@ BraveWalletService::GetTransactionSimulationOptInStatusSync() {
 void BraveWalletService::SetTransactionSimulationOptInStatus(
     mojom::BlowfishOptInStatus status) {
   ::brave_wallet::SetTransactionSimulationOptInStatus(profile_prefs_, status);
-}
-
-void BraveWalletService::GetCountryCode(GetCountryCodeCallback callback) {
-  std::move(callback).Run(std::string(
-      country_codes::GetCountryIDFromPrefs(profile_prefs_).CountryCode()));
 }
 
 }  // namespace brave_wallet

@@ -34,6 +34,8 @@ declare_args() {
   brave_android_keystore_name = ""
   brave_android_keystore_password = ""
   brave_android_key_password = ""
+  brave_android_pkcs11_provider = ""
+  brave_android_pkcs11_alias = ""
 
   skip_signing = false
 
@@ -43,7 +45,6 @@ declare_args() {
 
   # Enables brave/tools/redirect_cc target, replaces brave/chromium_src
   # overrides with empty ones to make //base buildable for redirect_cc.
-  is_redirect_cc_build = false
   android_aab_to_apk = false
 }
 

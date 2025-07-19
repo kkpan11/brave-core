@@ -5,6 +5,7 @@
 
 #include "brave/browser/ui/views/toolbar/brave_toolbar_view.h"
 
+#include "base/check.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
@@ -17,7 +18,10 @@
 #include "brave/components/ai_chat/core/common/pref_names.h"
 #include "brave/components/brave_wallet/browser/pref_names.h"
 #include "brave/components/constants/pref_names.h"
+#include "brave/components/constants/webui_url_constants.h"
 #include "brave/components/skus/common/features.h"
+#include "brave/components/tor/buildflags/buildflags.h"
+#include "brave/grit/brave_generated_resources.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
@@ -26,11 +30,19 @@
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_list_observer.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_entry_key.h"
 #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -43,7 +55,12 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/views/view.h"
+
+#if BUILDFLAG(ENABLE_TOR)
+#include "brave/browser/tor/tor_profile_manager.h"
+#endif
 
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
 #include "brave/browser/ui/views/toolbar/brave_vpn_button.h"
@@ -134,6 +151,16 @@ class BraveToolbarViewTest : public InProcessBrowserTest {
     return button->GetVisible();
   }
 
+  views::View* split_tabs() const {
+    return toolbar_view_->split_tabs_for_testing();
+  }
+
+  AvatarToolbarButton* GetAvatarToolbarButton(Browser* browser) {
+    return BrowserView::GetBrowserViewForBrowser(browser)
+        ->toolbar_button_provider()
+        ->GetAvatarToolbarButton();
+  }
+
   raw_ptr<ToolbarButtonProvider, DanglingUntriaged> toolbar_button_provider_ =
       nullptr;
   raw_ptr<BraveToolbarView, DanglingUntriaged> toolbar_view_ = nullptr;
@@ -208,6 +235,49 @@ IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest_VPNEnabled, VPNButtonVisibility) {
 #endif
 
 IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest_AIChatEnabled,
+                       AIChatButtonOpenTargetTest) {
+  auto* prefs = browser()->profile()->GetPrefs();
+
+  // Load in sidebar is default.
+  EXPECT_FALSE(prefs->GetBoolean(
+      ai_chat::prefs::kBraveAIChatToolbarButtonOpensFullPage));
+
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  auto* toolbar_view_ = static_cast<BraveToolbarView*>(browser_view->toolbar());
+  AIChatButton* button = toolbar_view_->ai_chat_button();
+  auto* menu_model = static_cast<ui::SimpleMenuModel*>(button->menu_model());
+  auto open_in_full_page_cmd_index =
+      menu_model->GetIndexOfCommandId(AIChatButton::kOpenInFullPage);
+  auto open_in_sidebar_cmd_index =
+      menu_model->GetIndexOfCommandId(AIChatButton::kOpenInSidebar);
+  ASSERT_TRUE(open_in_full_page_cmd_index.has_value());
+  ASSERT_TRUE(open_in_sidebar_cmd_index.has_value());
+  EXPECT_FALSE(
+      menu_model->IsItemCheckedAt(open_in_full_page_cmd_index.value()));
+  EXPECT_TRUE(menu_model->IsItemCheckedAt(open_in_sidebar_cmd_index.value()));
+
+  // Check loaded in sidebar.
+  SidePanelEntryKey ai_chat_key =
+      SidePanelEntry::Key(SidePanelEntryId::kChatUI);
+  auto* side_panel_coordinator =
+      browser()->GetFeatures().side_panel_coordinator();
+  EXPECT_FALSE(side_panel_coordinator->IsSidePanelShowing());
+  button->ButtonPressed();
+  EXPECT_TRUE(side_panel_coordinator->IsSidePanelShowing());
+  EXPECT_TRUE(side_panel_coordinator->IsSidePanelEntryShowing(ai_chat_key));
+
+  // Check loaded in full page.
+  prefs->SetBoolean(ai_chat::prefs::kBraveAIChatToolbarButtonOpensFullPage,
+                    true);
+  EXPECT_TRUE(menu_model->IsItemCheckedAt(open_in_full_page_cmd_index.value()));
+  EXPECT_FALSE(menu_model->IsItemCheckedAt(open_in_sidebar_cmd_index.value()));
+  auto* tab_strip_model = browser()->tab_strip_model();
+  button->ButtonPressed();
+  auto* web_contents = tab_strip_model->GetActiveWebContents();
+  EXPECT_EQ(GURL(kAIChatUIURL), web_contents->GetVisibleURL());
+}
+
+IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest_AIChatEnabled,
                        AIChatButtonVisibility) {
   auto* prefs = browser()->profile()->GetPrefs();
 
@@ -271,6 +341,30 @@ IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest, ToolbarDividerNotShownTest) {
 IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest,
                        AvatarButtonNotShownSingleProfile) {
   EXPECT_EQ(false, is_avatar_button_shown());
+}
+
+// Test private/tor window's profile avatar text when multiple windows
+// are opened.
+IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest, AvatarButtonTextWithOTRTest) {
+  auto* incognito_browser = CreateIncognitoBrowser(browser()->profile());
+  auto* private_avatar_button = GetAvatarToolbarButton(incognito_browser);
+  private_avatar_button->UpdateText();
+  EXPECT_EQ(std::u16string(), private_avatar_button->GetText());
+
+  chrome::OpenEmptyWindow(incognito_browser->profile());
+  EXPECT_EQ(u"2", private_avatar_button->GetText());
+
+#if BUILDFLAG(ENABLE_TOR)
+  auto* tor_browser =
+      TorProfileManager::SwitchToTorProfile(browser()->profile());
+  auto* tor_avatar_button = GetAvatarToolbarButton(tor_browser);
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_TOR_AVATAR_BUTTON_LABEL),
+            tor_avatar_button->GetText());
+
+  chrome::OpenEmptyWindow(tor_browser->profile());
+  EXPECT_EQ(l10n_util::GetStringFUTF16(IDS_TOR_AVATAR_BUTTON_LABEL_COUNT, u"2"),
+            tor_avatar_button->GetText());
+#endif
 }
 
 IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest, AvatarButtonIsShownGuestProfile) {
@@ -343,6 +437,16 @@ IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest,
   EXPECT_EQ(gfx::Size(avatar_size, avatar_size), avatar->size());
 }
 
+// Check no crash when clicking private window's avatar button.
+IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest, ClickAvatarButtonTest) {
+  auto* incognito_browser = CreateIncognitoBrowser(browser()->profile());
+  auto* avatar_button = BrowserView::GetBrowserViewForBrowser(incognito_browser)
+                            ->toolbar_button_provider()
+                            ->GetAvatarToolbarButton();
+  EXPECT_TRUE(avatar_button->GetVisible());
+  avatar_button->button_controller()->NotifyClick();
+}
+
 IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest,
                        BookmarkButtonCanBeToggledWithPref) {
   auto* prefs = browser()->profile()->GetPrefs();
@@ -394,4 +498,25 @@ IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest,
 
   // Normal winwow still has visible button.
   EXPECT_TRUE(is_wallet_button_shown(browser()));
+}
+
+// Check split tabs toolbar button is disabled always.
+class BraveToolbarViewTest_SideBySideEnabled : public BraveToolbarViewTest {
+ public:
+  BraveToolbarViewTest_SideBySideEnabled() {
+    scoped_feature_list_.InitWithFeatures({features::kSideBySide}, {});
+  }
+
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest_SideBySideEnabled,
+                       SplitTabsToolbarButtonDisabledTest) {
+  EXPECT_FALSE(split_tabs());
+}
+
+IN_PROC_BROWSER_TEST_F(BraveToolbarViewTest,
+                       SplitTabsToolbarButtonDisabledTest) {
+  EXPECT_FALSE(split_tabs());
 }

@@ -10,7 +10,10 @@
 #include <string>
 #include <utility>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/command_line.h"
+#include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -90,8 +93,8 @@ bool ShouldShowLifetimeOptions(PermissionPrompt::Delegate* delegate) {
 void SetRequestsLifetime(const std::vector<PermissionLifetimeOption>& options,
                          size_t index,
                          PermissionPrompt::Delegate* delegate) {
-  for (PermissionRequest* request : delegate->Requests()) {
-    SetRequestLifetime(options, index, request);
+  for (const auto& request : delegate->Requests()) {
+    SetRequestLifetime(options, index, request.get());
   }
 }
 

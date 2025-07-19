@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "base/check.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -16,6 +17,7 @@
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "base/values.h"
 #include "brave/brave_domains/service_domains.h"

@@ -8,11 +8,13 @@
 #include <algorithm>
 #include <utility>
 
+#include "base/check.h"
 #include "base/containers/span.h"
 #include "base/containers/span_reader.h"
 #include "base/files/file.h"
 #include "base/memory/raw_span.h"
 #include "base/numerics/byte_conversions.h"
+#include "base/strings/string_view_util.h"
 #include "brave/components/brave_rewards/core/engine/hash_prefix_iterator.h"
 #include "crypto/sha2.h"
 

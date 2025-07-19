@@ -8,11 +8,12 @@
 #include <algorithm>
 #include <optional>
 
+#include "base/check.h"
 #include "base/check_op.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
+#include "base/dcheck_is_on.h"
 #include "base/feature_override.h"
-#include "base/logging.h"
 #include "base/no_destructor.h"
 
 namespace base {
@@ -88,7 +89,7 @@ static inline bool operator<(const std::reference_wrapper<const Feature>& lhs,
   return &lhs.get() < &rhs.get();
 }
 
-bool FeatureList::IsFeatureOverridden(const std::string& feature_name) const {
+bool FeatureList::IsFeatureOverridden(std::string_view feature_name) const {
   if (FeatureList::IsFeatureOverridden_ChromiumImpl(feature_name)) {
     return true;
   }
@@ -136,7 +137,7 @@ FeatureState FeatureList::GetCompileTimeFeatureState(const Feature& feature) {
 #define IsFeatureOverridden IsFeatureOverridden_ChromiumImpl
 #define GetStateIfOverridden GetStateIfOverridden_ChromiumImpl
 
-#include "src/base/feature_list.cc"
+#include <base/feature_list.cc>
 
 #undef GetStateIfOverridden
 #undef IsFeatureOverridden

@@ -53,7 +53,8 @@ export default function ContextActionsAssistant(
   }
 
   const leoModels = conversationContext.allModels.filter(
-    (model) => model.options.leoModelOptions
+    (model) => model.options.leoModelOptions &&
+      model.key !== 'chat-automatic'
   )
 
   return (
@@ -64,7 +65,7 @@ export default function ContextActionsAssistant(
         fab
         size='small'
         kind='plain-faint'
-        title={getLocale('editButtonLabel')}
+        title={getLocale(S.CHAT_UI_EDIT_BUTTON_LABEL)}
         className={styles.button}
       >
         <Icon name='edit-pencil' />
@@ -74,7 +75,7 @@ export default function ContextActionsAssistant(
         fab
         size='small'
         kind='plain-faint'
-        title={getLocale('likeAnswerButtonLabel')}
+        title={getLocale(S.CHAT_UI_LIKE_ANSWER_BUTTON_LABEL)}
         className={styles.button}
       >
         <Icon
@@ -89,7 +90,7 @@ export default function ContextActionsAssistant(
         fab
         size='small'
         kind='plain-faint'
-        title={getLocale('dislikeAnswerButtonLabel')}
+        title={getLocale(S.CHAT_UI_DISMISS_BUTTON_LABEL)}
         className={styles.button}
       >
         <Icon

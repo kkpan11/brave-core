@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/types/pass_key.h"
@@ -122,6 +123,7 @@ class SplitView : public views::View,
   void OnTileTabs(const TabTile& tile) override;
   void OnDidBreakTile(const TabTile& tile) override;
   void OnSwapTabsInTile(const TabTile& tile) override;
+  void OnWillDeleteBrowserData() override;
 
   // views::WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override;

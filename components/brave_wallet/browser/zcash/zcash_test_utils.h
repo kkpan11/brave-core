@@ -6,14 +6,21 @@
 #ifndef BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_ZCASH_ZCASH_TEST_UTILS_H_
 #define BRAVE_COMPONENTS_BRAVE_WALLET_BROWSER_ZCASH_ZCASH_TEST_UTILS_H_
 
+#include <array>
 #include <vector>
 
-#include "brave/components/brave_wallet/browser/zcash/zcash_shield_sync_service.h"
 #include "brave/components/brave_wallet/common/brave_wallet.mojom.h"
+#include "brave/components/brave_wallet/common/buildflags.h"
 #include "brave/components/brave_wallet/common/zcash_utils.h"
+#include "brave/components/services/brave_wallet/public/mojom/zcash_decoder.mojom.h"
+
+#if BUILDFLAG(ENABLE_ORCHARD)
+#include "brave/components/brave_wallet/browser/zcash/zcash_shield_sync_service.h"
+#endif
 
 namespace brave_wallet {
 
+#if BUILDFLAG(ENABLE_ORCHARD)
 class MockOrchardBlockScannerProxy
     : public ZCashShieldSyncService::OrchardBlockScannerProxy {
  public:
@@ -38,6 +45,7 @@ class MockOrchardBlockScannerProxy
  private:
   Callback callback_;
 };
+#endif
 
 std::array<uint8_t, kOrchardNullifierSize> GenerateMockNullifier(
     const mojom::AccountIdPtr& account_id,

@@ -15,6 +15,7 @@
 #include "components/permissions/permission_request_id.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
+#include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/permission_result.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -28,7 +29,7 @@ class BraveOpenAIChatPermissionContextTest
   BraveOpenAIChatPermissionContextTest() = default;
   ~BraveOpenAIChatPermissionContextTest() override = default;
 
-  ContentSetting RequestPermission(
+  blink::mojom::PermissionStatus RequestPermission(
       BraveOpenAIChatPermissionContext* permission_context,
       const GURL& url) {
     NavigateAndCommit(url);
@@ -37,18 +38,18 @@ class BraveOpenAIChatPermissionContextTest
     const PermissionRequestID id(
         web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
         PermissionRequestID::RequestLocalId());
-    ContentSetting setting = ContentSetting::CONTENT_SETTING_DEFAULT;
+    blink::mojom::PermissionStatus status;
     base::RunLoop run_loop;
     permission_context->RequestPermission(
-        PermissionRequestData(permission_context, id, /*user_gesture=*/true,
-                              url),
-        base::BindLambdaForTesting([&](ContentSetting result) {
-          setting = result;
+        std::make_unique<PermissionRequestData>(permission_context, id,
+                                                /*user_gesture=*/true, url),
+        base::BindLambdaForTesting([&](blink::mojom::PermissionStatus result) {
+          status = result;
           run_loop.Quit();
         }));
     run_loop.Run();
 
-    return setting;
+    return status;
   }
 
  protected:
@@ -73,7 +74,7 @@ TEST_F(BraveOpenAIChatPermissionContextTest, PromptForBraveSearch) {
 
   prompt_factory_->set_response_type(PermissionRequestManager::ACCEPT_ALL);
   BraveOpenAIChatPermissionContext context(browser_context());
-  EXPECT_EQ(ContentSetting::CONTENT_SETTING_ALLOW,
+  EXPECT_EQ(content::PermissionStatus::GRANTED,
             RequestPermission(&context, brave_search_url));
   EXPECT_EQ(prompt_factory_->show_count(), 1);
 }
@@ -83,7 +84,7 @@ TEST_F(BraveOpenAIChatPermissionContextTest, BlockForNonBraveSearch) {
 
   prompt_factory_->set_response_type(PermissionRequestManager::ACCEPT_ALL);
   BraveOpenAIChatPermissionContext context(browser_context());
-  EXPECT_EQ(ContentSetting::CONTENT_SETTING_BLOCK,
+  EXPECT_EQ(content::PermissionStatus::DENIED,
             RequestPermission(&context, brave_url));
   EXPECT_EQ(prompt_factory_->show_count(), 0);
 }
@@ -95,20 +96,29 @@ TEST_F(BraveOpenAIChatPermissionContextTest, NotAllowedInInsecureOrigins) {
 
   EXPECT_EQ(content::PermissionStatus::DENIED,
             permission_context
-                .GetPermissionStatus(nullptr /* render_frame_host */,
-                                     insecure_url, insecure_url)
+                .GetPermissionStatus(
+                    content::PermissionDescriptorUtil::
+                        CreatePermissionDescriptorForPermissionType(
+                            blink::PermissionType::NOTIFICATIONS),
+                    nullptr /* render_frame_host */, insecure_url, insecure_url)
                 .status);
 
   EXPECT_EQ(content::PermissionStatus::DENIED,
             permission_context
-                .GetPermissionStatus(nullptr /* render_frame_host */,
-                                     insecure_url, secure_url)
+                .GetPermissionStatus(
+                    content::PermissionDescriptorUtil::
+                        CreatePermissionDescriptorForPermissionType(
+                            blink::PermissionType::NOTIFICATIONS),
+                    nullptr /* render_frame_host */, insecure_url, secure_url)
                 .status);
 
   EXPECT_EQ(content::PermissionStatus::ASK,
             permission_context
-                .GetPermissionStatus(nullptr /* render_frame_host */,
-                                     secure_url, secure_url)
+                .GetPermissionStatus(
+                    content::PermissionDescriptorUtil::
+                        CreatePermissionDescriptorForPermissionType(
+                            blink::PermissionType::NOTIFICATIONS),
+                    nullptr /* render_frame_host */, secure_url, secure_url)
                 .status);
 }
 

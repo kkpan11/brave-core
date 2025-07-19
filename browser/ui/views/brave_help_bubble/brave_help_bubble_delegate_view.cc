@@ -8,6 +8,7 @@
 #include <array>
 #include <utility>
 
+#include "base/check.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/grit/brave_components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -150,7 +151,7 @@ BraveHelpBubbleDelegateView::BraveHelpBubbleDelegateView(
   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   set_shadow(BubbleBorder::Shadow::STANDARD_SHADOW);
   set_corner_radius(10);
-  set_background_color(kBgColor);
+  SetBackgroundColor(kBgColor);
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
 
@@ -183,7 +184,7 @@ BraveHelpBubbleDelegateView::CreateNonClientFrameView(views::Widget* widget) {
   border->SetColor(background_color());
 
   if (GetParams().round_corners) {
-    border->SetCornerRadius(GetCornerRadius());
+    border->set_rounded_corners(gfx::RoundedCornersF(GetCornerRadius()));
   }
 
   static_cast<BubbleFrameView*>(frame.get())

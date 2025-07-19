@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "base/check_op.h"
 #include "crypto/random.h"
 #include "tweetnacl.h"  // NOLINT
 

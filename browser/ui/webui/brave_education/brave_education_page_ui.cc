@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "brave/browser/ui/webui/brave_browser_command/brave_browser_command_handler.h"
 #include "brave/browser/ui/webui/brave_education/brave_education_handler.h"
 #include "brave/browser/ui/webui/brave_education/brave_education_page_delegate_desktop.h"
@@ -22,6 +23,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/grit/brave_components_strings.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"

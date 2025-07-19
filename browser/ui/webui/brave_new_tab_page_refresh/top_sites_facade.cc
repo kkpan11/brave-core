@@ -7,6 +7,7 @@
 
 #include <utility>
 
+#include "base/check.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/webui/new_tab_page/ntp_pref_names.h"
 #include "components/ntp_tiles/constants.h"
@@ -148,6 +149,7 @@ void TopSitesFacade::SetSitesUpdatedCallback(
 }
 
 void TopSitesFacade::OnURLsAvailable(
+    bool is_user_triggered,
     const std::map<ntp_tiles::SectionType, ntp_tiles::NTPTilesVector>&
         sections) {
   current_sites_ = TopSitesFromSections(sections);

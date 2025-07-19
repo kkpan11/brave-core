@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
 #include "base/strings/stringprintf.h"
@@ -219,9 +220,9 @@ class BraveTranslateBrowserTest : public InProcessBrowserTest {
   }
 
   content::EvalJsResult EvalTranslateJs(const std::string& script) {
-    return content::EvalJs(
-        browser()->tab_strip_model()->GetActiveWebContents(), script.c_str(),
-        content::EXECUTE_SCRIPT_DEFAULT_OPTIONS, ISOLATED_WORLD_ID_TRANSLATE);
+    return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
+                           script, content::EXECUTE_SCRIPT_DEFAULT_OPTIONS,
+                           ISOLATED_WORLD_ID_TRANSLATE);
   }
 
   ::testing::AssertionResult HasNoBadFlagsInfobar() {

@@ -12,11 +12,12 @@ import android.view.View;
 import androidx.annotation.IdRes;
 
 import org.chromium.base.BravePreferenceKeys;
-import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.bottom.BottomToolbarConfiguration;
 import org.chromium.chrome.browser.toolbar.top.BraveToolbarLayoutImpl;
@@ -26,20 +27,34 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 public class BraveMenuButtonCoordinator extends MenuButtonCoordinator {
-    private Activity mActivity;
+    private final Activity mActivity;
 
     public BraveMenuButtonCoordinator(
             OneshotSupplier<AppMenuCoordinator> appMenuCoordinatorSupplier,
             BrowserStateBrowserControlsVisibilityDelegate controlsVisibilityDelegate,
-            WindowAndroid windowAndroid, SetFocusFunction setUrlBarFocusFunction,
-            Runnable requestRenderRunnable, boolean shouldShowAppUpdateBadge,
-            Supplier<Boolean> isInOverviewModeSupplier, ThemeColorProvider themeColorProvider,
-            Supplier<MenuButtonState> menuButtonStateSupplier, Runnable onMenuButtonClicked,
-            @IdRes int menuButtonId) {
-        super(appMenuCoordinatorSupplier, controlsVisibilityDelegate, windowAndroid,
-                setUrlBarFocusFunction, requestRenderRunnable, shouldShowAppUpdateBadge,
-                isInOverviewModeSupplier, themeColorProvider, menuButtonStateSupplier,
-                onMenuButtonClicked, menuButtonId);
+            WindowAndroid windowAndroid,
+            SetFocusFunction setUrlBarFocusFunction,
+            Runnable requestRenderRunnable,
+            boolean canShowAppUpdateBadge,
+            Supplier<Boolean> isInOverviewModeSupplier,
+            ThemeColorProvider themeColorProvider,
+            Supplier<MenuButtonState> menuButtonStateSupplier,
+            Runnable onMenuButtonClicked,
+            @IdRes int menuButtonId,
+            @Nullable VisibilityDelegate visibilityDelegate) {
+        super(
+                appMenuCoordinatorSupplier,
+                controlsVisibilityDelegate,
+                windowAndroid,
+                setUrlBarFocusFunction,
+                requestRenderRunnable,
+                canShowAppUpdateBadge,
+                isInOverviewModeSupplier,
+                themeColorProvider,
+                menuButtonStateSupplier,
+                onMenuButtonClicked,
+                menuButtonId,
+                visibilityDelegate);
 
         mActivity = windowAndroid.getActivity().get();
     }
@@ -83,15 +98,13 @@ public class BraveMenuButtonCoordinator extends MenuButtonCoordinator {
     }
 
     public static void setMenuFromBottom(boolean isMenuFromBottom) {
-        ContextUtils.getAppSharedPreferences()
-                .edit()
-                .putBoolean(BravePreferenceKeys.BRAVE_IS_MENU_FROM_BOTTOM, isMenuFromBottom)
-                .apply();
+        ChromeSharedPreferences.getInstance()
+                .writeBoolean(BravePreferenceKeys.BRAVE_IS_MENU_FROM_BOTTOM, isMenuFromBottom);
     }
 
     public static boolean isMenuFromBottom() {
-        return ContextUtils.getAppSharedPreferences()
-                .getBoolean(BravePreferenceKeys.BRAVE_IS_MENU_FROM_BOTTOM, true);
+        return ChromeSharedPreferences.getInstance()
+                .readBoolean(BravePreferenceKeys.BRAVE_IS_MENU_FROM_BOTTOM, true);
     }
 
     public static void setupPropertyModel(

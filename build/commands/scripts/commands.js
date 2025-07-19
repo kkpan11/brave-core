@@ -155,6 +155,7 @@ program
   )
   .option('--ignore_compile_failure', 'Keep compiling regardless of error')
   .option('--is_asan', 'is asan enabled')
+  .option('--is_ubsan', 'is ubsan enabled')
   .option(
     '--last_chrome_installer <last_chrome_installer>',
     'folder contains previous version uncompressed chrome.7z pack file. This folder should be in out dir.',
@@ -218,6 +219,11 @@ program
     '--xcode_gen <target>',
     'Generate an Xcode workspace ("ios" or a list of semi-colon separated label patterns, run `gn help label_pattern` for more info.',
   )
+  .option(
+    '--pkcs11-provider <provider_config_file>',
+    'PKCS11 provider configuration file path',
+  )
+  .option('--pkcs11-alias <alias>', 'PKCS11 key alias')
   .arguments('[build_config]')
   .action(build)
 
@@ -265,10 +271,6 @@ program
   )
   .option('--disable_pdfjs_extension', 'disable loading the PDFJS extension')
   .option(
-    '--disable_webtorrent_extension',
-    'disable loading the WebTorrent extension',
-  )
-  .option(
     '--ui_mode <ui_mode>',
     'which built-in ui appearance mode to use',
     /^(dark|light)$/i,
@@ -307,6 +309,7 @@ program
     '--grd_path <grd_path>',
     `Relative path to match end of full GRD path, e.g: 'generated_resources.grd'.`,
   )
+  .option('--lang <language>', 'Only download content for this language')
   .option(
     '--debug',
     `Dumps downloaded content for one language into CrowdinCurrent.txt file in the temp directory.`,
@@ -354,7 +357,12 @@ program
   .option('--v [log_level]', 'set log level to [log_level]', parseInteger, '0')
   .option('--vmodule [modules]', 'verbose log from specific modules')
   .option('--filter <filter>', 'set test filter')
-  .option('--output <output>', 'set test output (results) file path')
+  .option(
+    '--output_xml',
+    'indicates if test results xml output file(s) should be generated. '
+      + '<suite>.txt file will contain the list of xml files with results. '
+      + 'All output files are generated in the src directory',
+  )
   .option('--disable_brave_extension', 'disable loading the Brave extension')
   .option(
     '--single_process',

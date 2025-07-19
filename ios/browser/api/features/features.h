@@ -46,6 +46,8 @@ OBJC_EXPORT
 @property(class, nonatomic, readonly) Feature* kBraveNTPBrandedWallpaper;
 @property(class, nonatomic, readonly) Feature* kBraveNTPBrandedWallpaperDemo;
 @property(class, nonatomic, readonly) Feature* kBraveNTPSuperReferralWallpaper;
+@property(class, nonatomic, readonly)
+    Feature* kBraveNTPBrandedWallpaperSurveyPanelist;
 @property(class, nonatomic, readonly) Feature* kBraveNewsCardPeekFeature;
 @property(class, nonatomic, readonly) Feature* kBraveNewsFeedUpdate;
 @property(class, nonatomic, readonly) Feature* kBraveReduceLanguage;
@@ -60,28 +62,26 @@ OBJC_EXPORT
 @property(class, nonatomic, readonly) Feature* kBraveWalletAnkrBalancesFeature;
 @property(class, nonatomic, readonly) Feature* kBraveWalletBitcoinFeature;
 @property(class, nonatomic, readonly) Feature* kBraveWalletZCashFeature;
-@property(class, nonatomic, readonly) Feature* kConstellation;
 @property(class, nonatomic, readonly) Feature* kConstellationEnclaveAttestation;
 @property(class, nonatomic, readonly)
     Feature* kCosmeticFilteringExtraPerfMetrics;
 @property(class, nonatomic, readonly) Feature* kCosmeticFilteringJsPerformance;
 @property(class, nonatomic, readonly) Feature* kCosmeticFilteringSyncLoad;
+@property(class, nonatomic, readonly) Feature* kBraveAccount;
 @property(class, nonatomic, readonly, nullable) Feature* kGeminiFeature;
 @property(class, nonatomic, readonly) Feature* kNTP;
 @property(class, nonatomic, readonly) Feature* kNativeBraveWalletFeature;
-@property(class, nonatomic, readonly) Feature* kOtherJSONDeprecation;
 @property(class, nonatomic, readonly) Feature* kSkusFeature;
-@property(class, nonatomic, readonly) Feature* kTypicalJSONDeprecation;
 @property(class, nonatomic, readonly) Feature* kUseDevUpdaterUrl;
 @property(class, nonatomic, readonly) Feature* kVerboseLoggingFeature;
-@property(class, nonatomic, readonly) Feature* kNewPlaylistUI;
 @property(class, nonatomic, readonly) Feature* kBraveHttpsByDefault;
 @property(class, nonatomic, readonly) Feature* kBlockAllCookiesToggle;
-@property(class, nonatomic, readonly) Feature* kModernBrowserMenuEnabled;
 @property(class, nonatomic, readonly) Feature* kBraveTranslateEnabled;
 @property(class, nonatomic, readonly) Feature* kBraveAppleTranslateEnabled;
 @property(class, nonatomic, readonly) Feature* kUseBraveUserAgent;
 @property(class, nonatomic, readonly) Feature* kUseChromiumWebViews;
+@property(class, nonatomic, readonly) Feature* kBraveAllowExternalPurchaseLinks;
+@property(class, nonatomic, readonly) Feature* kModernTabTrayEnabled;
 @end
 
 NS_ASSUME_NONNULL_END

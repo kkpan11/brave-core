@@ -7,6 +7,7 @@
 
 #include <array>
 
+#include "base/check_op.h"
 #include "base/values.h"
 #include "brave/app/vector_icons/vector_icons.h"
 #include "brave/grit/brave_generated_resources.h"
@@ -179,7 +180,7 @@ const IconResourceInfo* GetBraveDefaultAvatarIconResourceInfo(size_t index) {
 #endif
 }
 
-bool IsDefaultAvatarIconUrl(const std::string& url, size_t* icon_index) {
+bool IsDefaultAvatarIconUrl(std::string_view url, size_t* icon_index) {
   // Brave supports user choosing the placeholder avatar, Chromium does not.
   if (url.compare(GetPlaceholderAvatarIconUrl()) == 0) {
     *icon_index = GetPlaceholderAvatarIndex();

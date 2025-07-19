@@ -15,6 +15,7 @@
 #include "brave/components/brave_wallet/browser/pref_names.h"
 #include "brave/components/brave_wallet/common/brave_wallet.mojom.h"
 #include "brave/components/brave_wallet/common/brave_wallet_types.h"
+#include "brave/components/brave_wallet/common/common_utils.h"
 #include "brave/components/constants/pref_names.h"
 #include "brave/components/de_amp/browser/de_amp_util.h"
 #include "brave/components/de_amp/common/pref_names.h"
@@ -45,6 +46,8 @@ BraveRendererUpdater::BraveRendererUpdater(
   PrefService* pref_service = profile->GetPrefs();
   brave_wallet_ethereum_provider_.Init(kDefaultEthereumWallet, pref_service);
   brave_wallet_solana_provider_.Init(kDefaultSolanaWallet, pref_service);
+  brave_wallet_cardano_provider_.Init(kDefaultCardanoWallet, pref_service);
+
   de_amp_enabled_.Init(de_amp::kDeAmpPrefEnabled, pref_service);
 #if BUILDFLAG(ENABLE_TOR)
   onion_only_in_tor_windows_.Init(tor::prefs::kOnionOnlyInTorWindows,
@@ -60,6 +63,10 @@ BraveRendererUpdater::BraveRendererUpdater(
                           base::Unretained(this)));
   pref_change_registrar_.Add(
       kDefaultSolanaWallet,
+      base::BindRepeating(&BraveRendererUpdater::UpdateAllRenderers,
+                          base::Unretained(this)));
+  pref_change_registrar_.Add(
+      kDefaultCardanoWallet,
       base::BindRepeating(&BraveRendererUpdater::UpdateAllRenderers,
                           base::Unretained(this)));
   pref_change_registrar_.Add(
@@ -213,6 +220,14 @@ void BraveRendererUpdater::UpdateRenderer(
       default_solana_wallet ==
       brave_wallet::mojom::DefaultWallet::BraveWalletPreferExtension;
 
+  auto default_cardano_wallet = static_cast<brave_wallet::mojom::DefaultWallet>(
+      brave_wallet_cardano_provider_.GetValue());
+  bool install_window_brave_cardano_provider =
+      brave_wallet::IsCardanoDAppSupportEnabled() &&
+      (default_cardano_wallet ==
+       brave_wallet::mojom::DefaultWallet::BraveWallet) &&
+      is_wallet_allowed_for_context_;
+
   PrefService* pref_service = profile_->GetPrefs();
   bool de_amp_enabled = de_amp::IsDeAmpEnabled(pref_service);
   bool onion_only_in_tor_windows = true;
@@ -237,6 +252,7 @@ void BraveRendererUpdater::UpdateRenderer(
       ->SetConfiguration(brave::mojom::DynamicParams::New(
           install_window_brave_ethereum_provider,
           install_window_ethereum_provider,
+          install_window_brave_cardano_provider,
           allow_overwrite_window_ethereum_provider,
           brave_use_native_solana_wallet,
           allow_overwrite_window_solana_provider, de_amp_enabled,

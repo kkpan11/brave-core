@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <optional>
 
+#include "base/check.h"
+#include "base/logging.h"
 #include "components/update_client/update_client.h"
 
 #include "src/components/update_client/update_checker.cc"
@@ -86,8 +88,8 @@ void SequentialUpdateChecker::CheckNext() {
   }
 
   scoped_refptr<UpdateContext> context = new UpdateContext(
-      update_context_->config, update_context_->crx_cache_,
-      update_context_->is_foreground, update_context_->is_install, ids,
+      update_context_->config, update_context_->is_foreground,
+      update_context_->is_install, ids,
       update_context_->crx_state_change_callback,
       // We don't pass a context callback here because UpdateChecker doesn't use
       // it. This is instead done by UpdateEngine, which calls us.

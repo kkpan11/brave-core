@@ -111,6 +111,7 @@ import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.mojo.bindings.ConnectionErrorHandler;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -153,7 +154,7 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
     private boolean mIsFromBottomSheet;
     private NTPBackgroundImagesBridge mNTPBackgroundImagesBridge;
     private ViewGroup mMainLayout;
-    private DatabaseHelper mDatabaseHelper;
+    private final DatabaseHelper mDatabaseHelper;
 
     private LottieAnimationView mBadgeAnimationView;
 
@@ -310,22 +311,25 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
         mNewsSettingsBar.setOnClickListener(view -> {});
 
         // Double tap on the settings bar to scroll back up
-        mNewsSettingsBar.setOnTouchListener(new OnTouchListener() {
-            private GestureDetector mGestureDetector =
-                    new GestureDetector(mActivity, new GestureDetector.SimpleOnGestureListener() {
-                        @Override
-                        public boolean onDoubleTap(MotionEvent e) {
-                            mRecyclerView.smoothScrollToPosition(0);
-                            return super.onDoubleTap(e);
-                        }
-                    });
+        mNewsSettingsBar.setOnTouchListener(
+                new OnTouchListener() {
+                    private final GestureDetector mGestureDetector =
+                            new GestureDetector(
+                                    mActivity,
+                                    new GestureDetector.SimpleOnGestureListener() {
+                                        @Override
+                                        public boolean onDoubleTap(MotionEvent e) {
+                                            mRecyclerView.smoothScrollToPosition(0);
+                                            return super.onDoubleTap(e);
+                                        }
+                                    });
 
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                mGestureDetector.onTouchEvent(event);
-                return true;
-            }
-        });
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        mGestureDetector.onTouchEvent(event);
+                        return true;
+                    }
+                });
         mNewContentLayout = findViewById(R.id.news_load_new_content);
         mNewContentText = findViewById(R.id.new_content_button_text);
         mNewContentProgressBar = findViewById(R.id.new_content_loading_spinner);
@@ -847,7 +851,7 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
         mNtpAdapter.setImageCreditAlpha(1f);
         mNtpAdapter.setDisplayNewsFeed(mIsDisplayNewsFeed);
 
-        if (isOptin && mBraveNewsController != null && BraveNewsUtils.getLocale() == null) {
+        if (isOptin && mBraveNewsController != null && BraveNewsUtils.getLocale().isEmpty()) {
             BraveNewsUtils.getBraveNewsSettingsData(mBraveNewsController, null, null);
         }
     }
@@ -1182,7 +1186,8 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
             Profile profile,
             WindowAndroid windowAndroid,
             boolean isTablet,
-            ObservableSupplier<Integer> tabStripHeightSupplier) {
+            ObservableSupplier<Integer> tabStripHeightSupplier,
+            Supplier<GURL> composeplateUrlSupplier) {
         super.initialize(
                 manager,
                 activity,
@@ -1196,7 +1201,8 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
                 profile,
                 windowAndroid,
                 isTablet,
-                tabStripHeightSupplier);
+                tabStripHeightSupplier,
+                composeplateUrlSupplier);
         mNTPBackgroundImagesBridge = NTPBackgroundImagesBridge.getInstance(mProfile);
         mNTPBackgroundImagesBridge.setNewTabPageListener(mNewTabPageListener);
         mIsTablet = isTablet;
@@ -1333,7 +1339,7 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
         if (shouldShowSuperReferral()) mNTPBackgroundImagesBridge.getTopSites();
     }
 
-    private NewTabPageListener mNewTabPageListener =
+    private final NewTabPageListener mNewTabPageListener =
             new NewTabPageListener() {
                 @Override
                 public void updateInteractableFlag(boolean isBottomSheet) {
@@ -1369,7 +1375,7 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
                 }
             };
 
-    private NTPBackgroundImagesBridge.NTPBackgroundImageServiceObserver
+    private final NTPBackgroundImagesBridge.NTPBackgroundImageServiceObserver
             mNTPBackgroundImageServiceObserver =
                     new NTPBackgroundImagesBridge.NTPBackgroundImageServiceObserver() {
                         @Override
@@ -1383,7 +1389,7 @@ public class BraveNewTabPageLayout extends NewTabPageLayout
                         }
                     };
 
-    private FetchWallpaperWorkerTask.WallpaperRetrievedCallback mWallpaperRetrievedCallback =
+    private final FetchWallpaperWorkerTask.WallpaperRetrievedCallback mWallpaperRetrievedCallback =
             new FetchWallpaperWorkerTask.WallpaperRetrievedCallback() {
                 @Override
                 public void bgWallpaperRetrieved(Bitmap bgWallpaper) {

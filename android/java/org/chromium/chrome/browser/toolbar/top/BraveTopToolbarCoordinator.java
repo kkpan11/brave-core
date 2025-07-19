@@ -10,12 +10,12 @@ import android.view.View;
 import android.view.View.OnLongClickListener;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.Nullable;
 
 import org.chromium.base.BraveReflectionUtil;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
@@ -45,11 +45,11 @@ public class BraveTopToolbarCoordinator extends TopToolbarCoordinator {
     private OptionalBrowsingModeButtonController mOptionalButtonController;
 
     // Own members.
-    private ToolbarLayout mBraveToolbarLayout;
-    private MenuButtonCoordinator mBraveMenuButtonCoordinator;
+    private final ToolbarLayout mBraveToolbarLayout;
+    private final MenuButtonCoordinator mBraveMenuButtonCoordinator;
     private boolean mIsBottomControlsVisible;
-    private ObservableSupplier<Integer> mConstraintsProxy;
-    private ToolbarControlContainer mControlContainer;
+    private final ObservableSupplier<Integer> mConstraintsProxy;
+    private final ToolbarControlContainer mControlContainer;
     private boolean mInTabSwitcherMode;
 
     public BraveTopToolbarCoordinator(
@@ -66,6 +66,7 @@ public class BraveTopToolbarCoordinator extends TopToolbarCoordinator {
             ToggleTabStackButtonCoordinator tabSwitcherButtonCoordinator,
             ObservableSupplier<Integer> tabCountSupplier,
             ObservableSupplier<Boolean> homepageEnabledSupplier,
+            ObservableSupplier<Boolean> homepageNonNtpSupplier,
             Supplier<ResourceManager> resourceManagerSupplier,
             HistoryDelegate historyDelegate,
             boolean initializeWithIncognitoColors,
@@ -79,8 +80,10 @@ public class BraveTopToolbarCoordinator extends TopToolbarCoordinator {
             OneshotSupplier<TabStripTransitionDelegate> tabStripTransitionDelegateSupplier,
             @Nullable OnLongClickListener onLongClickListener,
             ToolbarProgressBar progressBar,
-            ObservableSupplier<Tab> tabSupplier,
-            @Nullable BackButtonCoordinator backButtonCoordinator) {
+            ObservableSupplier<@Nullable Tab> tabSupplier,
+            ObservableSupplier<Boolean> toolbarNavControlsEnabledSupplier,
+            @Nullable BackButtonCoordinator backButtonCoordinator,
+            HomeButtonDisplay homeButtonDisplay) {
         super(
                 controlContainer,
                 toolbarLayout,
@@ -95,6 +98,7 @@ public class BraveTopToolbarCoordinator extends TopToolbarCoordinator {
                 tabSwitcherButtonCoordinator,
                 tabCountSupplier,
                 homepageEnabledSupplier,
+                homepageNonNtpSupplier,
                 resourceManagerSupplier,
                 historyDelegate,
                 initializeWithIncognitoColors,
@@ -108,7 +112,9 @@ public class BraveTopToolbarCoordinator extends TopToolbarCoordinator {
                 onLongClickListener,
                 progressBar,
                 tabSupplier,
-                backButtonCoordinator);
+                toolbarNavControlsEnabledSupplier,
+                backButtonCoordinator,
+                homeButtonDisplay);
 
         mBraveToolbarLayout = toolbarLayout;
         mBraveMenuButtonCoordinator = browsingModeMenuButtonCoordinator;

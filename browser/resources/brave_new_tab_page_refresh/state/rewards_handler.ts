@@ -8,7 +8,6 @@ import { RewardsPageProxy } from '../../../../components/brave_rewards/resources
 import { externalWalletFromExtensionData } from '../../../../components/brave_rewards/resources/shared/lib/external_wallet'
 import { NewTabPageProxy } from './new_tab_page_proxy'
 import { Store } from '../lib/store'
-import { Optional } from '../lib/optional'
 import { debounce } from '$web-common/debounce'
 import { RewardsState, RewardsActions, defaultRewardsActions } from './rewards_state'
 
@@ -16,6 +15,7 @@ export function createRewardsHandler(
   store: Store<RewardsState>
 ): RewardsActions {
   if (!loadTimeData.getBoolean('rewardsFeatureEnabled')) {
+    store.update({ initialized: true })
     return defaultRewardsActions()
   }
 
@@ -54,10 +54,22 @@ export function createRewardsHandler(
 
   async function updateBalance() {
     const { balance } = await rewardsHandler.getAvailableBalance()
-    store.update({
-      rewardsBalance:
-          new Optional(typeof balance === 'number' ? balance : undefined)
-    })
+    store.update({ rewardsBalance: balance })
+  }
+
+  async function updateAdsViewed() {
+    const { statement } = await rewardsHandler.getAdsStatement()
+    if (statement) {
+      let rewardsAdsViewed = 0
+      Object.values(statement.adTypeSummaryThisMonth).map((value) => {
+        if (typeof value === 'number') {
+          rewardsAdsViewed += value
+        }
+      })
+      store.update({ rewardsAdsViewed })
+    } else {
+      store.update({ rewardsAdsViewed: null })
+    }
   }
 
   async function loadData() {
@@ -65,9 +77,13 @@ export function createRewardsHandler(
       updatePrefs(),
       updateRewardsEnabled(),
       updateExternalWallet(),
-      updateParameters(),
-      updateBalance()
+      updateParameters()
     ])
+
+    store.update({ initialized: true })
+
+    updateBalance()
+    updateAdsViewed()
   }
 
   newTabProxy.addListeners({

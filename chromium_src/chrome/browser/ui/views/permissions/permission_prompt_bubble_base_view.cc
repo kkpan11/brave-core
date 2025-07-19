@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
@@ -99,13 +101,14 @@ void DontAskAgainCheckbox::ButtonPressed() {
 
 void AddAdditionalWidevineViewControlsIfNeeded(
     views::BubbleDialogDelegateView* dialog_delegate_view,
-    const std::vector<raw_ptr<permissions::PermissionRequest,
-                              VectorExperimental>>& requests) {
+    const std::vector<std::unique_ptr<permissions::PermissionRequest>>&
+        requests) {
   if (!HasWidevinePermissionRequest(requests)) {
     return;
   }
 
-  auto* widevine_request = static_cast<WidevinePermissionRequest*>(requests[0]);
+  auto* widevine_request =
+      static_cast<WidevinePermissionRequest*>(requests[0].get());
   views::Label* text = new views::Label(
       widevine_request->GetExplanatoryMessageText(),
       views::style::CONTEXT_LABEL, views::style::STYLE_SECONDARY);
@@ -309,7 +312,7 @@ void AddGeolocationDescriptionIfNeeded(
     return;
   }
 
-  auto requests = delegate->Requests();
+  const auto& requests = delegate->Requests();
 
   // Geolocation permission is not grouped with others.
   if (requests.empty() ||
@@ -384,8 +387,8 @@ views::View* AddPermissionLifetimeComboboxIfNeeded(
 
 void AddFootnoteViewIfNeeded(
     views::BubbleDialogDelegateView* dialog_delegate_view,
-    const std::vector<
-        raw_ptr<permissions::PermissionRequest, VectorExperimental>>& requests,
+    const std::vector<std::unique_ptr<permissions::PermissionRequest>>&
+        requests,
     Browser* browser) {
 #if BUILDFLAG(ENABLE_WIDEVINE)
   // Widevine permission bubble has custom footnote.

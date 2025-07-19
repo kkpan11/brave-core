@@ -10,7 +10,12 @@
 #include <utility>
 #include <variant>
 
+#include "base/check.h"
+#include "base/check_op.h"
+#include "base/logging.h"
+#include "base/notreached.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "brave/browser/playlist/playlist_service_factory.h"
 #include "brave/browser/ui/color/brave_color_id.h"
 #include "brave/browser/ui/playlist/playlist_browser_finder.h"

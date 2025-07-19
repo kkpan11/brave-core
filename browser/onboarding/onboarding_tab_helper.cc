@@ -9,9 +9,11 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "brave/browser/brave_shields/brave_shields_tab_helper.h"
 #include "brave/browser/onboarding/pref_names.h"
@@ -107,8 +109,6 @@ OnboardingTabHelper::~OnboardingTabHelper() = default;
 
 void OnboardingTabHelper::DidStopLoading() {
   Browser* browser = chrome::FindBrowserWithTab(web_contents());
-  DCHECK(browser);
-
   if (!browser) {
     return;
   }

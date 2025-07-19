@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "base/check.h"
+#include "base/logging.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
@@ -66,6 +68,7 @@ void FullScreenshotter::CaptureScreenshots(
   capture_params.web_contents = web_contents;
   capture_params.persistence =
       paint_preview::RecordingPersistence::kMemoryBuffer;
+  capture_params.capture_links = false;
   CapturePaintPreview(
       capture_params,
       base::BindOnce(&FullScreenshotter::OnScreenshotCaptured,

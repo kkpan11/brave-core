@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/check.h"
 #include "base/strings/strcat.h"
 #include "brave/brave_domains/service_domains.h"
 #include "brave/browser/ai_chat/ai_chat_service_factory.h"
@@ -124,9 +125,6 @@ void AIChatSettingsHelper::GetModelsWithSubtitles(
       } else if (model->key == "chat-qwen") {
         modelWithSubtitle.subtitle =
             l10n_util::GetStringUTF8(IDS_CHAT_UI_CHAT_QWEN_SUBTITLE);
-      } else if (model->key == "chat-vision-basic") {
-        modelWithSubtitle.subtitle =
-            l10n_util::GetStringUTF8(IDS_CHAT_UI_CHAT_VISION_BASIC_SUBTITLE);
       } else if (model->key == "chat-deepseek-r1") {
         modelWithSubtitle.subtitle =
             l10n_util::GetStringUTF8(IDS_CHAT_UI_CHAT_DEEPSEEK_R1_SUBTITLE);

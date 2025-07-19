@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/browser_navigator.cc b/chrome/browser/ui/browser_navigator.cc
-index 474e4ba66d7afd48b1e4e9f700684b7e11bdd290..513964492da3882246d3fa13585272ef46ed10be 100644
+index 4aa87fb1afbed94d4ec73043c3189350b90b4da7..970e132e523b818f0d8fbfb9cc1a4d624d6e5d64 100644
 --- a/chrome/browser/ui/browser_navigator.cc
 +++ b/chrome/browser/ui/browser_navigator.cc
 @@ -633,6 +633,7 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
@@ -10,7 +10,7 @@ index 474e4ba66d7afd48b1e4e9f700684b7e11bdd290..513964492da3882246d3fa13585272ef
  
    // Open System Apps in their standalone window if necessary.
    // TODO(crbug.com/40136163): Remove this code after we integrate with intent
-@@ -1019,6 +1020,7 @@ bool IsURLAllowedInIncognito(const GURL& url) {
+@@ -1013,6 +1014,7 @@ bool IsURLAllowedInIncognito(const GURL& url) {
      }
      return stripped_url.is_valid() && IsURLAllowedInIncognito(stripped_url);
    }

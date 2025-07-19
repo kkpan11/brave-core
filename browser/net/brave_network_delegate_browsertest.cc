@@ -6,7 +6,7 @@
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
-#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
+#include "brave/components/brave_shields/core/browser/brave_shields_utils.h"
 #include "brave/components/brave_shields/core/common/brave_shield_constants.h"
 #include "brave/components/constants/brave_paths.h"
 #include "brave/components/constants/pref_names.h"
@@ -110,8 +110,6 @@ class BraveNetworkDelegateBrowserTest : public InProcessBrowserTest {
 
     top_level_page_pattern_ =
         ContentSettingsPattern::FromString("https://a.com/*");
-    first_party_pattern_ =
-        ContentSettingsPattern::FromString("https://firstParty/*");
 
     wordpress_top_url_ =
         https_server_.GetURL("example.wordpress.com", "/cookie_iframe.html");
@@ -230,7 +228,6 @@ class BraveNetworkDelegateBrowserTest : public InProcessBrowserTest {
 
  private:
   ContentSettingsPattern top_level_page_pattern_;
-  ContentSettingsPattern first_party_pattern_;
   ContentSettingsPattern iframe_pattern_;
 };
 

@@ -6,7 +6,7 @@
 #include "chrome/browser/ssl/https_upgrades_navigation_throttle.h"
 
 #include "base/time/time.h"
-#include "brave/components/brave_shields/content/browser/brave_shields_util.h"
+#include "brave/components/brave_shields/core/browser/brave_shields_utils.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
@@ -24,12 +24,12 @@ bool IsTor(content::NavigationHandle* handle) {
   return profile->IsTor();
 }
 
-bool NormalWindowHttpsOnly(content::NavigationHandle* handle,
+bool NormalWindowHttpsOnly(content::NavigationHandle& handle,
                            Profile* profile) {
   if (profile->IsIncognitoProfile()) {
     return false;
   }
-  const GURL& request_url = handle->GetURL();
+  const GURL& request_url = handle.GetURL();
   HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForProfile(profile);
   return brave_shields::ShouldForceHttps(map, request_url);
@@ -48,4 +48,3 @@ bool NormalWindowHttpsOnly(content::NavigationHandle* handle,
 
 #undef GetBoolean
 #undef SetNavigationTimeout
-

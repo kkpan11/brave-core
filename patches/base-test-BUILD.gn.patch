@@ -1,11 +1,11 @@
 diff --git a/base/test/BUILD.gn b/base/test/BUILD.gn
-index e7f8b523e899ab6152788f369d70729b70647140..f23f9a2af808c7133aa8c5ec12dbe7688a86f365 100644
+index 15fdad3f0cbfd2a15ab9fa63519e420dbd616b5c..ed6c21148f0351ad8eb4756eec61f82af2b1cd8c 100644
 --- a/base/test/BUILD.gn
 +++ b/base/test/BUILD.gn
-@@ -363,6 +363,7 @@ static_library("test_support") {
-       "trace_to_file.h",
-     ]
-   }
+@@ -359,6 +359,7 @@ static_library("test_support") {
+     "trace_to_file.cc",
+     "trace_to_file.h",
+   ]
 +  import("//brave/base/sources.gni") sources += brave_base_test_support_sources
  }
  
